@@ -21,7 +21,6 @@ var (
 
 func main() {
 	flag.Parse()
-
 	if flagLogLevel == nil || *flagLogLevel == "" {
 		slog.Error("log-level is required")
 		os.Exit(1)
