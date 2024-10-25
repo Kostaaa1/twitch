@@ -1,0 +1,75 @@
+package components
+
+import "github.com/Kostaaa1/twitch/internal/m3u8"
+import "strconv"
+
+type FormData struct {
+	Title 				string	
+	Slug 				string
+	PreviewThumbnailURL string
+	ViewCount 			int
+	LengthSeconds 		int
+	VariantLists 		[]m3u8.VariantPlaylist
+}
+
+templ Form(media FormData) {
+	<form 
+		action="/media/download" 
+		method="GET"	
+		class="flex w-full py-2 items-center justify-center bg-white"
+	>
+		<div>
+			<img
+				class="object-cover object-center w-full max-w-[600px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50"
+				src={media.PreviewThumbnailURL}
+				alt="nature image"
+			/>
+		</div>
+		<div class="flex flex-col w-[440px] h-full items-center gap-4 px-8 py-2">
+			<h1 class="text-xl font-semibold text-left"> {media.Title} <span class="text-slate-400">({strconv.Itoa(media.ViewCount)} views)</span></h1>
+			<div class="w-full max-w-sm min-w-[200px]">      
+				<label for="media_format" class="text-slate-400">Media format</label>
+				<div class="relative">
+					<select
+						id="media_format"
+						name="media_format"
+						class="w-full bg-transparent placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
+							for _, list := range media.VariantLists {
+								<option value={list.Video}>{list.Resolution}</option>
+							}
+					</select>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="h-5 w-5 ml-1 absolute top-2.5 right-2.5 text-slate-700">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+					</svg>
+				</div>
+			</div>
+			<div class="w-full flex justify-between">
+				<div class="w-full max-w-[180px]">
+					<div class="relative">
+						<input
+							id="media_start"
+							name="media_start"
+							class="peer w-full placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+							value=""
+						/>
+						<label for="media_start" class="absolute cursor-text bg-white px-1 left-2.5 top-2.5 text-slate-400 text-sm transition-all transform origin-left peer-focus:-top-2 peer-focus:left-2.5 peer-focus:text-xs peer-focus:text-slate-400 peer-focus:scale-90">Start</label>
+					</div>
+				</div>
+				<div class="w-full max-w-[180px]">
+					<div class="relative">
+						<input
+							id="media_end"
+							name="media_end"
+							class="peer w-full placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+							value=""
+						/>
+						<label for="media_end" class="absolute cursor-text bg-white px-1 left-2.5 top-2.5 text-slate-400 text-sm transition-all transform origin-left peer-focus:-top-2 peer-focus:left-2.5 peer-focus:text-xs peer-focus:text-slate-400 peer-focus:scale-90">End</label>
+					</div>
+				</div>
+				<input id="media_slug" name="media_slug" class="hidden" value={media.Slug} />
+			</div>
+			<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600">Download video</button>
+		</div>
+	</form>
+}
+

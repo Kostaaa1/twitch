@@ -1,0 +1,7 @@
+** GLOBAL ** 
+1. iz twitch urla moze da se ekstraktuje timestamp (&t=0h13m27s)
+2. Downloadovanje segmenata u goroutini
+
+**CLI**
+
+**WEB**

@@ -11,7 +11,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
-func truncateSegments(mediaPlaylist []byte, start, end time.Duration) []string {
+func (c *Client) GetSegments(mediaPlaylist []byte, start, end time.Duration) []string {
 	var segmentDuration float64 = 10
 	s := int(start.Seconds()/segmentDuration) * 2
 	e := int(end.Seconds()/segmentDuration) * 2
@@ -26,7 +26,11 @@ func truncateSegments(mediaPlaylist []byte, start, end time.Duration) []string {
 	return segments
 }
 
-func (c *Client) getVODMediaPlaylist(slug, quality string) (string, error) {
+func (c *Client) GetVODMediaPlaylist(slug, quality string) (string, error) {
+	if slug == "" {
+		return "", fmt.Errorf("slug is required for vod media list")
+	}
+
 	master, status, err := c.GetVODMasterM3u8(slug)
 	if err != nil && status != http.StatusForbidden {
 		return "", err
@@ -53,7 +57,7 @@ func (c *Client) getVODMediaPlaylist(slug, quality string) (string, error) {
 
 func (c *Client) DownloadVOD(unit MediaUnit) error {
 	////////////// move it to single function //////////////////
-	vodPlaylistURL, err := c.getVODMediaPlaylist(unit.Slug, unit.Quality)
+	vodPlaylistURL, err := c.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
 		return err
 	}
@@ -61,7 +65,7 @@ func (c *Client) DownloadVOD(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
-	segments := truncateSegments(mediaPlaylist, unit.Start, unit.End)
+	segments := c.GetSegments(mediaPlaylist, unit.Start, unit.End)
 	////////////////////////////////////////////////////////////
 
 	f, err := os.Create(unit.DestPath)

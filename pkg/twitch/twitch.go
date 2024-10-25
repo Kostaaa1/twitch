@@ -45,25 +45,25 @@ const (
 )
 
 type MediaUnit struct {
-	Slug     string        `json:"input"`
-	Vtype    VideoType     `json:"vtype"`
+	Slug  string    `json:"input"`
+	Vtype VideoType `json:"vtype"`
+
 	Quality  string        `json:"quality"`
 	Start    time.Duration `json:"start"`
 	End      time.Duration `json:"end"`
 	DestPath string        `json:"destPath"`
 }
 
-func (c *Client) NewMediaUnit(url, quality, output string, start, end time.Duration) (MediaUnit, error) {
-	slug, vtype, err := c.ID(url)
+func (c *Client) NewMediaUnit(URL, quality, output string, start, end time.Duration) (MediaUnit, error) {
+	slug, vtype, err := c.Slug(URL)
 	if err != nil {
 		return MediaUnit{}, err
 	}
 
 	quality = getResolution(quality, vtype)
-
 	if vtype == TypeVOD {
 		if start > 0 && end > 0 && start >= end {
-			return MediaUnit{}, fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL (%s)", start, end, url)
+			return MediaUnit{}, fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL (%s)", start, end, URL)
 		}
 	}
 
@@ -82,7 +82,7 @@ func (c *Client) NewMediaUnit(url, quality, output string, start, end time.Durat
 	}, nil
 }
 
-func (c *Client) ID(URL string) (string, VideoType, error) {
+func (c *Client) Slug(URL string) (string, VideoType, error) {
 	parsedURL, err := url.Parse(URL)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to parse the URL: %s", err)

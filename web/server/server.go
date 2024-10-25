@@ -24,8 +24,7 @@ func NewServer(addr string, handler ...Handler) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 
 	g := gin.New()
-	g.Use(middleware.Logger, gin.Recovery(),
-		middleware.AssetsCache, gzip.Gzip(gzip.DefaultCompression))
+	g.Use(middleware.Logger, gin.Recovery(), middleware.AssetsCache, gzip.Gzip(gzip.DefaultCompression))
 	g.HTMLRender = &templRenderer{}
 
 	g.StaticFS("/assets", http.FS(assets.Assets))
