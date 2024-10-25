@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 )
@@ -82,7 +81,7 @@ func (c *Client) GetClipUsherURL(slug, quality string) (string, error) {
 	return URL, nil
 }
 
-func (c *Client) DownloadClip(unit MediaUnit) error {
+func (c *Client) downloadClip(unit MediaUnit) error {
 	usherURL, err := c.GetClipUsherURL(unit.Slug, unit.Quality)
 	if err != nil {
 		return err
@@ -94,13 +93,8 @@ func (c *Client) DownloadClip(unit MediaUnit) error {
 	}
 	req.Header.Set("Client-Id", c.gqlClientID)
 
-	f, err := os.Create(unit.DestPath)
+	_, err = c.downloadSegment(req, unit.File)
 	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err := c.downloadSegment(req, f); err != nil {
 		return err
 	}
 

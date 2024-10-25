@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -37,7 +36,6 @@ func (c *Client) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	}
 
 	var vodPlaylistURL string
-
 	if status == http.StatusForbidden {
 		subUrl, err := c.getSubVODPlaylistURL(slug, quality)
 		if err != nil {
@@ -55,7 +53,7 @@ func (c *Client) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	return vodPlaylistURL, nil
 }
 
-func (c *Client) DownloadVOD(unit MediaUnit) error {
+func (c *Client) downloadVOD(unit MediaUnit) error {
 	////////////// move it to single function //////////////////
 	vodPlaylistURL, err := c.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
@@ -68,25 +66,26 @@ func (c *Client) DownloadVOD(unit MediaUnit) error {
 	segments := c.GetSegments(mediaPlaylist, unit.Start, unit.End)
 	////////////////////////////////////////////////////////////
 
-	f, err := os.Create(unit.DestPath)
-	if err != nil {
-		return err
-	}
-
 	for _, tsFile := range segments {
 		if strings.HasSuffix(tsFile, ".ts") {
 			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
-			chunkURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], tsFile)
+			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], tsFile)
 
-			req, err := http.NewRequest(http.MethodGet, chunkURL, nil)
+			req, err := http.NewRequest(http.MethodGet, segmentURL, nil)
 			if err != nil {
-				fmt.Println("failed to create request for: ", chunkURL)
+				fmt.Println("failed to create request for: ", segmentURL)
 				return err
 			}
 
-			if err := c.downloadSegment(req, f); err != nil {
-				fmt.Println("failed to downloamediaList.URLd segment: ", chunkURL, "Error: ", err)
+			n, err := c.downloadSegment(req, unit.File)
+			if err != nil {
+				fmt.Println("failed to downloamediaList.URLd segment: ", segmentURL, "Error: ", err)
 				return err
+			}
+
+			c.progressCh <- ProgresbarChanData{
+				Text:  unit.File.Name(),
+				Bytes: n,
 			}
 		}
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -117,12 +116,6 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 	tickCount := 0
 	var halfBytes *bytes.Reader
 
-	f, err := os.Create(unit.DestPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
 	for {
 		select {
 		case <-ticker.C:
@@ -145,14 +138,14 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 				half := len(bodyBytes) / 2
 				halfBytes = bytes.NewReader(bodyBytes[half:])
 
-				n, err = io.Copy(f, bytes.NewReader(bodyBytes[:half]))
+				n, err = io.Copy(unit.File, bytes.NewReader(bodyBytes[:half]))
 				if err != nil {
 					return err
 				}
 			}
 
 			if tickCount%2 == 0 && halfBytes.Len() > 0 {
-				n, err = io.Copy(f, halfBytes)
+				n, err = io.Copy(unit.File, halfBytes)
 				if err != nil {
 					return err
 				}
@@ -160,7 +153,7 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 			}
 
 			c.progressCh <- ProgresbarChanData{
-				Text:  f.Name(),
+				Text:  unit.File.Name(),
 				Bytes: n,
 			}
 		}

@@ -45,13 +45,13 @@ const (
 )
 
 type MediaUnit struct {
-	Slug  string    `json:"input"`
-	Vtype VideoType `json:"vtype"`
-
-	Quality  string        `json:"quality"`
-	Start    time.Duration `json:"start"`
-	End      time.Duration `json:"end"`
-	DestPath string        `json:"destPath"`
+	Slug    string
+	Vtype   VideoType
+	Quality string
+	Start   time.Duration
+	End     time.Duration
+	File    *os.File
+	// DestPath string
 }
 
 func (c *Client) NewMediaUnit(URL, quality, output string, start, end time.Duration) (MediaUnit, error) {
@@ -72,13 +72,18 @@ func (c *Client) NewMediaUnit(URL, quality, output string, start, end time.Durat
 		return MediaUnit{}, err
 	}
 
+	f, err := os.Create(dstPath)
+	if err != nil {
+		return MediaUnit{}, err
+	}
+
 	return MediaUnit{
-		Slug:     slug,
-		Vtype:    vtype,
-		Quality:  quality,
-		Start:    start,
-		End:      end,
-		DestPath: dstPath,
+		Slug:    slug,
+		Vtype:   vtype,
+		Quality: quality,
+		Start:   start,
+		End:     end,
+		File:    f,
 	}, nil
 }
 
@@ -265,43 +270,38 @@ func (c *Client) Download(unit MediaUnit) {
 
 	switch unit.Vtype {
 	case TypeVOD:
-		err = c.DownloadVOD(unit)
+		err = c.downloadVOD(unit)
 
 	case TypeClip:
-		err = c.DownloadClip(unit)
+		err = c.downloadClip(unit)
 
 	case TypeLivestream:
 		err = c.RecordStream(unit)
 	}
 
 	c.progressCh <- ProgresbarChanData{
-		Text:   unit.DestPath,
+		Text:   unit.File.Name(),
 		Error:  err,
 		IsDone: true,
 	}
 }
 
-func (c *Client) downloadSegment(req *http.Request, f *os.File) error {
+func (c *Client) downloadSegment(req *http.Request, w io.Writer) (int64, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to get the response from: %s", req.URL)
+		return 0, fmt.Errorf("failed to get the response from: %s", req.URL)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+		return 0, fmt.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
-	n, err := io.Copy(f, resp.Body)
+	n, err := io.Copy(w, resp.Body)
 	if err != nil {
 		fmt.Println("Failed to copy to pw: ", err)
-		return err
+		return 0, err
 	}
 
-	c.progressCh <- ProgresbarChanData{
-		Text:  f.Name(),
-		Bytes: n,
-	}
-
-	return nil
+	return n, nil
 }

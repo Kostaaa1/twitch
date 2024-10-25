@@ -95,6 +95,7 @@ func (s *Static) DownloadMedia(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Invalid media_end")
 		return
 	}
+	// getting input
 
 	vodPlaylistURL, err := s.tw.GetVODMediaPlaylist(slug, mediaFormat)
 	if err != nil {

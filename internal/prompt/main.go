@@ -2,7 +2,9 @@ package prompt
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -46,10 +48,16 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
 func processFileInput(tw *twitch.Client, input string) []twitch.MediaUnit {
+	_, err := os.Stat(input)
+	if os.IsNotExist(err) {
+		panic(err)
+	}
+
 	content, err := os.ReadFile(input)
 	if err != nil {
 		panic(err)
@@ -69,6 +77,7 @@ func processFileInput(tw *twitch.Client, input string) []twitch.MediaUnit {
 		}
 		units = append(units, unit)
 	}
+
 	return units
 }
 
@@ -95,11 +104,24 @@ func (prompt *Prompt) ProcessInput(tw *twitch.Client) []twitch.MediaUnit {
 
 	var units []twitch.MediaUnit
 
-	_, err := os.Stat(prompt.Input)
-	if os.IsNotExist(err) {
+	u, err := url.ParseRequestURI(prompt.Input)
+	fmt.Println("urls: ", u)
+
+	if err == nil {
+		fmt.Println("PROCESSING FLAGj")
 		units = processFlagInput(tw, prompt)
 	} else {
 		units = processFileInput(tw, prompt.Input)
 	}
+
+	// _, err := os.Stat(prompt.Input)
+	// if os.IsNotExist(err) {
+	// 	fmt.Println("PROCESSING FLAGj")
+	// 	units = processFlagInput(tw, prompt)
+	// } else {
+	// 	fmt.Println("PROCESSING INPUT")
+	// 	units = processFileInput(tw, prompt.Input)
+	// }
+
 	return units
 }

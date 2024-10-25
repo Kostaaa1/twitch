@@ -40,7 +40,7 @@ func main() {
 	go func() {
 		paths := make([]string, len(units))
 		for i, u := range units {
-			paths[i] = u.DestPath
+			paths[i] = u.File.Name()
 		}
 		spinner.New(paths, progressCh)
 	}()
