@@ -29,7 +29,7 @@ func Navigation() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav x-data=\"{ isOpen: false }\" class=\"bg-gradient-to-b from-violet-900 to-violet-800 text-white\"><div class=\"container px-16 py-8 mx-auto flex justify-between items-center\"><div class=\"flex gap-2 items-center font-semibold\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"18\" height=\"18\"><h3 class=\"text-2xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"flex flex-col text-gray-600 capitalize dark:text-gray-300 lg:flex-row lg:items-center\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav x-data=\"{ isOpen: false }\" class=\"text-white\"><div class=\"container px-16 py-8 mx-auto flex justify-between items-center\"><div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"18\" height=\"18\"><h3 class=\"text-2xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"flex flex-col capitalize lg:flex-row lg:items-center\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

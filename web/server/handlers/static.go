@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 )
 
 type Static struct {
-	tw *twitch.Client
+	tw *twitch.TwitchAPIClient
 }
 
 func NewStatic() *Static {
@@ -33,69 +34,88 @@ func (*Static) Home(c *gin.Context) {
 }
 
 func replaceImageDimension(imgURL string, w, h int) string {
-	lastDashIndex := strings.LastIndex(imgURL, "-")
-	if lastDashIndex == -1 {
-		return imgURL
+	re := regexp.MustCompile(`-\d+x\d+\.(jpg|png|jpeg|gif|bmp)$`)
+	if match := re.FindStringSubmatch(imgURL); len(match) > 1 {
+		ext := match[1]
+		newDimensions := fmt.Sprintf("-%dx%d.%s", w, h, ext)
+		return re.ReplaceAllString(imgURL, newDimensions)
 	}
-
-	xIndex := strings.Index(imgURL[lastDashIndex:], "x")
-	if xIndex == -1 {
-		return imgURL
-	}
-	xIndex += lastDashIndex
-
-	base := imgURL[:lastDashIndex+1]
-	newDimensions := fmt.Sprintf("%d%s%d.jpg", w, "x", h)
-
-	return base + newDimensions
+	return imgURL
 }
 
 func (s *Static) GetMediaInfo(c *gin.Context) {
 	twitchUrl := c.PostForm("twitchUrl")
+
 	slug, vtype, err := s.tw.Slug(twitchUrl)
 	if err != nil {
+		fmt.Printf("error while parsing the twitch.tv URL: %v\n", err)
 		return
 	}
+
+	var formData components.FormData
 
 	if vtype == twitch.TypeVOD {
 		metadata, err := s.tw.VideoMetadata(slug)
 		if err != nil {
+			fmt.Printf("%v\n", err)
+			return
 		}
+
 		master, _, err := s.tw.GetVODMasterM3u8(slug)
 		if err != nil {
+			return
 		}
 
-		resizedImg := replaceImageDimension(metadata.Video.PreviewThumbnailURL, 1920, 1080)
-		formData := components.FormData{
+		formData = components.FormData{
+			PreviewThumbnailURL: metadata.Video.PreviewThumbnailURL,
+			ID:                  metadata.Video.ID,
 			Title:               metadata.Video.Title,
-			Slug:                slug,
-			VariantLists:        master.Lists,
-			PreviewThumbnailURL: resizedImg,
+			CreatedAt:           metadata.Video.CreatedAt,
+			Owner:               metadata.Video.Owner.DisplayName,
 			ViewCount:           metadata.Video.ViewCount,
-			LengthSeconds:       metadata.Video.LengthSeconds,
+			VariantLists:        master.Lists,
 		}
-
-		c.HTML(http.StatusOK, "", server.WithBase(c, components.Form(formData), "Home", ""))
 	}
+
+	if vtype == twitch.TypeClip {
+		metadata, err := s.tw.ClipMetadata(slug)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("CLIP METADATA: ", metadata)
+
+		// formData = components.FormData{
+		// 	PreviewThumbnailURL: metadata.Video.PreviewThumbnailURL,
+		// 	ID:                  metadata.Video.ID,
+		// 	Title:               metadata.Video.Title,
+		// 	CreatedAt:           metadata.Video.CreatedAt,
+		// 	Owner:               metadata.Video.Owner.DisplayName,
+		// 	ViewCount:           metadata.Video.ViewCount,
+		// 	VariantLists:        master.Lists,
+		// }
+	}
+
+	resizedImg := replaceImageDimension(formData.PreviewThumbnailURL, 1920, 1080)
+	formData.PreviewThumbnailURL = resizedImg
+	c.HTML(http.StatusOK, "", server.WithBase(c, components.Form(formData), "Home", ""))
 }
 
 func (s *Static) DownloadMedia(c *gin.Context) {
-	media_start := c.Query("media_start")
-	media_end := c.Query("media_end")
+	mediaStart := c.Query("media_start")
+	mediaEnd := c.Query("media_end")
+	mediaTitle := c.Query("media_title")
 	mediaFormat := c.Query("media_format")
 	slug := c.Query("media_slug")
 
-	start, err := time.ParseDuration(media_start)
+	start, err := time.ParseDuration(mediaStart)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid media_start")
-		return
+		start = 0
 	}
-	end, err := time.ParseDuration(media_end)
+	end, err := time.ParseDuration(mediaEnd)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid media_end")
-		return
+		end = 0
 	}
-	// getting input
 
 	vodPlaylistURL, err := s.tw.GetVODMediaPlaylist(slug, mediaFormat)
 	if err != nil {
@@ -118,23 +138,30 @@ func (s *Static) DownloadMedia(c *gin.Context) {
 
 	segments := s.tw.GetSegments(mediaPlaylist, start, end)
 
-	c.Header("Content-Type", "video/mp2t")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.mp4"`, slug))
+	c.Header("Content-Type", "video/mp4")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.mp4"`, mediaTitle))
 
-	for _, tsFile := range segments {
-		lastIndex := strings.LastIndex(vodPlaylistURL, "/")
-		segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], tsFile)
+	for _, segment := range segments {
+		if strings.HasSuffix(segment, ".ts") {
+			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
+			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
 
-		segmentResp, err := http.Get(segmentURL)
-		if err != nil {
-			fmt.Println("Error fetching segment:", err)
-			continue
-		}
-		defer segmentResp.Body.Close()
+			resp, err := http.Get(segmentURL)
+			if err != nil {
+				fmt.Printf("error fetching segment %s: %v\n", segmentURL, err)
+				return
+			}
+			defer resp.Body.Close()
 
-		if _, err := io.Copy(c.Writer, segmentResp.Body); err != nil {
-			fmt.Println("Error while writing bytes to temp file:", err)
-			break
+			_, err = io.Copy(c.Writer, resp.Body)
+			if err != nil {
+				fmt.Printf("error writing segment %s: %v\n", segmentURL, err)
+				return
+			}
+
+			if f, ok := c.Writer.(http.Flusher); ok {
+				f.Flush()
+			}
 		}
 	}
 }

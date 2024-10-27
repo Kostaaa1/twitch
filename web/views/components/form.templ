@@ -2,13 +2,20 @@ package components
 
 import "github.com/Kostaaa1/twitch/internal/m3u8"
 import "strconv"
+import "time"
+
+// type FormData struct {
+// 	twitchMetadata
+// 	VariantLists 		[]m3u8.VariantPlaylist
+// }
 
 type FormData struct {
-	Title 				string	
-	Slug 				string
 	PreviewThumbnailURL string
+	ID 					string
+	Title 				string
+	Owner 				string
+	CreatedAt 			time.Time
 	ViewCount 			int
-	LengthSeconds 		int
 	VariantLists 		[]m3u8.VariantPlaylist
 }
 
@@ -20,22 +27,27 @@ templ Form(media FormData) {
 	>
 		<div>
 			<img
-				class="object-cover object-center w-full max-w-[600px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50"
+				class="object-cover object-center w-full max-w-[560px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50"
 				src={media.PreviewThumbnailURL}
-				alt="nature image"
 			/>
-		</div>
-		<div class="flex flex-col w-[440px] h-full items-center gap-4 px-8 py-2">
-			<h1 class="text-xl font-semibold text-left"> {media.Title} <span class="text-slate-400">({strconv.Itoa(media.ViewCount)} views)</span></h1>
+		</div>	
+		<div class="flex flex-col w-[440px] h-full items-start justify-start gap-4 px-8 py-2 text-lg">
+			<h1 class="text-2xl font-semibold text-left"> 
+				{media.Owner} - 
+				{media.Title}
+				<span class="text-slate-400 text-lg">
+					({strconv.Itoa(media.ViewCount)} views)
+				</span>
+			</h1>
 			<div class="w-full max-w-sm min-w-[200px]">      
-				<label for="media_format" class="text-slate-400">Media format</label>
+				<label class="block mb-2 text-slate-600">Media format</label>
 				<div class="relative">
 					<select
 						id="media_format"
 						name="media_format"
-						class="w-full bg-transparent placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
+						class="w-full bg-transparent placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
 							for _, list := range media.VariantLists {
-								<option value={list.Video}>{list.Resolution}</option>
+								<option value={list.Video}>{list.Video} ~ {list.Resolution}</option>
 							}
 					</select>
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="h-5 w-5 ml-1 absolute top-2.5 right-2.5 text-slate-700">
@@ -45,30 +57,31 @@ templ Form(media FormData) {
 			</div>
 			<div class="w-full flex justify-between">
 				<div class="w-full max-w-[180px]">
-					<div class="relative">
-						<input
-							id="media_start"
-							name="media_start"
-							class="peer w-full placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
-							value=""
-						/>
-						<label for="media_start" class="absolute cursor-text bg-white px-1 left-2.5 top-2.5 text-slate-400 text-sm transition-all transform origin-left peer-focus:-top-2 peer-focus:left-2.5 peer-focus:text-xs peer-focus:text-slate-400 peer-focus:scale-90">Start</label>
-					</div>
+					<label class="block mb-2 text-slate-600">
+						Start
+					</label>
+					<input 
+						id="media_start"
+						name="media_start"
+						class="w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+						placeholder="1h00m00s"
+					/>
 				</div>
 				<div class="w-full max-w-[180px]">
-					<div class="relative">
-						<input
-							id="media_end"
-							name="media_end"
-							class="peer w-full placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
-							value=""
-						/>
-						<label for="media_end" class="absolute cursor-text bg-white px-1 left-2.5 top-2.5 text-slate-400 text-sm transition-all transform origin-left peer-focus:-top-2 peer-focus:left-2.5 peer-focus:text-xs peer-focus:text-slate-400 peer-focus:scale-90">End</label>
-					</div>
+					<label class="block mb-2 text-slate-600">
+						End
+					</label>
+					<input 
+						id="media_end"
+						name="media_end"
+						class="w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+						placeholder="1h34m23s"
+					/>
 				</div>
-				<input id="media_slug" name="media_slug" class="hidden" value={media.Slug} />
+				<input id="media_slug" name="media_slug" class="hidden" value={media.ID} />
+				<input id="media_title" name="media_title" class="hidden" value={media.Title} />
 			</div>
-			<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600">Download video</button>
+			<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease">Download video</button>
 		</div>
 	</form>
 }

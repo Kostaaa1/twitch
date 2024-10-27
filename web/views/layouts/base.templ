@@ -65,14 +65,16 @@ templ Base(title, description string) {
 				}
 			</script>
 		</head>
-		<body class="antialiased text-black flex flex-col" hx-ext="head-support">
-			@components.Navigation()
-			<div
-				id="content"
-				hx-on:htmx:before-swap="handleServerError(event)"
-				hx-on:htmx:send-error="errorToast('A network error occurred')"
-			>
-				{ children... }
+		<body class="antialiased text-black flex flex-col bg-purple-200" hx-ext="head-support">
+			<div class="w-full h-[600px] flex flex-col bg-gradient-to-b from-violet-950 to-purple-200">
+				@components.Navigation()
+				<div
+					id="content"
+					hx-on:htmx:before-swap="handleServerError(event)"
+					hx-on:htmx:send-error="errorToast('A network error occurred')"
+				>	
+					{ children... }
+				</div>
 			</div>
 			// @components.Footer()
 		</body>
