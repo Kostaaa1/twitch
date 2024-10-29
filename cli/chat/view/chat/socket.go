@@ -3,6 +3,7 @@ package chat
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -44,19 +45,16 @@ func (c *WebSocketClient) Connect(accessToken, username string, msgChan chan int
 	c.SendMessage([]byte("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands"))
 
 	pass := fmt.Sprintf("PASS oauth:%s", accessToken)
-	fmt.Println("Pass msg: ", pass)
 	c.SendMessage([]byte(pass))
 
 	nick := fmt.Sprintf("NICK %s", username)
-	fmt.Println("Nick MSG: ", nick)
 	c.SendMessage([]byte(nick))
 
 	join := fmt.Sprintf("JOIN #%s", strings.Join(channels, ",#"))
-	fmt.Println("JOIN MSG: ", join)
 	c.SendMessage([]byte(join))
 
-	// pattern := `\b(PING|PRIVMSG|ROOMSTATE|USERNOTICE|USERSTATE|NOTICE|GLOBALUSERSTATE|CLEARMSG|CLEARCHAT)\b`
-	// re := regexp.MustCompile(pattern)
+	pattern := `\b(PING|PRIVMSG|ROOMSTATE|USERNOTICE|USERSTATE|NOTICE|GLOBALUSERSTATE|CLEARMSG|CLEARCHAT)\b`
+	re := regexp.MustCompile(pattern)
 
 	for {
 		msgType, msg, err := c.Conn.ReadMessage()
@@ -67,31 +65,30 @@ func (c *WebSocketClient) Connect(accessToken, username string, msgChan chan int
 
 		if msgType == websocket.TextMessage {
 			rawIRCMessage := strings.TrimSpace(string(msg))
-			fmt.Println("MSG:", rawIRCMessage)
 
-			// msgChan <- rawIRCMessage
-			// tags := re.FindStringSubmatch(rawIRCMessage)
-			// if len(tags) > 1 {
-			// 	tag := tags[1]
-			// 	switch tag {
-			// 	case "USERSTATE":
-			// 		m := parseROOMSTATE(rawIRCMessage)
-			// 		msgChan <- m
-			// 	case "PRIVMSG":
-			// 		parsed := parsePRIVMSG(rawIRCMessage)
-			// 		msgChan <- parsed
-			// 	case "USERNOTICE":
-			// 		parseUSERNOTICE(rawIRCMessage, msgChan)
-			// 	case "PING":
-			// 		c.SendMessage([]byte("PONG :tmi.twitch.tv"))
-			// 	case "NOTICE":
-			// 		parsed := parseNOTICE(rawIRCMessage)
-			// 		if parsed.MsgID == "msg_banned" {
-			// 			c.LeaveChannel(parsed.DisplayName)
-			// 		}
-			// 		msgChan <- parsed
-			// 	}
-			// }
+			msgChan <- rawIRCMessage
+			tags := re.FindStringSubmatch(rawIRCMessage)
+			if len(tags) > 1 {
+				tag := tags[1]
+				switch tag {
+				case "USERSTATE":
+					m := parseROOMSTATE(rawIRCMessage)
+					msgChan <- m
+				case "PRIVMSG":
+					parsed := parsePRIVMSG(rawIRCMessage)
+					msgChan <- parsed
+				case "USERNOTICE":
+					parseUSERNOTICE(rawIRCMessage, msgChan)
+				case "PING":
+					c.SendMessage([]byte("PONG :tmi.twitch.tv"))
+				case "NOTICE":
+					parsed := parseNOTICE(rawIRCMessage)
+					if parsed.MsgID == "msg_banned" {
+						c.LeaveChannel(parsed.DisplayName)
+					}
+					msgChan <- parsed
+				}
+			}
 		}
 	}
 }

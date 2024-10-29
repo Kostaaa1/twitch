@@ -26,7 +26,7 @@ func (i item) FilterValue() string { return i.title }
 
 type model struct {
 	list   list.Model
-	twitch *twitch.Client
+	twitch *twitch.API
 	cfg    *config.Data
 }
 
@@ -40,6 +40,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+
 		if msg.String() == "enter" {
 			item := m.list.SelectedItem().FilterValue()
 			if strings.HasPrefix(item, "Chats") {
@@ -60,7 +61,7 @@ func (m model) View() string {
 	return docStyle.Render(m.list.View())
 }
 
-func Open(twitch *twitch.Client, cfg *config.Data) {
+func Open(twitch *twitch.API, cfg *config.Data) {
 	var items = []list.Item{
 		item{title: "Chats", desc: "Open chats."},
 		item{title: "???", desc: "Add list."},

@@ -2,7 +2,9 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -55,6 +57,10 @@ func CreateServingID() string {
 }
 
 func ConstructPathname(dstPath, filename, quality string) (string, error) {
+	if dstPath == "" {
+		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via config.json (outputPath)")
+	}
+
 	info, err := os.Stat(dstPath)
 	if os.IsNotExist(err) {
 		if filepath.Ext(dstPath) != "" {
@@ -100,4 +106,52 @@ func ChangeImageResolution(imgURL string, w, h int) (string, error) {
 	}
 
 	return "", nil
+}
+
+func SegmentFileName(segmentURL string) string {
+	parts := strings.Split(segmentURL, "/")
+	return parts[len(parts)-1]
+}
+
+func ConcatenateSegments(outputFile io.Writer, segments []string, tempDir string) error {
+	for _, tsFile := range segments {
+		if !strings.HasSuffix(tsFile, ".ts") {
+			continue
+		}
+
+		tempFilePath := fmt.Sprintf("%s/%s", tempDir, SegmentFileName(tsFile))
+
+		tempFile, err := os.Open(tempFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to open temp file %s: %w", tempFilePath, err)
+		}
+
+		if _, err := io.Copy(outputFile, tempFile); err != nil {
+			tempFile.Close()
+			return fmt.Errorf("failed to write segment to output file: %w", err)
+		}
+		tempFile.Close()
+	}
+	return nil
+}
+
+func DownloadSegmentToFile(segmentURL, tempFilePath string) (int64, error) {
+	resp, err := http.Get(segmentURL)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get response: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
+	}
+
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	return io.Copy(tempFile, resp.Body)
+
 }

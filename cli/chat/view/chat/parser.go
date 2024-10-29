@@ -242,6 +242,7 @@ func isNoticeValid(notice Notice) {
 	}
 }
 
+// Did not handle the error cases properly, where login failed, unauthenticated (due to not having permissions for IRC), maybe more...
 func parseNOTICE(rawMsg string) Notice {
 	var notice Notice
 	parts := strings.Split(rawMsg[1:], " :")

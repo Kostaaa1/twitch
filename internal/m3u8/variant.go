@@ -28,7 +28,15 @@ func parseVariantPlaylist(line, URL string) VariantPlaylist {
 		case "RESOLUTION":
 			variant.Resolution = value
 		case "VIDEO":
-			variant.Video = strings.Trim(value, `"`)
+			v := strings.Trim(value, `"`)
+			variant.Video = v
+
+			if v == "chunked" {
+				variant.Video = "1080p60"
+			} else if v == "audio_only" {
+				variant.Resolution = "Audio only"
+			}
+
 		case "FRAME-RATE":
 			variant.FrameRate = value
 		}

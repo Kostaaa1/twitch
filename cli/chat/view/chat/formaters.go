@@ -57,7 +57,7 @@ func FormatChatMessage(message ChatMessage, width int) string {
 	} else {
 		firstMsgColor := viper.GetString("colors.messages.first")
 		box := NewBoxWithLabel(firstMsgColor)
-		return box.RenderBox(" First message ", msg)
+		return box.RenderBox(lipgloss.NewStyle().Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
 	}
 }
 

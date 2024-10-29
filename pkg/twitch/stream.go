@@ -11,7 +11,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
-func (c *Client) GetLivestreamCreds(id string) (string, string, error) {
+func (api *API) GetLivestreamCreds(id string) (string, string, error) {
 	gqlPl := `{
 		"operationName": "PlaybackAccessToken_Template",
 		"query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -32,14 +32,14 @@ func (c *Client) GetLivestreamCreds(id string) (string, string, error) {
 	var data payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, id))
-	if err := c.sendGqlLoadAndDecode(body, &data); err != nil {
+	if err := api.sendGqlLoadAndDecode(body, &data); err != nil {
 		return "", "", err
 	}
 	return data.Data.VideoPlaybackAccessToken.Value, data.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (c *Client) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
-	isLive, err := c.IsChannelLive(channel)
+func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
+	isLive, err := api.IsChannelLive(channel)
 	if err != nil {
 		return nil, err
 	}
@@ -47,15 +47,15 @@ func (c *Client) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, 
 		return nil, fmt.Errorf("%s is offline", channel)
 	}
 
-	tok, sig, err := c.GetLivestreamCreds(channel)
+	tok, sig, err := api.GetLivestreamCreds(channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
 	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true",
-		c.usherURL, channel, tok, sig)
+		api.usherURL, channel, tok, sig)
 
-	resp, err := c.client.Get(u)
+	resp, err := api.client.Get(u)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +74,8 @@ func (c *Client) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, 
 	return master, nil
 }
 
-func (c *Client) GetStreamMediaPlaylist(channel, quality string) (*m3u8.VariantPlaylist, error) {
-	master, err := c.GetStreamMasterPlaylist(channel)
+func (api *API) GetStreamMediaPlaylist(channel, quality string) (*m3u8.VariantPlaylist, error) {
+	master, err := api.GetStreamMasterPlaylist(channel)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +96,8 @@ func isAdRunning(segments []string) int {
 	return 0
 }
 
-func (c *Client) RecordStream(unit MediaUnit) error {
-	isLive, err := c.IsChannelLive(unit.Slug)
+func (api *API) RecordStream(unit MediaUnit) error {
+	isLive, err := api.IsChannelLive(unit.Slug)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 		return fmt.Errorf("%s is offline", unit.Slug)
 	}
 
-	mediaList, err := c.GetStreamMediaPlaylist(unit.Slug, unit.Quality)
+	mediaList, err := api.GetStreamMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
 		return fmt.Errorf("failed to get media playlist: %w", err)
 	}
@@ -123,14 +123,15 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 			var n int64
 
 			if tickCount%2 != 0 {
-				b, err := c.fetch(mediaList.URL)
+				// TODO: no need to fetch every time, just add 1 to last .ts file (current 182.ts - next 183.ts)
+				b, err := api.fetch(mediaList.URL)
 				if err != nil {
 					return fmt.Errorf("failed to fetch playlist: %w", err)
 				}
 				segments := strings.Split(string(b), "\n")
 				tsURL := segments[len(segments)-2]
 
-				bodyBytes, err := c.fetch(tsURL)
+				bodyBytes, err := api.fetch(tsURL)
 				if err != nil {
 					return err
 				}
@@ -152,7 +153,7 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 				halfBytes.Reset([]byte{})
 			}
 
-			c.progressCh <- ProgresbarChanData{
+			api.progressCh <- ProgresbarChanData{
 				Text:  unit.File.Name(),
 				Bytes: n,
 			}
@@ -160,8 +161,8 @@ func (c *Client) RecordStream(unit MediaUnit) error {
 	}
 }
 
-func (c *Client) OpenStreamInMediaPlayer(channel string) error {
-	media, err := c.GetStreamMediaPlaylist(channel, "best")
+func (api *API) OpenStreamInMediaPlayer(channel string) error {
+	media, err := api.GetStreamMediaPlaylist(channel, "best")
 	if err != nil {
 		return err
 	}

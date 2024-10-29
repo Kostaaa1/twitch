@@ -59,15 +59,15 @@ type UserData struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func (c *Client) GetUserInfo(loginName string) (*UserData, error) {
-	u := fmt.Sprintf("%s/users?login=%s", c.helixURL, loginName)
-	req, err := c.NewGetRequest(u)
+func (api *API) GetUserInfo(loginName string) (*UserData, error) {
+	u := fmt.Sprintf("%s/users?login=%s", api.helixURL, loginName)
+	req, err := api.NewGetRequest(u)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", c.config.Creds.ClientID)
-	req.Header.Set("Authorization", c.GetToken())
-	resp, err := c.do(req)
+	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+	req.Header.Set("Authorization", api.GetToken())
+	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -90,15 +90,15 @@ func (c *Client) GetUserInfo(loginName string) (*UserData, error) {
 	return &user.Data[0], nil
 }
 
-func (c *Client) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
-	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", c.helixURL, broadcasterID)
-	req, err := c.NewGetRequest(u)
+func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
+	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", api.helixURL, broadcasterID)
+	req, err := api.NewGetRequest(u)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", c.config.Creds.ClientID)
-	req.Header.Set("Authorization", c.GetToken())
-	resp, err := c.do(req)
+	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+	req.Header.Set("Authorization", api.GetToken())
+	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -118,15 +118,15 @@ func (c *Client) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
 	return &channel.Data[0], nil
 }
 
-func (c *Client) GetFollowedStreams(id string) (*Streams, error) {
-	u := fmt.Sprintf("%s/streams/followed?user_id=%s", c.helixURL, id)
-	req, err := c.NewGetRequest(u)
+func (api *API) GetFollowedStreams(id string) (*Streams, error) {
+	u := fmt.Sprintf("%s/streams/followed?user_id=%s", api.helixURL, id)
+	req, err := api.NewGetRequest(u)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", c.config.Creds.ClientID)
-	req.Header.Set("Authorization", c.GetToken())
-	resp, err := c.do(req)
+	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+	req.Header.Set("Authorization", api.GetToken())
+	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -143,15 +143,15 @@ func (c *Client) GetFollowedStreams(id string) (*Streams, error) {
 	return &streams, nil
 }
 
-func (c *Client) GetStream(userId string) (*Streams, error) {
-	u := fmt.Sprintf("%s/streams?user_id=%s", c.helixURL, userId)
-	req, err := c.NewGetRequest(u)
+func (api *API) GetStream(userId string) (*Streams, error) {
+	u := fmt.Sprintf("%s/streams?user_id=%s", api.helixURL, userId)
+	req, err := api.NewGetRequest(u)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", c.config.Creds.ClientID)
-	req.Header.Set("Authorization", c.GetToken())
-	resp, err := c.do(req)
+	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+	req.Header.Set("Authorization", api.GetToken())
+	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
+	"github.com/Kostaaa1/twitch/internal/utils"
 )
 
-func (c *Client) GetSegments(mediaPlaylist []byte, start, end time.Duration) []string {
+func (api *API) GetSegments(mediaPlaylist []byte, start, end time.Duration) []string {
 	var segmentDuration float64 = 10
 	s := int(start.Seconds()/segmentDuration) * 2
 	e := int(end.Seconds()/segmentDuration) * 2
@@ -25,19 +29,19 @@ func (c *Client) GetSegments(mediaPlaylist []byte, start, end time.Duration) []s
 	return segments
 }
 
-func (c *Client) GetVODMediaPlaylist(slug, quality string) (string, error) {
+func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	if slug == "" {
 		return "", fmt.Errorf("slug is required for vod media list")
 	}
 
-	master, status, err := c.GetVODMasterM3u8(slug)
+	master, status, err := api.GetVODMasterM3u8(slug)
 	if err != nil && status != http.StatusForbidden {
 		return "", err
 	}
 
 	var vodPlaylistURL string
 	if status == http.StatusForbidden {
-		subUrl, err := c.getSubVODPlaylistURL(slug, quality)
+		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
 		if err != nil {
 			return "", err
 		}
@@ -53,41 +57,53 @@ func (c *Client) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	return vodPlaylistURL, nil
 }
 
-func (c *Client) downloadVOD(unit MediaUnit) error {
-	////////////// move it to single function //////////////////
-	vodPlaylistURL, err := c.GetVODMediaPlaylist(unit.Slug, unit.Quality)
+func (api *API) downloadVOD(unit MediaUnit) error {
+	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
 		return err
 	}
-	mediaPlaylist, err := c.fetch(vodPlaylistURL)
+	mediaPlaylist, err := api.fetch(vodPlaylistURL)
 	if err != nil {
 		return err
 	}
-	segments := c.GetSegments(mediaPlaylist, unit.Start, unit.End)
-	////////////////////////////////////////////////////////////
+	segments := api.GetSegments(mediaPlaylist, unit.Start, unit.End)
 
-	for _, tsFile := range segments {
-		if strings.HasSuffix(tsFile, ".ts") {
+	tempDir, _ := os.MkdirTemp("", fmt.Sprintf("vod_segments_%s", unit.Slug))
+	defer os.RemoveAll(tempDir)
+
+	var maxConcurrency = runtime.NumCPU()
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+
+	for _, segment := range segments {
+		if strings.HasSuffix(segment, ".ts") {
 			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
-			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], tsFile)
+			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
+			wg.Add(1)
 
-			req, err := http.NewRequest(http.MethodGet, segmentURL, nil)
-			if err != nil {
-				fmt.Println("failed to create request for: ", segmentURL)
-				return err
-			}
+			go func(url string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
 
-			n, err := c.downloadSegment(req, unit.File)
-			if err != nil {
-				fmt.Println("failed to downloamediaList.URLd segment: ", segmentURL, "Error: ", err)
-				return err
-			}
+				tempFilePath := fmt.Sprintf("%s/%s", tempDir, utils.SegmentFileName(url))
+				n, err := api.downloadSegmentToFile(segmentURL, tempFilePath)
+				if err != nil {
+					fmt.Printf("error downloading segment %s: %v\n", url, err)
+				}
 
-			c.progressCh <- ProgresbarChanData{
-				Text:  unit.File.Name(),
-				Bytes: n,
-			}
+				api.progressCh <- ProgresbarChanData{
+					Text:  unit.File.Name(),
+					Bytes: n,
+				}
+			}(segmentURL)
 		}
+	}
+
+	wg.Wait()
+
+	if err := utils.ConcatenateSegments(unit.File, segments, tempDir); err != nil {
+		return fmt.Errorf("failed to concatenate segments: %w", err)
 	}
 
 	return nil
@@ -99,7 +115,7 @@ type VideoCredResponse struct {
 	Value     string `json:"value"`
 }
 
-func (c *Client) getVideoCredentials(id string) (string, string, error) {
+func (api *API) getVideoCredentials(id string) (string, string, error) {
 	gqlPayload := `{
 	    "operationName": "PlaybackAccessToken_Template",
 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -119,27 +135,28 @@ func (c *Client) getVideoCredentials(id string) (string, string, error) {
 		} `json:"data"`
 	}
 	var p payload
-	if err := c.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
 		return "", "", err
 	}
 
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (c *Client) GetVODMasterM3u8(slug string) (*m3u8.MasterPlaylist, int, error) {
-	token, sig, err := c.getVideoCredentials(slug)
+func (api *API) GetVODMasterM3u8(slug string) (*m3u8.MasterPlaylist, int, error) {
+	token, sig, err := api.getVideoCredentials(slug)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
 
-	u := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", c.usherURL, slug, token, sig)
+	u := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", api.usherURL, slug, token, sig)
 
-	b, code, err := c.fetchWithCode(u)
+	b, code, err := api.fetchWithCode(u)
 	if err != nil {
 		return nil, code, err
 	}
 
-	return m3u8.New(b), code, nil
+	master := m3u8.New(b)
+	return master, code, nil
 }
 
 type SubVODResponse struct {
@@ -159,14 +176,14 @@ type SubVODResponse struct {
 	} `json:"extensions"`
 }
 
-func (c *Client) getSubVODPlaylistURL(slug, quality string) (string, error) {
+func (api *API) getSubVODPlaylistURL(slug, quality string) (string, error) {
 	gqlPayload := `{
  	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
 	}`
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
 
 	var p SubVODResponse
-	if err := c.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
 		return "", err
 	}
 
@@ -201,23 +218,6 @@ func (c *Client) getSubVODPlaylistURL(slug, quality string) (string, error) {
 
 	return url, nil
 }
-
-// type VideoMetadata struct {
-// 	Typename  string    `json:"__typename"`
-// 	CreatedAt time.Time `json:"createdAt"`
-// 	Game      struct {
-// 		Typename    string `json:"__typename"`
-// 		DisplayName string `json:"displayName"`
-// 		ID          string `json:"id"`
-// 	} `json:"game"`
-// 	ID    string `json:"id"`
-// 	Owner struct {
-// 		Typename string `json:"__typename"`
-// 		ID       string `json:"id"`
-// 		Login    string `json:"login"`
-// 	} `json:"owner"`
-// 	Title string `json:"title"`
-// }
 
 type VideoMetadata struct {
 	User struct {
@@ -266,7 +266,7 @@ type VideoMetadata struct {
 	} `json:"video"`
 }
 
-func (c *Client) VideoMetadata(id string) (VideoMetadata, error) {
+func (api *API) VideoMetadata(id string) (VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
 		"variables": {
@@ -285,9 +285,11 @@ func (c *Client) VideoMetadata(id string) (VideoMetadata, error) {
 		Data VideoMetadata `json:"data"`
 	}
 	var p payload
+
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
-	if err := c.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
 		return VideoMetadata{}, err
 	}
+
 	return p.Data, nil
 }

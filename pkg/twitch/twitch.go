@@ -24,7 +24,7 @@ type ProgresbarChanData struct {
 	IsDone bool
 }
 
-type Client struct {
+type API struct {
 	config      config.Data
 	client      *http.Client
 	gqlURL      string
@@ -51,11 +51,10 @@ type MediaUnit struct {
 	Start   time.Duration
 	End     time.Duration
 	File    *os.File
-	// DestPath string
 }
 
-func (c *Client) NewMediaUnit(URL, quality, output string, start, end time.Duration) (MediaUnit, error) {
-	slug, vtype, err := c.Slug(URL)
+func (tw *API) NewMediaUnit(URL, quality, output string, start, end time.Duration) (MediaUnit, error) {
+	slug, vtype, err := tw.Slug(URL)
 	if err != nil {
 		return MediaUnit{}, err
 	}
@@ -87,7 +86,7 @@ func (c *Client) NewMediaUnit(URL, quality, output string, start, end time.Durat
 	}, nil
 }
 
-func (c *Client) Slug(URL string) (string, VideoType, error) {
+func (tw *API) Slug(URL string) (string, VideoType, error) {
 	parsedURL, err := url.Parse(URL)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to parse the URL: %s", err)
@@ -112,13 +111,13 @@ func (c *Client) Slug(URL string) (string, VideoType, error) {
 	return s[1], TypeLivestream, nil
 }
 
-func New() *Client {
+func New() *API {
 	cfg, err := config.Get()
 	if err != nil {
 		panic(err)
 	}
 
-	return &Client{
+	return &API{
 		client:      http.DefaultClient,
 		config:      *cfg,
 		gqlURL:      "https://gql.twitch.tv/gql",
@@ -131,8 +130,8 @@ func New() *Client {
 	}
 }
 
-func (c *Client) do(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
+func (tw *API) do(req *http.Request) (*http.Response, error) {
+	resp, err := tw.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request: %s", err)
 	}
@@ -146,8 +145,8 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *Client) fetchWithCode(url string) ([]byte, int, error) {
-	resp, err := c.client.Get(url)
+func (tw *API) fetchWithCode(url string) ([]byte, int, error) {
+	resp, err := tw.client.Get(url)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -164,8 +163,8 @@ func (c *Client) fetchWithCode(url string) ([]byte, int, error) {
 	return bytes, resp.StatusCode, nil
 }
 
-func (c *Client) fetch(url string) ([]byte, error) {
-	resp, err := c.client.Get(url)
+func (tw *API) fetch(url string) ([]byte, error) {
+	resp, err := tw.client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -182,7 +181,7 @@ func (c *Client) fetch(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (c *Client) NewGetRequest(URL string) (*http.Request, error) {
+func (tw *API) NewGetRequest(URL string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, URL, nil)
 	if err != nil {
 		return nil, err
@@ -190,7 +189,7 @@ func (c *Client) NewGetRequest(URL string) (*http.Request, error) {
 	return req, nil
 }
 
-func (c *Client) decodeJSONResponse(resp *http.Response, p interface{}) error {
+func (tw *API) decodeJSONResponse(resp *http.Response, p interface{}) error {
 	defer resp.Body.Close()
 	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
 		return err
@@ -198,28 +197,31 @@ func (c *Client) decodeJSONResponse(resp *http.Response, p interface{}) error {
 	return nil
 }
 
-func (c *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
-	req, err := http.NewRequest(http.MethodPost, c.gqlURL, body)
+func (tw *API) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
+	req, err := http.NewRequest(http.MethodPost, tw.gqlURL, body)
 	if err != nil {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
 	}
-	req.Header.Set("Client-Id", c.gqlClientID)
-	resp, err := c.do(req)
+
+	req.Header.Set("Client-Id", tw.gqlClientID)
+
+	resp, err := tw.do(req)
 	if err != nil {
 		return err
 	}
-	if err := c.decodeJSONResponse(resp, &v); err != nil {
+
+	if err := tw.decodeJSONResponse(resp, &v); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Client) SetProgressChannel(progressCh chan ProgresbarChanData) {
-	c.progressCh = progressCh
+func (tw *API) SetProgressChannel(progressCh chan ProgresbarChanData) {
+	tw.progressCh = progressCh
 }
 
-func (c *Client) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", c.decapiURL, channelName)
+func (tw *API) IsChannelLive(channelName string) (bool, error) {
+	u := fmt.Sprintf("%s/%s", tw.decapiURL, channelName)
 
 	resp, err := http.Get(u)
 	if err != nil {
@@ -242,11 +244,11 @@ func (c *Client) IsChannelLive(channelName string) (bool, error) {
 	return !strings.Contains(string(b), "offline"), nil
 }
 
-func (c *Client) GetToken() string {
-	return fmt.Sprintf("Bearer %s", c.config.Creds.AccessToken)
+func (tw *API) GetToken() string {
+	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
 }
 
-func (c *Client) BatchDownload(units []MediaUnit) {
+func (tw *API) BatchDownload(units []MediaUnit) {
 	climit := runtime.GOMAXPROCS(0)
 
 	var wg sync.WaitGroup
@@ -258,50 +260,77 @@ func (c *Client) BatchDownload(units []MediaUnit) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			c.Download(unit)
+			tw.Download(unit)
 		}(unit)
 	}
 
 	wg.Wait()
 }
 
-func (c *Client) Download(unit MediaUnit) {
+func (tw *API) Download(unit MediaUnit) {
 	var err error
 
 	switch unit.Vtype {
 	case TypeVOD:
-		err = c.downloadVOD(unit)
-
+		err = tw.downloadVOD(unit)
 	case TypeClip:
-		err = c.downloadClip(unit)
-
+		err = tw.downloadClip(unit)
 	case TypeLivestream:
-		err = c.RecordStream(unit)
+		err = tw.RecordStream(unit)
 	}
 
-	c.progressCh <- ProgresbarChanData{
+	tw.progressCh <- ProgresbarChanData{
 		Text:   unit.File.Name(),
 		Error:  err,
 		IsDone: true,
 	}
 }
 
-func (c *Client) downloadSegment(req *http.Request, w io.Writer) (int64, error) {
-	resp, err := c.client.Do(req)
+func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {
+	req, err := http.NewRequest(http.MethodGet, segmentURL, nil)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get the response from: %s", req.URL)
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := api.client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get response: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("received non-OK response status: %s", resp.Status)
+		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
 	}
 
 	n, err := io.Copy(w, resp.Body)
 	if err != nil {
-		fmt.Println("Failed to copy to pw: ", err)
-		return 0, err
+		return 0, fmt.Errorf("failed to write to file: %w", err)
 	}
 
 	return n, nil
+}
+
+func (api *API) downloadSegmentToFile(segmentURL, tempFilePath string) (int64, error) {
+	req, err := http.NewRequest(http.MethodGet, segmentURL, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := api.client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get response: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
+	}
+
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	return io.Copy(tempFile, resp.Body)
 }

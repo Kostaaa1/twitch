@@ -96,7 +96,7 @@ type Chat struct {
 }
 
 type Model struct {
-	twitch              *twitch.Client
+	twitch              *twitch.API
 	ws                  *WebSocketClient
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
@@ -118,7 +118,7 @@ func (e errMsg) Error() string {
 	return e.err.Error()
 }
 
-func Open(twitch *twitch.Client, cfg *config.Data) {
+func Open(twitch *twitch.API, cfg *config.Data) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()
@@ -132,6 +132,7 @@ func Open(twitch *twitch.Client, cfg *config.Data) {
 	if err != nil {
 		panic(err)
 	}
+
 	go func() {
 		if err := ws.Connect(cfg.Creds.AccessToken, cfg.Creds.ClientID, msgChan, cfg.OpenedChats); err != nil {
 			fmt.Println("Connection error: ", err)
@@ -291,15 +292,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// 	// }()
 			// }
 
-			if chanMsg.Err != nil {
-				m.ws.Conn.Close()
-				panic(chanMsg.Err)
-			}
-
-			// chat := m.getChat(chanMsg.DisplayName)
-			// if chat != nil {
-			// 	m.appendMessage(chat, chanMsg.SystemMsg)
+			// if chanMsg.Err != nil {
+			// 	m.ws.Conn.Close()
+			// 	panic(chanMsg.Err)
 			// }
+
+			chat := m.getChat(chanMsg.DisplayName)
+			if chat != nil {
+				m.appendMessage(chat, chanMsg.SystemMsg)
+			}
 		}
 		return m, m.waitForMsg()
 	}
@@ -391,7 +392,6 @@ func (m *Model) addChat(channelName string) {
 		newChannels = append(newChannels, c.Channel)
 	}
 	viper.Set("openedChats", newChannels)
-	// viper.WriteConfig()
 }
 
 func (m *Model) addRoomToChat(chanMsg Room) {

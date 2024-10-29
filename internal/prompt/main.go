@@ -2,7 +2,6 @@ package prompt
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -12,12 +11,18 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
+// type PromptFilter struct {
+// 	Day   string `json:"day,24h"`
+// 	Week  string `json:"week,7d"`
+// 	Month string `json:"month,30d"`
+// }
+
 type Prompt struct {
-	Input   string        `json:"url"`
+	Input   string        `json:"input,url"`
 	Quality string        `json:"quality"`
 	Start   time.Duration `json:"start"`
 	End     time.Duration `json:"end"`
-	Output  string        `json:"output"`
+	Output  string        `json:"destpath,dstpath,output"`
 }
 
 func (p *Prompt) UnmarshalJSON(b []byte) error {
@@ -52,20 +57,20 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func processFileInput(tw *twitch.Client, input string) []twitch.MediaUnit {
+func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 	_, err := os.Stat(input)
 	if os.IsNotExist(err) {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	content, err := os.ReadFile(input)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var body []Prompt
 	if err := json.Unmarshal(content, &body); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var units []twitch.MediaUnit
@@ -73,7 +78,7 @@ func processFileInput(tw *twitch.Client, input string) []twitch.MediaUnit {
 	for _, b := range body {
 		unit, err := tw.NewMediaUnit(b.Input, b.Quality, b.Output, b.Start, b.End)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		units = append(units, unit)
 	}
@@ -81,15 +86,14 @@ func processFileInput(tw *twitch.Client, input string) []twitch.MediaUnit {
 	return units
 }
 
-func processFlagInput(tw *twitch.Client, prompt *Prompt) []twitch.MediaUnit {
+func processFlagInput(tw *twitch.API, prompt *Prompt) []twitch.MediaUnit {
 	urls := strings.Split(prompt.Input, ",")
-
 	var units []twitch.MediaUnit
 
 	for _, url := range urls {
 		unit, err := tw.NewMediaUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		units = append(units, unit)
 	}
@@ -97,31 +101,20 @@ func processFlagInput(tw *twitch.Client, prompt *Prompt) []twitch.MediaUnit {
 	return units
 }
 
-func (prompt *Prompt) ProcessInput(tw *twitch.Client) []twitch.MediaUnit {
+func (prompt *Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	if prompt.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
 
 	var units []twitch.MediaUnit
 
-	u, err := url.ParseRequestURI(prompt.Input)
-	fmt.Println("urls: ", u)
+	_, err := url.ParseRequestURI(prompt.Input)
 
 	if err == nil {
-		fmt.Println("PROCESSING FLAGj")
 		units = processFlagInput(tw, prompt)
 	} else {
 		units = processFileInput(tw, prompt.Input)
 	}
-
-	// _, err := os.Stat(prompt.Input)
-	// if os.IsNotExist(err) {
-	// 	fmt.Println("PROCESSING FLAGj")
-	// 	units = processFlagInput(tw, prompt)
-	// } else {
-	// 	fmt.Println("PROCESSING INPUT")
-	// 	units = processFileInput(tw, prompt.Input)
-	// }
 
 	return units
 }

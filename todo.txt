@@ -2,6 +2,9 @@
 1. iz twitch urla moze da se ekstraktuje timestamp (&t=0h13m27s)
 2. Downloadovanje segmenata u goroutini
 
+NewMediaUnit - add better URL parsing. Extract timestamps, etc.
+
 **CLI**
 
 **WEB**
+1. Change server code, so it does not use gin, do everything with stdlib http package (maybe gorilla/mux)
