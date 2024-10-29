@@ -16,7 +16,7 @@ import (
 )
 
 type Static struct {
-	tw *twitch.TwitchAPIClient
+	tw *twitch.API
 }
 
 func NewStatic() *Static {
@@ -53,6 +53,7 @@ func (s *Static) GetMediaInfo(c *gin.Context) {
 	}
 
 	var formData components.FormData
+	var qualities []components.Quality
 
 	if vtype == twitch.TypeVOD {
 		metadata, err := s.tw.VideoMetadata(slug)
@@ -66,6 +67,13 @@ func (s *Static) GetMediaInfo(c *gin.Context) {
 			return
 		}
 
+		for _, list := range master.Lists {
+			qualities = append(qualities, components.Quality{
+				Resolution: list.Resolution,
+				Video:      list.Video,
+			})
+		}
+
 		formData = components.FormData{
 			PreviewThumbnailURL: metadata.Video.PreviewThumbnailURL,
 			ID:                  metadata.Video.ID,
@@ -73,27 +81,36 @@ func (s *Static) GetMediaInfo(c *gin.Context) {
 			CreatedAt:           metadata.Video.CreatedAt,
 			Owner:               metadata.Video.Owner.DisplayName,
 			ViewCount:           metadata.Video.ViewCount,
-			VariantLists:        master.Lists,
+			Qualities:           qualities,
 		}
 	}
 
 	if vtype == twitch.TypeClip {
-		metadata, err := s.tw.ClipMetadata(slug)
+		clip, err := s.tw.ClipData(slug)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("CLIP METADATA: ", metadata)
 
-		// formData = components.FormData{
-		// 	PreviewThumbnailURL: metadata.Video.PreviewThumbnailURL,
-		// 	ID:                  metadata.Video.ID,
-		// 	Title:               metadata.Video.Title,
-		// 	CreatedAt:           metadata.Video.CreatedAt,
-		// 	Owner:               metadata.Video.Owner.DisplayName,
-		// 	ViewCount:           metadata.Video.ViewCount,
-		// 	VariantLists:        master.Lists,
+		clipData, _ := s.tw.GetClipData(slug)
+		fmt.Println("\nCLIPDATA: ", clipData)
+
+		// for _, quality := range clip.VideoQualities {
+		// 	qualities = append(qualities, components.Quality{
+		// 		Resolution: quality,
+		// 		Video:      list.Video,
+		// 	})
 		// }
+
+		formData = components.FormData{
+			PreviewThumbnailURL: clip.ThumbnailURL,
+			ID:                  clip.Slug,
+			Title:               clip.Video.Title,
+			CreatedAt:           clip.CreatedAt,
+			Owner:               clip.Broadcaster.DisplayName,
+			ViewCount:           clip.ViewCount,
+			Qualities:           qualities,
+		}
 	}
 
 	resizedImg := replaceImageDimension(formData.PreviewThumbnailURL, 1920, 1080)

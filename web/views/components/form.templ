@@ -1,6 +1,5 @@
 package components
 
-import "github.com/Kostaaa1/twitch/internal/m3u8"
 import "strconv"
 import "time"
 
@@ -9,6 +8,11 @@ import "time"
 // 	VariantLists 		[]m3u8.VariantPlaylist
 // }
 
+type Quality struct {
+	Resolution string	
+	Video 	   string
+}
+
 type FormData struct {
 	PreviewThumbnailURL string
 	ID 					string
@@ -16,7 +20,7 @@ type FormData struct {
 	Owner 				string
 	CreatedAt 			time.Time
 	ViewCount 			int
-	VariantLists 		[]m3u8.VariantPlaylist
+	Qualities 			[]Quality
 }
 
 templ Form(media FormData) {
@@ -46,7 +50,7 @@ templ Form(media FormData) {
 						id="media_format"
 						name="media_format"
 						class="w-full bg-transparent placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
-							for _, list := range media.VariantLists {
+							for _, list := range media.Qualities {
 								<option value={list.Video}>{list.Video} ~ {list.Resolution}</option>
 							}
 					</select>
