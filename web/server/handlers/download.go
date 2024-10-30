@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +57,7 @@ func (s *Static) GetMediaInfo(c *gin.Context) {
 		}
 
 		formData = components.FormData{
-			PreviewThumbnailURL: metadata.Video.PreviewThumbnailURL,
+			PreviewThumbnailURL: replaceImageDimension(formData.PreviewThumbnailURL, 1920, 1080),
 			ID:                  metadata.Video.ID,
 			Title:               metadata.Video.Title,
 			CreatedAt:           metadata.Video.CreatedAt,
@@ -81,6 +82,9 @@ func (s *Static) GetMediaInfo(c *gin.Context) {
 			})
 		}
 
+		b, _ := json.MarshalIndent(clip, "", " ")
+		fmt.Print(string(b))
+
 		formData = components.FormData{
 			PreviewThumbnailURL: clip.Assets[0].ThumbnailURL,
 			ID:                  clip.Slug,
@@ -91,12 +95,6 @@ func (s *Static) GetMediaInfo(c *gin.Context) {
 			Qualities:           qualities,
 		}
 	}
-
-	fmt.Println(formData.PreviewThumbnailURL)
-	resizedImg := replaceImageDimension(formData.PreviewThumbnailURL, 1920, 1080)
-	fmt.Println(resizedImg)
-
-	formData.PreviewThumbnailURL = resizedImg
 
 	c.HTML(http.StatusOK, "", server.WithBase(c, components.Form(formData), "Home", ""))
 }
