@@ -18,7 +18,7 @@ import "time"
 
 type Quality struct {
 	Resolution string
-	Video      string
+	Value      string
 }
 
 type FormData struct {
@@ -29,6 +29,7 @@ type FormData struct {
 	CreatedAt           time.Time
 	ViewCount           int
 	Qualities           []Quality
+	IsClip              bool
 }
 
 func Form(media FormData) templ.Component {
@@ -59,7 +60,7 @@ func Form(media FormData) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(media.PreviewThumbnailURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 35, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 36, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -72,7 +73,7 @@ func Form(media FormData) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(media.Owner)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 40, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 41, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -85,7 +86,7 @@ func Form(media FormData) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(media.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 41, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 42, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -98,7 +99,7 @@ func Form(media FormData) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(media.ViewCount))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 43, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 44, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -114,9 +115,9 @@ func Form(media FormData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(list.Video)
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(list.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 54, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 55, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -127,9 +128,9 @@ func Form(media FormData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(list.Video)
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(list.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 54, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 55, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -142,7 +143,7 @@ func Form(media FormData) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(list.Resolution)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 54, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 55, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -153,33 +154,43 @@ func Form(media FormData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</select> <svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" stroke-width=\"1.2\" stroke=\"currentColor\" class=\"h-5 w-5 ml-1 absolute top-2.5 right-2.5 text-slate-700\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9\"></path></svg></div></div><div class=\"w-full flex justify-between\"><div class=\"w-full max-w-[180px]\"><label class=\"block mb-2 text-slate-600\">Start</label> <input id=\"media_start\" name=\"media_start\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"1h00m00s\"></div><div class=\"w-full max-w-[180px]\"><label class=\"block mb-2 text-slate-600\">End</label> <input id=\"media_end\" name=\"media_end\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"1h34m23s\"></div><input id=\"media_slug\" name=\"media_slug\" class=\"hidden\" value=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</select> <svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" stroke-width=\"1.2\" stroke=\"currentColor\" class=\"h-5 w-5 ml-1 absolute top-2.5 right-2.5 text-slate-700\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9\"></path></svg></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(media.ID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 85, Col: 75}
+		if media.IsClip {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full flex justify-between\"><div class=\"w-full max-w-[180px]\"><label class=\"block mb-2 text-slate-600\">Start</label> <input id=\"media_start\" name=\"media_start\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"1h00m00s\"></div><div class=\"w-full max-w-[180px]\"><label class=\"block mb-2 text-slate-600\">End</label> <input id=\"media_end\" name=\"media_end\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"1h34m23s\"></div><input id=\"media_slug\" name=\"media_slug\" class=\"hidden\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var9 string
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(media.ID)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 87, Col: 75}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"> <input id=\"media_title\" name=\"media_title\" class=\"hidden\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(media.Title)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 88, Col: 80}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"> <input id=\"media_title\" name=\"media_title\" class=\"hidden\" value=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(media.Title)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/form.templ`, Line: 86, Col: 80}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"></div><button type=\"submit\" class=\"p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease\">Download video</button></div></form>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<button type=\"submit\" class=\"p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease\">Download video</button></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

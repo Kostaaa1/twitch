@@ -13,8 +13,6 @@ import (
 )
 
 func main() {
-	// startTime := time.Now()
-
 	jsonCfg, err := config.Get()
 	if err != nil {
 		panic(err)
@@ -58,7 +56,4 @@ func main() {
 
 	fmt.Println("Finished downloading 👍👍👍")
 	fmt.Printf("\033[?25h")
-
-	// duration := time.Since(startTime)
-	// fmt.Printf("Downloading took %s\n", duration)
 }

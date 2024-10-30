@@ -135,6 +135,7 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 		} `json:"data"`
 	}
 	var p payload
+
 	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
 		return "", "", err
 	}

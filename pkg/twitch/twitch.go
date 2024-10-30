@@ -59,7 +59,7 @@ func (tw *API) NewMediaUnit(URL, quality, output string, start, end time.Duratio
 		return MediaUnit{}, err
 	}
 
-	quality = getResolution(quality, vtype)
+	quality = GetResolution(quality, vtype)
 	if vtype == TypeVOD {
 		if start > 0 && end > 0 && start >= end {
 			return MediaUnit{}, fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL (%s)", start, end, URL)

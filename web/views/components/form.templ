@@ -10,7 +10,7 @@ import "time"
 
 type Quality struct {
 	Resolution string	
-	Video 	   string
+	Value 	   string
 }
 
 type FormData struct {
@@ -21,6 +21,7 @@ type FormData struct {
 	CreatedAt 			time.Time
 	ViewCount 			int
 	Qualities 			[]Quality
+	IsClip 				bool
 }
 
 templ Form(media FormData) {
@@ -51,7 +52,7 @@ templ Form(media FormData) {
 						name="media_format"
 						class="w-full bg-transparent placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
 							for _, list := range media.Qualities {
-								<option value={list.Video}>{list.Video} ~ {list.Resolution}</option>
+								<option value={list.Value}>{list.Value} ~ {list.Resolution}</option>
 							}
 					</select>
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="h-5 w-5 ml-1 absolute top-2.5 right-2.5 text-slate-700">
@@ -59,7 +60,8 @@ templ Form(media FormData) {
 					</svg>
 				</div>
 			</div>
-			<div class="w-full flex justify-between">
+			if media.IsClip {
+				<div class="w-full flex justify-between">
 				<div class="w-full max-w-[180px]">
 					<label class="block mb-2 text-slate-600">
 						Start
@@ -85,8 +87,8 @@ templ Form(media FormData) {
 				<input id="media_slug" name="media_slug" class="hidden" value={media.ID} />
 				<input id="media_title" name="media_title" class="hidden" value={media.Title} />
 			</div>
+			}	
 			<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease">Download video</button>
 		</div>
 	</form>
 }
-

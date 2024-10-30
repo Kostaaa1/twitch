@@ -1,21 +1,13 @@
 package twitch
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 )
 
-type VideoQualities []struct {
-	Typename  string  `json:"__typename"`
-	FrameRate float64 `json:"frameRate"`
-	Quality   string  `json:"quality"`
-	SourceURL string  `json:"sourceURL"`
-}
-
-func (api *API) extractClipSourceURL(videoQualities VideoQualities, quality string) string {
+func (api *API) extractClipSourceURL(videoQualities []VideoQuality, quality string) string {
 	if quality == "best" {
 		return videoQualities[0].SourceURL
 	}
@@ -30,60 +22,19 @@ func (api *API) extractClipSourceURL(videoQualities VideoQualities, quality stri
 	return quality
 }
 
-type ClipCredentials struct {
-	Typename            string `json:"__typename"`
-	ID                  string `json:"id"`
-	PlaybackAccessToken struct {
-		Typename  string `json:"__typename"`
-		Signature string `json:"signature"`
-		Value     string `json:"value"`
-	} `json:"playbackAccessToken"`
-	VideoQualities VideoQualities `json:"videoQualities"`
-}
-
-func (api *API) GetClipData(slug string) (ClipCredentials, error) {
-	gqlPayload := `{
-        "operationName": "VideoAccessToken_Clip",
-        "variables": {
-            "slug": "%s"
-        },
-        "extensions": {
-            "persistedQuery": {
-                "version": 1,
-                "sha256Hash": "36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11"
-            }
-        }
-    }`
-
-	type payload struct {
-		Data struct {
-			Clip ClipCredentials `json:"clip"`
-		} `json:"data"`
-	}
-	var p payload
-
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
-		return ClipCredentials{}, err
-	}
-
-	return p.Data.Clip, nil
-}
-
-// returns the URL. When fetched, returns clip mp4 bytes
-func (api *API) GetClipUsherURL(slug, quality string) (string, error) {
-	clip, err := api.GetClipData(slug)
-	if err != nil {
-		return "", err
-	}
-
-	sourceURL := api.extractClipSourceURL(clip.VideoQualities, quality)
+func (api *API) GetClipUsherURL(clip Clip, sourceURL string) (string, error) {
 	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.PlaybackAccessToken.Signature), url.QueryEscape(clip.PlaybackAccessToken.Value))
 	return URL, nil
 }
 
 func (api *API) downloadClip(unit MediaUnit) error {
-	usherURL, err := api.GetClipUsherURL(unit.Slug, unit.Quality)
+	clip, err := api.ClipData(unit.Slug)
+	if err != nil {
+		return err
+	}
+
+	sourceURL := api.extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality)
+	usherURL, err := api.GetClipUsherURL(clip, sourceURL)
 	if err != nil {
 		return err
 	}
@@ -101,73 +52,106 @@ func (api *API) downloadClip(unit MediaUnit) error {
 	return nil
 }
 
+type VideoQuality struct {
+	FrameRate float64 `json:"frameRate"`
+	Quality   string  `json:"quality"`
+	SourceURL string  `json:"sourceURL"`
+	Typename  string  `json:"__typename"`
+}
+
 type Clip struct {
-	Broadcaster struct {
-		Typename    string `json:"__typename"`
-		DisplayName string `json:"displayName"`
-		Followers   struct {
-			Typename   string `json:"__typename"`
-			TotalCount int    `json:"totalCount"`
-		} `json:"followers"`
-		ID            string `json:"id"`
-		IsPartner     bool   `json:"isPartner"`
-		LastBroadcast struct {
-			Typename  string    `json:"__typename"`
-			ID        string    `json:"id"`
-			StartedAt time.Time `json:"startedAt"`
-		} `json:"lastBroadcast"`
-		Login           string `json:"login"`
-		PrimaryColorHex string `json:"primaryColorHex"`
-		ProfileImageURL string `json:"profileImageURL"`
-		Self            any    `json:"self"`
-		Stream          any    `json:"stream"`
-	} `json:"broadcaster"`
-	ChampBadge any       `json:"champBadge"`
-	CreatedAt  time.Time `json:"createdAt"`
-	Curator    struct {
-		Typename        string `json:"__typename"`
-		DisplayName     string `json:"displayName"`
+	ID         string `json:"id"`
+	Slug       string `json:"slug"`
+	URL        string `json:"url"`
+	EmbedURL   string `json:"embedURL"`
+	Title      string `json:"title"`
+	ViewCount  int    `json:"viewCount"`
+	Language   string `json:"language"`
+	IsFeatured bool   `json:"isFeatured"`
+	Assets     []struct {
+		ID            string    `json:"id"`
+		AspectRatio   float64   `json:"aspectRatio"`
+		Type          string    `json:"type"`
+		CreatedAt     time.Time `json:"createdAt"`
+		CreationState string    `json:"creationState"`
+		Curator       struct {
+			ID              string `json:"id"`
+			Login           string `json:"login"`
+			DisplayName     string `json:"displayName"`
+			ProfileImageURL string `json:"profileImageURL"`
+			Typename        string `json:"__typename"`
+		} `json:"curator"`
+		ThumbnailURL     string         `json:"thumbnailURL"`
+		VideoQualities   []VideoQuality `json:"videoQualities"`
+		PortraitMetadata interface{}    `json:"portraitMetadata"`
+		Typename         string         `json:"__typename"`
+	} `json:"assets"`
+	Curator struct {
 		ID              string `json:"id"`
 		Login           string `json:"login"`
+		DisplayName     string `json:"displayName"`
 		ProfileImageURL string `json:"profileImageURL"`
+		Typename        string `json:"__typename"`
 	} `json:"curator"`
-	DurationSeconds int    `json:"durationSeconds"`
-	EmbedURL        string `json:"embedURL"`
-	Game            struct {
-		Typename    string `json:"__typename"`
-		BoxArtURL   string `json:"boxArtURL"`
-		DisplayName string `json:"displayName"`
+	Game struct {
 		ID          string `json:"id"`
 		Name        string `json:"name"`
+		BoxArtURL   string `json:"boxArtURL"`
+		DisplayName string `json:"displayName"`
 		Slug        string `json:"slug"`
+		Typename    string `json:"__typename"`
 	} `json:"game"`
-	ID                     string `json:"id"`
-	IsFeatured             bool   `json:"isFeatured"`
-	IsPublished            bool   `json:"isPublished"`
-	IsViewerEditRestricted bool   `json:"isViewerEditRestricted"`
-	Language               string `json:"language"`
-	PlaybackAccessToken    struct {
-		Typename  string `json:"__typename"`
+	Broadcast struct {
+		ID       string      `json:"id"`
+		Title    interface{} `json:"title"`
+		Typename string      `json:"__typename"`
+	} `json:"broadcast"`
+	Broadcaster struct {
+		ID              string `json:"id"`
+		Login           string `json:"login"`
+		DisplayName     string `json:"displayName"`
+		PrimaryColorHex string `json:"primaryColorHex"`
+		IsPartner       bool   `json:"isPartner"`
+		ProfileImageURL string `json:"profileImageURL"`
+		Followers       struct {
+			TotalCount int    `json:"totalCount"`
+			Typename   string `json:"__typename"`
+		} `json:"followers"`
+		Stream        interface{} `json:"stream"`
+		LastBroadcast struct {
+			ID        string    `json:"id"`
+			StartedAt time.Time `json:"startedAt"`
+			Typename  string    `json:"__typename"`
+		} `json:"lastBroadcast"`
+		Self struct {
+			IsEditor bool   `json:"isEditor"`
+			Typename string `json:"__typename"`
+		} `json:"self"`
+		Typename string `json:"__typename"`
+	} `json:"broadcaster"`
+	ThumbnailURL        string      `json:"thumbnailURL"`
+	CreatedAt           time.Time   `json:"createdAt"`
+	IsPublished         bool        `json:"isPublished"`
+	DurationSeconds     int         `json:"durationSeconds"`
+	ChampBadge          interface{} `json:"champBadge"`
+	PlaybackAccessToken struct {
 		Signature string `json:"signature"`
 		Value     string `json:"value"`
+		Typename  string `json:"__typename"`
 	} `json:"playbackAccessToken"`
-	Slug              string `json:"slug"`
-	SuggestedCropping any    `json:"suggestedCropping"`
-	ThumbnailURL      string `json:"thumbnailURL"`
-	Title             string `json:"title"`
-	URL               string `json:"url"`
-	Video             struct {
-		Typename      string `json:"__typename"`
-		BroadcastType string `json:"broadcastType"`
+	Video struct {
 		ID            string `json:"id"`
+		BroadcastType string `json:"broadcastType"`
 		Title         string `json:"title"`
+		Typename      string `json:"__typename"`
 	} `json:"video"`
 	VideoOffsetSeconds int `json:"videoOffsetSeconds"`
 	VideoQualities     []struct {
-		Typename  string `json:"__typename"`
 		SourceURL string `json:"sourceURL"`
+		Typename  string `json:"__typename"`
 	} `json:"videoQualities"`
-	ViewCount int `json:"viewCount"`
+	IsViewerEditRestricted bool   `json:"isViewerEditRestricted"`
+	Typename               string `json:"__typename"`
 }
 
 func (api *API) ClipData(slug string) (Clip, error) {
@@ -194,9 +178,6 @@ func (api *API) ClipData(slug string) (Clip, error) {
 	if err := api.sendGqlLoadAndDecode(body, &result); err != nil {
 		return Clip{}, err
 	}
-
-	bss, _ := json.MarshalIndent(result, "", " ")
-	fmt.Println(string(bss))
 
 	return result.Data.Clip, nil
 }
