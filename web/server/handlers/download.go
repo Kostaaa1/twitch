@@ -140,16 +140,25 @@ func (s *Static) downloadVOD(c *gin.Context) {
 	mediaFormat := c.Query("media_format")
 	slug := c.Query("media_slug")
 
-	mediaStart := c.Query("media_start")
+	mediaStart := fmt.Sprintf("%sh%sm%ss", c.Query("start_h"), c.Query("start_m"), c.Query("start_s"))
 	start, err := time.ParseDuration(mediaStart)
 	if err != nil {
 		start = 0
 	}
 
-	mediaEnd := c.Query("media_end")
+	mediaEnd := fmt.Sprintf("%sh%sm%ss", c.Query("end_h"), c.Query("end_m"), c.Query("end_s"))
 	end, err := time.ParseDuration(mediaEnd)
 	if err != nil {
 		end = 0
+	}
+
+	unit := twitch.MediaUnit{
+		Slug:    slug,
+		Vtype:   twitch.TypeVOD,
+		Start:   start,
+		End:     end,
+		Quality: mediaFormat,
+		W:       c.Writer,
 	}
 
 	ext := "mp4"
@@ -160,15 +169,6 @@ func (s *Static) downloadVOD(c *gin.Context) {
 		c.Header("Content-Type", "video/mp4")
 	}
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.%s"`, mediaTitle, ext))
-
-	unit := twitch.MediaUnit{
-		Slug:    slug,
-		Vtype:   twitch.TypeVOD,
-		Start:   start,
-		End:     end,
-		Quality: mediaFormat,
-		W:       c.Writer,
-	}
 
 	if err := s.tw.StreamVOD(unit); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
