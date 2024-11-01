@@ -1,0 +1,108 @@
+package components
+
+templ DownloadVODForm(media FormData) {
+	<form 
+		action="/media/download/vod" 
+		method="GET"	
+		class="flex w-full py-2 items-center justify-center bg-white"
+	>
+		<div>
+			<img
+				class="object-cover object-center w-full max-w-[560px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50"
+				src={media.PreviewThumbnailURL}
+			/>
+		</div>	
+		<div class="flex flex-col h-full items-start justify-start gap-4 px-8 py-2 text-lg w-[600px]">
+			<h1 class="text-2xl font-semibold text-left"> 
+				{media.Owner} - {media.Title}
+				<span class="text-slate-400 text-lg">
+					({media.ViewCount} views)
+				</span>
+			</h1>
+			<div class="">      
+				<label class="block mb-2 text-slate-600">Media format</label>
+				<div class="relative">
+					<select
+						id="media_format"
+						name="media_format"
+						class="w-full bg-transparent placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
+							for _, list := range media.Qualities {
+								<option value={list.Value}>{list.Value} ~ {list.Resolution}</option>
+							}
+					</select>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="h-5 w-5 ml-1 absolute top-2.5 right-2.5 text-slate-700">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+					</svg>
+				</div>
+			</div>
+			<div class="w-full flex justify-between flex-wrap">
+				<div class="">
+					<label class="block mb-2 text-slate-600">
+						Start
+					</label>
+					<div class="flex items-center justify-center w-full gap-2">
+						<input 
+							id="start_h"
+							name="start_h"
+							type="number"
+							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+							placeholder="0h"
+							min="0"
+						/>
+						<input 
+							id="start_m"
+							name="start_m"
+							type="number"
+							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							placeholder="0m"
+							min="0"
+						/>
+						<input 
+							id="start_s"
+							name="start_s"
+							type="number"
+							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							placeholder="0s"
+							min="0"
+						/>
+					</div>
+				</div>
+				<div class="">
+					<label class="block mb-2 text-slate-600">
+						End
+					</label>
+					<div class="flex items-center justify-center w-full gap-2">
+						<input 
+							id="end_h"
+							name="end_h"
+							type="number"
+							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							placeholder="0h"
+							min="0"
+						/>
+						<input 
+							id="end_m"
+							name="end_m"
+							type="number"
+							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							placeholder="0m"
+							min="0"
+						/>
+						<input 
+							id="end_s"
+							name="end_s"
+							type="number"
+							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							placeholder="0s"
+							min="0"
+						/>
+					</div>
+				</div>
+				<input id="media_slug" name="media_slug" class="hidden" value={media.ID} />
+				<input id="media_title" name="media_title" class="hidden" value={media.Title} />
+			</div>
+			<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease">Download video</button>
+		</div>
+	</form>
+}
+

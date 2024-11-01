@@ -113,6 +113,14 @@ func SegmentFileName(segmentURL string) string {
 	return parts[len(parts)-1]
 }
 
+func UnmuteSegments(segments []string) {
+	for i := 1; i < len(segments); i += 2 {
+		if strings.HasSuffix(segments[i], ".ts") {
+			segments[i] = strings.Join(strings.Split(segments[i], "-muted"), "")
+		}
+	}
+}
+
 func ConcatenateSegments(outputFile io.Writer, segments []string, tempDir string) error {
 	for _, tsFile := range segments {
 		if !strings.HasSuffix(tsFile, ".ts") {

@@ -5,7 +5,7 @@ templ Home() {
 		<div class="max-w-full break-words text-center text-white flex-wrap flex justify-center items-center flex-col px-56 py-20 gap-6">
 			<h1 class="text-7xl">Download Twitch media</h1>
 			<h3 class="text-3xl">Download media from twitch.tv</h3>
-			<div class="flex w-full max-w-sm min-w-[700px] text-lg">
+			<div class="flex w-full max-w-sm min-w-[800px] text-lg">
   				<input 
 					id="twitchUrl"
 					name="twitchUrl"	
@@ -19,8 +19,12 @@ templ Home() {
 					hx-target="#mediaInfo"
 					hx-include="#twitchUrl"
 					class="text-gray-500 rounded-r-full bg-violet-600 text-white px-2 font-semibold hover:bg-violet-800 transition duration-300 ease">
-					Download
+					Submit
 				</button>
+				// <div x-data="{ open: false }">
+				// 	<button x-on:click="open = ! open" x-show="!open">Submit</button>
+				// 	<button x-on:click="open = ! open" x-show="open">Loading...</button>
+				// </div>
 			</div>
 		</div>
 		<div id="mediaInfo" class="flex flex-wrap"></div>

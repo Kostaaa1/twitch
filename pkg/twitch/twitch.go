@@ -50,7 +50,8 @@ type MediaUnit struct {
 	Quality string
 	Start   time.Duration
 	End     time.Duration
-	File    *os.File
+	W       io.Writer
+	// File    *os.File
 }
 
 func (tw *API) NewMediaUnit(URL, quality, output string, start, end time.Duration) (MediaUnit, error) {
@@ -82,7 +83,7 @@ func (tw *API) NewMediaUnit(URL, quality, output string, start, end time.Duratio
 		Quality: quality,
 		Start:   start,
 		End:     end,
-		File:    f,
+		W:       f,
 	}, nil
 }
 
@@ -141,7 +142,6 @@ func (tw *API) do(req *http.Request) (*http.Response, error) {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed with status code %d: %s", s, string(b))
 	}
-
 	return resp, nil
 }
 
@@ -272,18 +272,20 @@ func (tw *API) Download(unit MediaUnit) {
 
 	switch unit.Vtype {
 	case TypeVOD:
-		err = tw.downloadVOD(unit)
+		err = tw.DownloadVODParallel(unit)
 	case TypeClip:
-		err = tw.downloadClip(unit)
+		err = tw.DownloadClip(unit)
 	case TypeLivestream:
 		err = tw.RecordStream(unit)
 	}
 
-	tw.progressCh <- ProgresbarChanData{
-		Text:   unit.File.Name(),
-		Error:  err,
-		IsDone: true,
-	}
+	fmt.Println(err)
+
+	// tw.progressCh <- ProgresbarChanData{
+	// 	Text:   unit.File.Name(),
+	// 	Error:  err,
+	// 	IsDone: true,
+	// }
 }
 
 func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {

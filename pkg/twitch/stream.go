@@ -128,6 +128,7 @@ func (api *API) RecordStream(unit MediaUnit) error {
 				if err != nil {
 					return fmt.Errorf("failed to fetch playlist: %w", err)
 				}
+
 				segments := strings.Split(string(b), "\n")
 				tsURL := segments[len(segments)-2]
 
@@ -139,24 +140,26 @@ func (api *API) RecordStream(unit MediaUnit) error {
 				half := len(bodyBytes) / 2
 				halfBytes = bytes.NewReader(bodyBytes[half:])
 
-				n, err = io.Copy(unit.File, bytes.NewReader(bodyBytes[:half]))
+				n, err = io.Copy(unit.W, bytes.NewReader(bodyBytes[:half]))
 				if err != nil {
 					return err
 				}
 			}
 
 			if tickCount%2 == 0 && halfBytes.Len() > 0 {
-				n, err = io.Copy(unit.File, halfBytes)
+				n, err = io.Copy(unit.W, halfBytes)
 				if err != nil {
 					return err
 				}
 				halfBytes.Reset([]byte{})
 			}
 
-			api.progressCh <- ProgresbarChanData{
-				Text:  unit.File.Name(),
-				Bytes: n,
-			}
+			fmt.Println(n)
+
+			// api.progressCh <- ProgresbarChanData{
+			// 	Text:  unit.File.Name(),
+			// 	Bytes: n,
+			// }
 		}
 	}
 }
@@ -166,10 +169,12 @@ func (api *API) OpenStreamInMediaPlayer(channel string) error {
 	if err != nil {
 		return err
 	}
+
 	cmd := exec.Command("vlc", media.URL)
 	if err := cmd.Run(); err != nil {
 		fmt.Println("EXECUTION ERROR")
 		return err
 	}
+
 	return nil
 }

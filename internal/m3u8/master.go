@@ -31,14 +31,13 @@ func (m *MasterPlaylist) Parse() {
 
 func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
 	mediaLists := playlist.Lists
-
 	for i := 0; i < len(mediaLists); i++ {
-		seg := mediaLists[i]
-		if quality == "best" && seg.Video == "chunked" {
-			return seg, nil
+		list := mediaLists[i]
+		if quality == "best" && (list.Video == "1080p60" || list.Video == "chunked") {
+			return list, nil
 		}
-		if strings.HasPrefix(seg.Video, quality) {
-			return seg, nil
+		if strings.HasPrefix(list.Video, quality) {
+			return list, nil
 		}
 	}
 	return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)

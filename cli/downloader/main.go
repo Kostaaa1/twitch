@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/Kostaaa1/twitch/cli/downloader/spinner"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/prompt"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -37,13 +36,13 @@ func main() {
 	progressCh := make(chan twitch.ProgresbarChanData, len(units))
 	tw.SetProgressChannel(progressCh)
 
-	go func() {
-		paths := make([]string, len(units))
-		for i, u := range units {
-			paths[i] = u.File.Name()
-		}
-		spinner.New(paths, progressCh)
-	}()
+	// go func() {
+	// 	paths := make([]string, len(units))
+	// 	for i, u := range units {
+	// 		paths[i] = u.File.Name()
+	// 	}
+	// 	spinner.New(paths, progressCh)
+	// }()
 
 	if len(units) > 1 {
 		tw.BatchDownload(units)

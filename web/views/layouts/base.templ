@@ -22,9 +22,10 @@ templ Base(title, description string) {
 			<script src="/assets/js/alpine.min.js" hx-preserve="true" defer></script>
 			<script src="/assets/js/toastify.min.js" hx-preserve="true" defer></script>
 			<link href="/assets/css/toastify.min.css" rel="stylesheet" hx-preserve="true"/>
-			// <link href="/assets/css/tailwind.css" rel="stylesheet" hx-preserve="true"/>
 			<script src="https://cdn.tailwindcss.com"></script>
 			<script hx-preserve="true">
+
+			// <link href="/assets/css/tailwind.css" rel="stylesheet" hx-preserve="true"/>
 				// if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
 				// 	document.documentElement.classList.add('dark')
 				// } else {
@@ -46,9 +47,11 @@ templ Base(title, description string) {
 
 				function handleServerError(event) {
 					if (isServerError(event.detail.xhr)) {
-						event.detail.shouldSwap = true
-						event.detail.isError = false
-					}
+						const {error} = JSON.parse(event.detail.serverResponse)
+						errorToast(error)
+						// event.detail.shouldSwap = true
+						// event.detail.isError = false
+					} 
 				}
 
 				function errorToast(message) {
@@ -60,6 +63,19 @@ templ Base(title, description string) {
 						gravity: 'top',
 						position: 'right',
 						backgroundColor: 'red',
+						stopOnFocus: true,
+					}).showToast()
+				}
+
+				function successToast(message) {
+					Toastify({
+						text: message,
+						duration: 5000,
+						newWindow: true,
+						close: true,
+						gravity: 'top',
+						position: 'right',
+						backgroundColor: 'green',
 						stopOnFocus: true,
 					}).showToast()
 				}

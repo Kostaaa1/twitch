@@ -57,7 +57,7 @@ func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	return vodPlaylistURL, nil
 }
 
-func (api *API) downloadVOD(unit MediaUnit) error {
+func (api *API) DownloadVODParallel(unit MediaUnit) error {
 	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
 		return err
@@ -87,23 +87,59 @@ func (api *API) downloadVOD(unit MediaUnit) error {
 				defer func() { <-sem }()
 
 				tempFilePath := fmt.Sprintf("%s/%s", tempDir, utils.SegmentFileName(url))
-				n, err := api.downloadSegmentToFile(segmentURL, tempFilePath)
+				_, err = api.downloadSegmentToFile(segmentURL, tempFilePath)
 				if err != nil {
 					fmt.Printf("error downloading segment %s: %v\n", url, err)
 				}
 
-				api.progressCh <- ProgresbarChanData{
-					Text:  unit.File.Name(),
-					Bytes: n,
-				}
+				// api.progressCh <- ProgresbarChanData{
+				// Text:  unit.File.Name(),
+				// 	Bytes: n,
+				// }
+
 			}(segmentURL)
 		}
 	}
 
 	wg.Wait()
 
-	if err := utils.ConcatenateSegments(unit.File, segments, tempDir); err != nil {
+	if err := utils.ConcatenateSegments(unit.W, segments, tempDir); err != nil {
 		return fmt.Errorf("failed to concatenate segments: %w", err)
+	}
+
+	return nil
+}
+
+func (api *API) StreamVOD(unit MediaUnit) error {
+	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
+	if err != nil {
+		return err
+	}
+	mediaPlaylist, err := api.fetch(vodPlaylistURL)
+	if err != nil {
+		return err
+	}
+	segments := api.GetSegments(mediaPlaylist, unit.Start, unit.End)
+	utils.UnmuteSegments(segments)
+
+	for _, segment := range segments {
+		if strings.HasSuffix(segment, ".ts") {
+			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
+			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
+
+			fmt.Println(segmentURL)
+
+			_, err = api.downloadAndWriteSegment(segmentURL, unit.W)
+			if err != nil {
+				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
+				return err
+			}
+
+			// api.progressCh <- ProgresbarChanData{
+			// Text:  unit.File.Name(),
+			// 	Bytes: n,
+			// }
+		}
 	}
 
 	return nil
@@ -245,9 +281,9 @@ type VideoMetadata struct {
 		Description         any       `json:"description"`
 		PreviewThumbnailURL string    `json:"previewThumbnailURL"`
 		CreatedAt           time.Time `json:"createdAt"`
-		ViewCount           int       `json:"viewCount"`
+		ViewCount           int64     `json:"viewCount"`
 		PublishedAt         time.Time `json:"publishedAt"`
-		LengthSeconds       int       `json:"lengthSeconds"`
+		LengthSeconds       int64     `json:"lengthSeconds"`
 		BroadcastType       string    `json:"broadcastType"`
 		Owner               struct {
 			ID          string `json:"id"`
@@ -290,6 +326,10 @@ func (api *API) VideoMetadata(id string) (VideoMetadata, error) {
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
 	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
 		return VideoMetadata{}, err
+	}
+
+	if p.Data.Video.ID == "" {
+		return VideoMetadata{}, fmt.Errorf("failed to get the video data for %s", id)
 	}
 
 	return p.Data, nil

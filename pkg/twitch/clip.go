@@ -15,7 +15,7 @@ func (api *API) extractClipSourceURL(videoQualities []VideoQuality, quality stri
 		return videoQualities[len(videoQualities)-1].SourceURL
 	}
 	for _, q := range videoQualities {
-		if strings.HasPrefix(q.Quality, quality) {
+		if strings.HasPrefix(quality, q.Quality) || strings.HasPrefix(q.Quality, quality) {
 			return q.SourceURL
 		}
 	}
@@ -27,7 +27,7 @@ func (api *API) GetClipUsherURL(clip Clip, sourceURL string) (string, error) {
 	return URL, nil
 }
 
-func (api *API) downloadClip(unit MediaUnit) error {
+func (api *API) DownloadClip(unit MediaUnit) error {
 	clip, err := api.ClipData(unit.Slug)
 	if err != nil {
 		return err
@@ -38,16 +38,15 @@ func (api *API) downloadClip(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
-
-	n, err := api.downloadAndWriteSegment(usherURL, unit.File)
+	_, err = api.downloadAndWriteSegment(usherURL, unit.W)
 	if err != nil {
 		return err
 	}
 
-	api.progressCh <- ProgresbarChanData{
-		Text:  unit.File.Name(),
-		Bytes: n,
-	}
+	// api.progressCh <- ProgresbarChanData{
+	// 	Text:  unit.File.Name(),
+	// 	Bytes: n,
+	// }
 
 	return nil
 }
@@ -65,7 +64,7 @@ type Clip struct {
 	URL        string `json:"url"`
 	EmbedURL   string `json:"embedURL"`
 	Title      string `json:"title"`
-	ViewCount  int    `json:"viewCount"`
+	ViewCount  int64  `json:"viewCount"`
 	Language   string `json:"language"`
 	IsFeatured bool   `json:"isFeatured"`
 	Assets     []struct {
@@ -177,6 +176,10 @@ func (api *API) ClipData(slug string) (Clip, error) {
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
 	if err := api.sendGqlLoadAndDecode(body, &result); err != nil {
 		return Clip{}, err
+	}
+
+	if result.Data.Clip.ID == "" {
+		return Clip{}, fmt.Errorf("failed to get the video data for %s", slug)
 	}
 
 	return result.Data.Clip, nil
