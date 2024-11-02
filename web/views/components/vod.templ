@@ -4,7 +4,7 @@ templ DownloadVODForm(media FormData) {
 	<form 
 		action="/media/download/vod" 
 		method="GET"	
-		class="flex w-full py-2 items-center justify-center bg-white"
+		class="flex w-full items-center justify-center bg-white gap-8 text-black"
 	>
 		<div>
 			<img
@@ -12,7 +12,7 @@ templ DownloadVODForm(media FormData) {
 				src={media.PreviewThumbnailURL}
 			/>
 		</div>	
-		<div class="flex flex-col h-full items-start justify-start gap-4 px-8 py-2 text-lg w-[600px]">
+		<div class="flex flex-col gap-4 py-4 max-w-[380px] w-full flex-wrap">
 			<h1 class="text-2xl font-semibold text-left"> 
 				{media.Owner} - {media.Title}
 				<span class="text-slate-400 text-lg">
@@ -35,17 +35,17 @@ templ DownloadVODForm(media FormData) {
 					</svg>
 				</div>
 			</div>
-			<div class="w-full flex justify-between flex-wrap">
-				<div class="">
+			<div class="flex justify-between flex-wrap">
+				<div>
 					<label class="block mb-2 text-slate-600">
 						Start
 					</label>
-					<div class="flex items-center justify-center w-full gap-2">
+					<div class="flex items-center justify-center gap-2">
 						<input 
 							id="start_h"
 							name="start_h"
 							type="number"
-							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
+							class="no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow"
 							placeholder="0h"
 							min="0"
 						/>
@@ -53,7 +53,7 @@ templ DownloadVODForm(media FormData) {
 							id="start_m"
 							name="start_m"
 							type="number"
-							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							class="no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
 							placeholder="0m"
 							min="0"
 						/>
@@ -61,13 +61,13 @@ templ DownloadVODForm(media FormData) {
 							id="start_s"
 							name="start_s"
 							type="number"
-							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							class="no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
 							placeholder="0s"
 							min="0"
 						/>
 					</div>
 				</div>
-				<div class="">
+				<div>
 					<label class="block mb-2 text-slate-600">
 						End
 					</label>
@@ -76,7 +76,7 @@ templ DownloadVODForm(media FormData) {
 							id="end_h"
 							name="end_h"
 							type="number"
-							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							class="no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
 							placeholder="0h"
 							min="0"
 						/>
@@ -84,7 +84,7 @@ templ DownloadVODForm(media FormData) {
 							id="end_m"
 							name="end_m"
 							type="number"
-							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							class="no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
 							placeholder="0m"
 							min="0"
 						/>
@@ -92,7 +92,7 @@ templ DownloadVODForm(media FormData) {
 							id="end_s"
 							name="end_s"
 							type="number"
-							class="w-[76px] bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
+							class="no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow" 
 							placeholder="0s"
 							min="0"
 						/>
@@ -101,7 +101,7 @@ templ DownloadVODForm(media FormData) {
 				<input id="media_slug" name="media_slug" class="hidden" value={media.ID} />
 				<input id="media_title" name="media_title" class="hidden" value={media.Title} />
 			</div>
-			<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease">Download video</button>
+			<button type="submit" class="font-semibold p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease text-white">Download video</button>
 		</div>
 	</form>
 }

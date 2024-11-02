@@ -8,7 +8,9 @@ package home
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-func Home() templ.Component {
+import "github.com/Kostaaa1/twitch/web/views/components"
+
+func Hero() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -29,7 +31,58 @@ func Home() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div><div class=\"max-w-full break-words text-center text-white flex-wrap flex justify-center items-center flex-col px-56 py-20 gap-6\"><h1 class=\"text-7xl\">Download Twitch media</h1><h3 class=\"text-3xl\">Download media from twitch.tv</h3><div class=\"flex w-full max-w-sm min-w-[800px] text-lg\"><input id=\"twitchUrl\" name=\"twitchUrl\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-3 py-3 transition duration-300 ease focus:outline-none hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"Paste twitch.tv URL &amp; Download\" autofocus> <button type=\"button\" hx-post=\"/media/info\" hx-target=\"#mediaInfo\" hx-include=\"#twitchUrl\" class=\"text-gray-500 rounded-r-full bg-violet-600 text-white px-2 font-semibold hover:bg-violet-800 transition duration-300 ease\">Submit</button></div></div><div id=\"mediaInfo\" class=\"flex flex-wrap\"></div></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"py-20 flex px-4 items-center justify-center flex-col text-white flex-wrap gap-4 text-center\"><h1 class=\"text-7xl font-semibold\">Download Twitch media</h1><h3 class=\"text-3xl\">Download media from twitch.tv</h3><div class=\"flex w-[80vw] max-w-[800px] py-4\"><input id=\"twitchUrl\" name=\"twitchUrl\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full p-3 transition duration-300 ease focus:outline-none hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"Paste twitch.tv URL &amp; Download\" autofocus=\"true\" value=\"https://www.twitch.tv/videos/2289624874?filter=archives&amp;sort=time\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.Button(components.BtnData{
+			Text:    "Submit",
+			URL:     "/media/info",
+			Target:  "#mediaInfo",
+			Include: []string{"#twitchUrl"},
+			Class:   "text-gray-500 rounded-r-full bg-yellow-500 text-white px-4 font-semibold hover:bg-yellow-600 transition duration-300 ease",
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return templ_7745c5c3_Err
+	})
+}
+
+func Home() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = Hero().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"mediaInfo\"></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

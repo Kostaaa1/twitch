@@ -22,10 +22,10 @@ templ Base(title, description string) {
 			<script src="/assets/js/alpine.min.js" hx-preserve="true" defer></script>
 			<script src="/assets/js/toastify.min.js" hx-preserve="true" defer></script>
 			<link href="/assets/css/toastify.min.css" rel="stylesheet" hx-preserve="true"/>
-			<script src="https://cdn.tailwindcss.com"></script>
+			<link href="/assets/css/tailwind.css" rel="stylesheet" hx-preserve="true"/>
+			<link href="/assets/css/main.css" rel="stylesheet" hx-preserve="true"/>
 			<script hx-preserve="true">
 
-			// <link href="/assets/css/tailwind.css" rel="stylesheet" hx-preserve="true"/>
 				// if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
 				// 	document.documentElement.classList.add('dark')
 				// } else {
@@ -81,8 +81,8 @@ templ Base(title, description string) {
 				}
 			</script>
 		</head>
-		<body class="antialiased text-black flex flex-col bg-purple-200" hx-ext="head-support">
-			<div class="w-full h-[600px] flex flex-col bg-gradient-to-b from-violet-950 to-purple-200">
+		<body class="flex justify-between flex-col antialiased min-h-screen bg-gradient-to-b from-purple-950 to-purple-200 text-white" hx-ext="head-support">
+			<div class="">
 				@components.Navigation()
 				<div
 					id="content"
@@ -91,7 +91,7 @@ templ Base(title, description string) {
 				>	
 					{ children... }
 				</div>
-			</div>
+			</div>	
 			// @components.Footer()
 		</body>
 	</html>

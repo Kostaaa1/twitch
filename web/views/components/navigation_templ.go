@@ -29,7 +29,7 @@ func Navigation() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav x-data=\"{ isOpen: false }\" class=\"text-white\"><div class=\"container px-16 py-8 mx-auto flex justify-between items-center\"><div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"18\" height=\"18\"><h3 class=\"text-2xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"flex flex-col capitalize lg:flex-row lg:items-center\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav x-data=\"{ isOpen: false }\"><div class=\"container px-4 lg:px-16 py-8 mx-auto flex justify-between items-center\"><div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"20\" height=\"20\"><h3 class=\"text-3xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"flex gap-4 lg:gap-8\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -43,14 +43,14 @@ func Navigation() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" @click=\"isOpen = false\" class=\"mt-2 transition-colors font-semibold duration-300 transform lg:mt-0 lg:mx-4 hover:text-gray-900 dark:hover:text-gray-200\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" @click=\"isOpen = false\" class=\"transition-colors font-semibold duration-300 transform hover:text-gray-900 dark:hover:text-gray-200\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(link.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/navigation.templ`, Line: 12, Col: 200}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/navigation.templ`, Line: 12, Col: 179}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {

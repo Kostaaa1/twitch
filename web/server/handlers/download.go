@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -24,6 +25,8 @@ func replaceImageDimension(imgURL string, w, h int) string {
 }
 
 func (s *Static) mediaInfo(c *gin.Context) {
+	fmt.Println("called handler")
+
 	twitchUrl := c.PostForm("twitchUrl")
 	slug, vtype, err := s.tw.Slug(twitchUrl)
 	if err != nil {
@@ -42,6 +45,7 @@ func (s *Static) mediaInfo(c *gin.Context) {
 
 	case twitch.TypeVOD:
 		formData, err := s.getVODData(slug)
+		fmt.Println(formData)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -58,6 +62,8 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 	if err != nil {
 		return components.FormData{}, err
 	}
+
+	fmt.Println("\n DATA: ", metadata)
 
 	master, _, err := s.tw.GetVODMasterM3u8(slug)
 	if err != nil {
@@ -130,9 +136,26 @@ func (s *Static) downloadClip(c *gin.Context) {
 	}
 
 	if err := s.tw.DownloadClip(u); err != nil {
-		fmt.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
+}
+
+func parseDuration(startH, startM, startS string) (time.Duration, error) {
+	hours, err := strconv.Atoi(startH)
+	if err != nil || startH == "" {
+		hours = 0
+	}
+	minutes, err := strconv.Atoi(startM)
+	if err != nil || startM == "" {
+		minutes = 0
+	}
+	seconds, err := strconv.Atoi(startS)
+	if err != nil || startS == "" {
+		seconds = 0
+	}
+
+	duration := time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second
+	return duration, nil
 }
 
 func (s *Static) downloadVOD(c *gin.Context) {
@@ -140,16 +163,24 @@ func (s *Static) downloadVOD(c *gin.Context) {
 	mediaFormat := c.Query("media_format")
 	slug := c.Query("media_slug")
 
-	mediaStart := fmt.Sprintf("%sh%sm%ss", c.Query("start_h"), c.Query("start_m"), c.Query("start_s"))
-	start, err := time.ParseDuration(mediaStart)
+	startH := c.Query("start_h")
+	startM := c.Query("start_m")
+	startS := c.Query("start_s")
+
+	start, err := parseDuration(startH, startM, startS)
 	if err != nil {
-		start = 0
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
-	mediaEnd := fmt.Sprintf("%sh%sm%ss", c.Query("end_h"), c.Query("end_m"), c.Query("end_s"))
-	end, err := time.ParseDuration(mediaEnd)
+	endH := c.DefaultQuery("end_h", "0")
+	endM := c.DefaultQuery("end_m", "0")
+	endS := c.DefaultQuery("end_s", "0")
+
+	end, err := parseDuration(endH, endM, endS)
 	if err != nil {
-		end = 0
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	unit := twitch.MediaUnit{

@@ -15,6 +15,7 @@ type FormData struct {
 	ViewCount 			string
 	CreatedAt 			time.Time
 	Qualities 			[]Quality
+	Duration 			string
 }
 
 templ DownloadClipForm(media FormData) {
@@ -55,7 +56,7 @@ templ DownloadClipForm(media FormData) {
 			</div>
 				<input id="media_slug" name="media_slug" class="hidden" value={media.ID} />
 				<input id="media_title" name="media_title" class="hidden" value={media.Title} />
-				<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 transition duration-300 ease">Download clip</button>
+				<button type="submit" class="p-2 bg-yellow-500 w-full text-center rounded-lg hover:bg-yellow-600 text-white transition duration-300 ease">Download clip</button>
 			</div>
 	</form>
 }
