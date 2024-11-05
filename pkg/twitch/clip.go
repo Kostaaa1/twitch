@@ -23,6 +23,8 @@ func (api *API) extractClipSourceURL(videoQualities []VideoQuality, quality stri
 }
 
 func (api *API) GetClipUsherURL(clip Clip, sourceURL string) (string, error) {
+	fmt.Println("\nSIG: ", clip.PlaybackAccessToken.Signature)
+	fmt.Println("\nTOKEN: ", clip.PlaybackAccessToken.Value)
 	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.PlaybackAccessToken.Signature), url.QueryEscape(clip.PlaybackAccessToken.Value))
 	return URL, nil
 }
@@ -34,6 +36,8 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 	}
 
 	sourceURL := api.extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality)
+	fmt.Println("sourceURL", sourceURL)
+
 	usherURL, err := api.GetClipUsherURL(clip, sourceURL)
 	if err != nil {
 		return err

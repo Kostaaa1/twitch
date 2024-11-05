@@ -23,7 +23,7 @@ type FormData struct {
 	ViewCount           string
 	CreatedAt           time.Time
 	Qualities           []Quality
-	Duration            string
+	MediaDuration       string
 }
 
 func DownloadClipForm(media FormData) templ.Component {

@@ -4,17 +4,19 @@ templ DownloadVODForm(media FormData) {
 	<form 
 		action="/media/download/vod" 
 		method="GET"	
-		class="flex w-full items-center justify-center bg-white gap-8 text-black"
+		class="flex w-full items-center justify-center bg-white gap-8 text-black flex-wrap"
 	>
 		<div>
 			<img
-				class="object-cover object-center w-full max-w-[560px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50"
+				class="object-cover object-center w-full max-w-[460px] h-auto rounded-lg shadow-xl shadow-blue-gray-900/50"
 				src={media.PreviewThumbnailURL}
 			/>
 		</div>	
-		<div class="flex flex-col gap-4 py-4 max-w-[380px] w-full flex-wrap">
+		<div class="flex flex-col gap-4 py-4 max-w-[380px] w-full flex-wrap px-2">
 			<h1 class="text-2xl font-semibold text-left"> 
-				{media.Owner} - {media.Title}
+				<span>{media.Owner} - </span>
+				<span>{media.Title}</span>
+				<span class="font-normal">{media.MediaDuration}h</span>
 				<span class="text-slate-400 text-lg">
 					({media.ViewCount} views)
 				</span>
