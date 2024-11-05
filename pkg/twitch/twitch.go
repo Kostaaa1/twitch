@@ -11,10 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/internal/utils"
 )
 
 type ProgresbarChanData struct {
@@ -36,57 +34,6 @@ type API struct {
 	progressCh  chan ProgresbarChanData
 }
 
-type VideoType int
-
-const (
-	TypeClip VideoType = iota
-	TypeVOD
-	TypeLivestream
-)
-
-type MediaUnit struct {
-	Slug    string
-	Vtype   VideoType
-	Quality string
-	Start   time.Duration
-	End     time.Duration
-	W       io.Writer
-	// File    *os.File
-}
-
-func (tw *API) NewMediaUnit(URL, quality, output string, start, end time.Duration) (MediaUnit, error) {
-	slug, vtype, err := tw.Slug(URL)
-	if err != nil {
-		return MediaUnit{}, err
-	}
-
-	quality = GetResolution(quality, vtype)
-	if vtype == TypeVOD {
-		if start > 0 && end > 0 && start >= end {
-			return MediaUnit{}, fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL (%s)", start, end, URL)
-		}
-	}
-
-	dstPath, err := utils.ConstructPathname(output, slug, quality)
-	if err != nil {
-		return MediaUnit{}, err
-	}
-
-	f, err := os.Create(dstPath)
-	if err != nil {
-		return MediaUnit{}, err
-	}
-
-	return MediaUnit{
-		Slug:    slug,
-		Vtype:   vtype,
-		Quality: quality,
-		Start:   start,
-		End:     end,
-		W:       f,
-	}, nil
-}
-
 func (tw *API) Slug(URL string) (string, VideoType, error) {
 	parsedURL, err := url.Parse(URL)
 	if err != nil {
@@ -98,7 +45,6 @@ func (tw *API) Slug(URL string) (string, VideoType, error) {
 	}
 
 	s := strings.Split(parsedURL.Path, "/")
-
 	if strings.Contains(parsedURL.Host, "clips.twitch.tv") || strings.Contains(parsedURL.Path, "/clip/") {
 		_, id := path.Split(parsedURL.Path)
 		return id, TypeClip, nil
@@ -142,6 +88,7 @@ func (tw *API) do(req *http.Request) (*http.Response, error) {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed with status code %d: %s", s, string(b))
 	}
+
 	return resp, nil
 }
 
@@ -160,6 +107,7 @@ func (tw *API) fetchWithCode(url string) ([]byte, int, error) {
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("reading response body failed: %w", err)
 	}
+
 	return bytes, resp.StatusCode, nil
 }
 
@@ -178,15 +126,8 @@ func (tw *API) fetch(url string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading response body failed: %w", err)
 	}
-	return bytes, nil
-}
 
-func (tw *API) NewGetRequest(URL string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, URL, nil)
-	if err != nil {
-		return nil, err
-	}
-	return req, nil
+	return bytes, nil
 }
 
 func (tw *API) decodeJSONResponse(resp *http.Response, p interface{}) error {
@@ -202,14 +143,12 @@ func (tw *API) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
 	}
-
 	req.Header.Set("Client-Id", tw.gqlClientID)
 
 	resp, err := tw.do(req)
 	if err != nil {
 		return err
 	}
-
 	if err := tw.decodeJSONResponse(resp, &v); err != nil {
 		return err
 	}
@@ -220,36 +159,12 @@ func (tw *API) SetProgressChannel(progressCh chan ProgresbarChanData) {
 	tw.progressCh = progressCh
 }
 
-func (tw *API) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", tw.decapiURL, channelName)
-
-	resp, err := http.Get(u)
-	if err != nil {
-		return false, fmt.Errorf("failed getting the response from URL: %s. \nError: %s", u, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, fmt.Errorf("channel %s does not exist?", channelName)
-	}
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
-	}
-
-	if strings.HasPrefix(string(b), "[Error from Twitch API]") {
-		return false, fmt.Errorf("unexpected error")
-	}
-	return !strings.Contains(string(b), "offline"), nil
-}
-
 func (tw *API) GetToken() string {
-	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
+	return fmt.Sprintf("Bearer %s", tw.config.User.Creds.AccessToken)
 }
 
 func (tw *API) BatchDownload(units []MediaUnit) {
-	climit := runtime.GOMAXPROCS(0)
+	climit := runtime.NumCPU() / 2
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, climit)
@@ -260,6 +175,7 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+
 			tw.Download(unit)
 		}(unit)
 	}
@@ -270,22 +186,22 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 func (tw *API) Download(unit MediaUnit) {
 	var err error
 
-	switch unit.Vtype {
+	switch unit.Type {
 	case TypeVOD:
-		err = tw.DownloadVODParallel(unit)
+		err = tw.ParallelVodDownload(unit)
 	case TypeClip:
 		err = tw.DownloadClip(unit)
 	case TypeLivestream:
 		err = tw.RecordStream(unit)
 	}
 
-	fmt.Println(err)
-
-	// tw.progressCh <- ProgresbarChanData{
-	// 	Text:   unit.File.Name(),
-	// 	Error:  err,
-	// 	IsDone: true,
-	// }
+	if file, ok := unit.W.(*os.File); ok {
+		tw.progressCh <- ProgresbarChanData{
+			Text:   file.Name(),
+			Error:  err,
+			IsDone: true,
+		}
+	}
 }
 
 func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {
@@ -304,35 +220,31 @@ func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, 
 		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
 	}
 
-	n, err := io.Copy(w, resp.Body)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write to file: %w", err)
-	}
-
-	return n, nil
+	return io.Copy(w, resp.Body)
 }
 
-func (api *API) downloadSegmentToFile(segmentURL, tempFilePath string) (int64, error) {
-	req, err := http.NewRequest(http.MethodGet, segmentURL, nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := api.client.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get response: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
-	}
+func (api *API) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir string, unit MediaUnit) error {
+	lastIndex := strings.LastIndex(vodPlaylistURL, "/")
+	segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
+	tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(segment))
 
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create temp file: %w", err)
+		return fmt.Errorf("failed to create temp file %s: %w", tempFilePath, err)
 	}
 	defer tempFile.Close()
 
-	return io.Copy(tempFile, resp.Body)
+	n, err := api.downloadAndWriteSegment(segmentURL, tempFile)
+	if err != nil {
+		return fmt.Errorf("error downloading segment %s: %w", segmentURL, err)
+	}
+
+	if f, ok := unit.W.(*os.File); ok {
+		api.progressCh <- ProgresbarChanData{
+			Text:  f.Name(),
+			Bytes: n,
+		}
+	}
+
+	return nil
 }

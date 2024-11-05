@@ -2,6 +2,7 @@ package twitch
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,10 +12,9 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
-	"github.com/Kostaaa1/twitch/internal/utils"
 )
 
-func (api *API) GetSegments(mediaPlaylist []byte, start, end time.Duration) []string {
+func (api *API) truncateSegments(mediaPlaylist []byte, start, end time.Duration) []string {
 	var segmentDuration float64 = 10
 	s := int(start.Seconds()/segmentDuration) * 2
 	e := int(end.Seconds()/segmentDuration) * 2
@@ -40,6 +40,7 @@ func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	}
 
 	var vodPlaylistURL string
+
 	if status == http.StatusForbidden {
 		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
 		if err != nil {
@@ -57,7 +58,12 @@ func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	return vodPlaylistURL, nil
 }
 
-func (api *API) DownloadVODParallel(unit MediaUnit) error {
+func segmentFileName(segmentURL string) string {
+	parts := strings.Split(segmentURL, "/")
+	return parts[len(parts)-1]
+}
+
+func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
 		return err
@@ -66,50 +72,63 @@ func (api *API) DownloadVODParallel(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
-	segments := api.GetSegments(mediaPlaylist, unit.Start, unit.End)
+	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
 
 	tempDir, _ := os.MkdirTemp("", fmt.Sprintf("vod_segments_%s", unit.Slug))
 	defer os.RemoveAll(tempDir)
 
-	var maxConcurrency = runtime.NumCPU()
+	maxConcurrency := runtime.NumCPU() / 2
 	sem := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
 
-	for _, segment := range segments {
-		if strings.HasSuffix(segment, ".ts") {
-			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
-			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
+	// TODO: skip every 2nd iteration
+	for _, seg := range segments {
+		if strings.HasSuffix(seg, ".ts") {
 			wg.Add(1)
 
-			go func(url string) {
+			go func(seg string) {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
 
-				tempFilePath := fmt.Sprintf("%s/%s", tempDir, utils.SegmentFileName(url))
-				_, err = api.downloadSegmentToFile(segmentURL, tempFilePath)
-				if err != nil {
-					fmt.Printf("error downloading segment %s: %v\n", url, err)
+				if err := api.downloadSegmentToTempFile(seg, vodPlaylistURL, tempDir, unit); err != nil {
+					fmt.Println(err)
 				}
-
-				// api.progressCh <- ProgresbarChanData{
-				// Text:  unit.File.Name(),
-				// 	Bytes: n,
-				// }
-
-			}(segmentURL)
+			}(seg)
 		}
 	}
 
 	wg.Wait()
 
-	if err := utils.ConcatenateSegments(unit.W, segments, tempDir); err != nil {
-		return fmt.Errorf("failed to concatenate segments: %w", err)
+	if err := api.writeSegmentsToOutput(tempDir, segments, unit); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (api *API) writeSegmentsToOutput(tempDir string, segments []string, unit MediaUnit) error {
+	for _, tsFile := range segments {
+		if !strings.HasSuffix(tsFile, ".ts") {
+			continue
+		}
+		tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(tsFile))
+		tempFile, err := os.Open(tempFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to open temp file %s: %w", tempFilePath, err)
+		}
+
+		if _, err := io.Copy(unit.W, tempFile); err != nil {
+			tempFile.Close()
+			return fmt.Errorf("failed to write segment to output file: %w", err)
+		}
+
+		tempFile.Close()
 	}
 
 	return nil
 }
 
+// Stream segment, one by one to writer. used in web.
 func (api *API) StreamVOD(unit MediaUnit) error {
 	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
@@ -119,26 +138,25 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
-	segments := api.GetSegments(mediaPlaylist, unit.Start, unit.End)
-	utils.UnmuteSegments(segments)
+	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
 
 	for _, segment := range segments {
 		if strings.HasSuffix(segment, ".ts") {
 			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
 			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
 
-			fmt.Println(segmentURL)
-
-			_, err = api.downloadAndWriteSegment(segmentURL, unit.W)
+			n, err := api.downloadAndWriteSegment(segmentURL, unit.W)
 			if err != nil {
 				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
 				return err
 			}
 
-			// api.progressCh <- ProgresbarChanData{
-			// Text:  unit.File.Name(),
-			// 	Bytes: n,
-			// }
+			if file, ok := unit.W.(*os.File); ok {
+				api.progressCh <- ProgresbarChanData{
+					Text:  file.Name(),
+					Bytes: n,
+				}
+			}
 		}
 	}
 
@@ -163,6 +181,7 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 	        "playerType": "site"
 	    }
 	}`
+
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
 
 	type payload struct {
@@ -174,6 +193,10 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 
 	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
 		return "", "", err
+	}
+
+	if p.Data.VideoPlaybackAccessToken.Value == "" && p.Data.VideoPlaybackAccessToken.Signature == "" {
+		return "", "", fmt.Errorf("sorry. Unless you've got a time machine, that content is unavailable")
 	}
 
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
@@ -213,6 +236,7 @@ type SubVODResponse struct {
 	} `json:"extensions"`
 }
 
+// Getting the sub VOD playlist
 func (api *API) getSubVODPlaylistURL(slug, quality string) (string, error) {
 	gqlPayload := `{
  	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"

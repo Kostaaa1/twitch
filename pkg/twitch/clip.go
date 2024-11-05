@@ -3,11 +3,13 @@ package twitch
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
 
 func (api *API) extractClipSourceURL(videoQualities []VideoQuality, quality string) string {
+	fmt.Println(videoQualities)
 	if quality == "best" {
 		return videoQualities[0].SourceURL
 	}
@@ -42,15 +44,20 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
-	_, err = api.downloadAndWriteSegment(usherURL, unit.W)
+
+	fmt.Println("usherURL\n", usherURL)
+
+	n, err := api.downloadAndWriteSegment(usherURL, unit.W)
 	if err != nil {
 		return err
 	}
 
-	// api.progressCh <- ProgresbarChanData{
-	// 	Text:  unit.File.Name(),
-	// 	Bytes: n,
-	// }
+	if file, ok := unit.W.(*os.File); ok {
+		api.progressCh <- ProgresbarChanData{
+			Text:  file.Name(),
+			Bytes: n,
+		}
+	}
 
 	return nil
 }

@@ -142,7 +142,7 @@ func (m model) View() string {
 
 	for i := 0; i < len(m.state); i++ {
 		if m.state[i].err != nil {
-			s := fmt.Sprintf("❌ : %s \n", m.state[i].err)
+			s := fmt.Sprintf("❌ %s: %s \n", m.state[i].text, m.state[i].err)
 			str.WriteString(s)
 			continue
 		}

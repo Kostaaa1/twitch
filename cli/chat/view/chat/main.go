@@ -134,13 +134,13 @@ func Open(twitch *twitch.API, cfg *config.Data) {
 	}
 
 	go func() {
-		if err := ws.Connect(cfg.Creds.AccessToken, cfg.Creds.ClientID, msgChan, cfg.OpenedChats); err != nil {
+		if err := ws.Connect(cfg.User.Creds.AccessToken, cfg.User.Creds.ClientID, msgChan, cfg.Chat.OpenedChats); err != nil {
 			fmt.Println("Connection error: ", err)
 		}
 	}()
 
 	chats := []Chat{}
-	for i, channel := range cfg.OpenedChats {
+	for i, channel := range cfg.Chat.OpenedChats {
 		chats = append(chats, createNewChat(channel, i == 0))
 	}
 
@@ -152,7 +152,7 @@ func Open(twitch *twitch.API, cfg *config.Data) {
 		width:               0,
 		height:              0,
 		msgChan:             msgChan,
-		labelBox:            NewBoxWithLabel(cfg.Colors.Primary),
+		labelBox:            NewBoxWithLabel(cfg.Chat.Colors.Primary),
 		viewport:            vp,
 		textinput:           t,
 		displayCommands:     false,
@@ -285,6 +285,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case Notice:
+
 			// if chanMsg.Err != nil {
 			// 	 go func() {
 			// 	// m.msgChan <- errMsg{err: fmt.Errorf(chanMsg.SystemMsg)}

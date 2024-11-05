@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
+// TODO: add flags for filtering video types basd on users.
 // type PromptFilter struct {
 // 	Day   string `json:"day,24h"`
 // 	Week  string `json:"week,7d"`
@@ -18,11 +20,11 @@ import (
 // }
 
 type Prompt struct {
-	Input   string        `json:"input,url"`
+	Input   string        `json:"url"`
 	Quality string        `json:"quality"`
 	Start   time.Duration `json:"start"`
 	End     time.Duration `json:"end"`
-	Output  string        `json:"destpath,dstpath,output"`
+	Output  string        `json:"output"`
 }
 
 func (p *Prompt) UnmarshalJSON(b []byte) error {
@@ -57,6 +59,63 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+var (
+	resolutionKeys = []string{"best", "1080p60", "720p60", "480p30", "360p30", "160p30", "worst"}
+)
+
+func getResolution(quality string, vtype twitch.VideoType) string {
+	if quality == "best" {
+		if vtype == twitch.TypeVOD {
+			return "chunked"
+		}
+		return "best"
+	}
+	if quality == "worst" {
+		if vtype == twitch.TypeVOD {
+			return "16030"
+		}
+		return "worst"
+	}
+	for i, q := range resolutionKeys {
+		if strings.HasPrefix(q, quality) || strings.HasPrefix(quality, q) {
+			return resolutionKeys[i]
+		}
+	}
+	return "1080p60"
+}
+
+func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
+	var unit twitch.MediaUnit
+
+	slug, vtype, err := tw.Slug(prompt.Input)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if vtype == twitch.TypeVOD {
+		if prompt.Start > 0 && prompt.End > 0 && prompt.Start >= prompt.End {
+			log.Fatalf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", prompt.Start, prompt.End, prompt.Input)
+		}
+	}
+
+	// we do not want to do this here, do after trying to get the media, because it can fail. Use unit.SetWriter(),
+	f, err := fileutil.CreateFile(prompt.Output, slug, fileutil.GetExt(prompt.Quality))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	prompt.Quality = getResolution(prompt.Quality, vtype)
+
+	unit.Slug = slug
+	unit.Type = vtype
+	unit.Quality = prompt.Quality
+	unit.Start = prompt.Start
+	unit.End = prompt.End
+	unit.W = f
+
+	return unit
+}
+
 func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 	_, err := os.Stat(input)
 	if os.IsNotExist(err) {
@@ -68,40 +127,31 @@ func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 		log.Fatal(err)
 	}
 
-	var body []Prompt
-	if err := json.Unmarshal(content, &body); err != nil {
+	var prompts []Prompt
+	if err := json.Unmarshal(content, &prompts); err != nil {
 		log.Fatal(err)
 	}
 
 	var units []twitch.MediaUnit
-
-	for _, b := range body {
-		unit, err := tw.NewMediaUnit(b.Input, b.Quality, b.Output, b.Start, b.End)
-		if err != nil {
-			log.Fatal(err)
-		}
-		units = append(units, unit)
+	for _, prompt := range prompts {
+		units = append(units, newUnit(tw, prompt))
 	}
-
 	return units
 }
 
-func processFlagInput(tw *twitch.API, prompt *Prompt) []twitch.MediaUnit {
+func processFlagInput(tw *twitch.API, prompt Prompt) []twitch.MediaUnit {
 	urls := strings.Split(prompt.Input, ",")
-	var units []twitch.MediaUnit
 
+	var units []twitch.MediaUnit
 	for _, url := range urls {
-		unit, err := tw.NewMediaUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
-		if err != nil {
-			log.Fatal(err)
-		}
-		units = append(units, unit)
+		prompt.Input = url
+		units = append(units, newUnit(tw, prompt))
 	}
 
 	return units
 }
 
-func (prompt *Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
+func (prompt Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	if prompt.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
@@ -109,7 +159,6 @@ func (prompt *Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	var units []twitch.MediaUnit
 
 	_, err := url.ParseRequestURI(prompt.Input)
-
 	if err == nil {
 		units = processFlagInput(tw, prompt)
 	} else {

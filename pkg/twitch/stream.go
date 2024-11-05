@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -124,6 +125,7 @@ func (api *API) RecordStream(unit MediaUnit) error {
 
 			if tickCount%2 != 0 {
 				// TODO: no need to fetch every time, just add 1 to last .ts file (current 182.ts - next 183.ts)
+
 				b, err := api.fetch(mediaList.URL)
 				if err != nil {
 					return fmt.Errorf("failed to fetch playlist: %w", err)
@@ -154,12 +156,12 @@ func (api *API) RecordStream(unit MediaUnit) error {
 				halfBytes.Reset([]byte{})
 			}
 
-			fmt.Println(n)
-
-			// api.progressCh <- ProgresbarChanData{
-			// 	Text:  unit.File.Name(),
-			// 	Bytes: n,
-			// }
+			if f, ok := unit.W.(*os.File); ok {
+				api.progressCh <- ProgresbarChanData{
+					Text:  f.Name(),
+					Bytes: n,
+				}
+			}
 		}
 	}
 }
@@ -172,7 +174,6 @@ func (api *API) OpenStreamInMediaPlayer(channel string) error {
 
 	cmd := exec.Command("vlc", media.URL)
 	if err := cmd.Run(); err != nil {
-		fmt.Println("EXECUTION ERROR")
 		return err
 	}
 

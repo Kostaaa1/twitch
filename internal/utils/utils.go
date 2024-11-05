@@ -2,9 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"io"
-	"math/rand"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -45,44 +42,6 @@ func RemoveCursor() {
 	}()
 }
 
-func CreateServingID() string {
-	w := strings.Split("0123456789abcdefghijklmnopqrstuvwxyz", "")
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	id := ""
-	for i := 0; i < 32; i++ {
-		id += w[r.Intn(len(w))]
-	}
-	return id
-}
-
-func ConstructPathname(dstPath, filename, quality string) (string, error) {
-	if dstPath == "" {
-		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via config.json (outputPath)")
-	}
-
-	info, err := os.Stat(dstPath)
-	if os.IsNotExist(err) {
-		if filepath.Ext(dstPath) != "" {
-			dir := filepath.Dir(dstPath)
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				return "", fmt.Errorf("directory does not exist: %s", dir)
-			}
-			return dstPath, nil
-		}
-		return "", fmt.Errorf("path does not exist: %s", dstPath)
-	}
-
-	if info.IsDir() {
-		// fileID := CreateServingID()
-		fname := fmt.Sprintf("%s.%s", filename, "mp4")
-		newpath := filepath.Join(dstPath, fname)
-		return newpath, nil
-	}
-
-	return "", fmt.Errorf("this path already exists %s: ", dstPath)
-}
-
 func ChangeImageResolution(imgURL string, w, h int) (string, error) {
 	parsedURL, err := url.Parse(imgURL)
 	if err != nil {
@@ -106,60 +65,4 @@ func ChangeImageResolution(imgURL string, w, h int) (string, error) {
 	}
 
 	return "", nil
-}
-
-func SegmentFileName(segmentURL string) string {
-	parts := strings.Split(segmentURL, "/")
-	return parts[len(parts)-1]
-}
-
-func UnmuteSegments(segments []string) {
-	for i := 1; i < len(segments); i += 2 {
-		if strings.HasSuffix(segments[i], ".ts") {
-			segments[i] = strings.Join(strings.Split(segments[i], "-muted"), "")
-		}
-	}
-}
-
-func ConcatenateSegments(outputFile io.Writer, segments []string, tempDir string) error {
-	for _, tsFile := range segments {
-		if !strings.HasSuffix(tsFile, ".ts") {
-			continue
-		}
-
-		tempFilePath := fmt.Sprintf("%s/%s", tempDir, SegmentFileName(tsFile))
-
-		tempFile, err := os.Open(tempFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to open temp file %s: %w", tempFilePath, err)
-		}
-
-		if _, err := io.Copy(outputFile, tempFile); err != nil {
-			tempFile.Close()
-			return fmt.Errorf("failed to write segment to output file: %w", err)
-		}
-		tempFile.Close()
-	}
-	return nil
-}
-
-func DownloadSegmentToFile(segmentURL, tempFilePath string) (int64, error) {
-	resp, err := http.Get(segmentURL)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get response: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
-	}
-
-	tempFile, err := os.Create(tempFilePath)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer tempFile.Close()
-
-	return io.Copy(tempFile, resp.Body)
-
 }

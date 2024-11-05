@@ -1,10 +1,18 @@
 ** GLOBAL ** 
 1. iz twitch urla moze da se ekstraktuje timestamp (&t=0h13m27s)
-2. Downloadovanje segmenata u goroutini
-
-NewMediaUnit - add better URL parsing. Extract timestamps, etc.
+2. Downloadovanje segmenata u paraleli
+3. Add better URL parsing. Extract more information: timestamps, etc.
 
 **CLI**
 
 **WEB**
-1. Change server code, so it does not use gin, do everything with stdlib http package (maybe gorilla/mux)
+
+.:. TODO .:.
+1. Refactor server to use stdlib.
+2. Scheduler -- (Automatically record the streams to their selected cloud storage) 
+	- Ask users for the usual time where their streamer goes online (narrow down the requests)
+	- Periodically check if the streamer is live
+	- When livestream is on, start recording process, cancel sending the checking request.
+	- Stream directly to their selected cloud storage (Google Drive)
+	* need to handle when the streamer goes offline ???
+3. 

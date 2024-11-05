@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
 	"time"
 )
 
@@ -61,17 +63,21 @@ type UserData struct {
 
 func (api *API) GetUserInfo(loginName string) (*UserData, error) {
 	u := fmt.Sprintf("%s/users?login=%s", api.helixURL, loginName)
-	req, err := api.NewGetRequest(u)
+
+	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+
+	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
 	req.Header.Set("Authorization", api.GetToken())
+
 	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -81,28 +87,34 @@ func (api *API) GetUserInfo(loginName string) (*UserData, error) {
 		Data []UserData `json:"data"`
 	}
 	var user data
+
 	if err := json.Unmarshal(b, &user); err != nil {
 		return nil, err
 	}
+
 	if len(user.Data) == 0 {
 		return nil, fmt.Errorf("the channel %s does not exist", loginName)
 	}
+
 	return &user.Data[0], nil
 }
 
 func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", api.helixURL, broadcasterID)
-	req, err := api.NewGetRequest(u)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+
+	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
 	req.Header.Set("Authorization", api.GetToken())
+
 	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -111,26 +123,31 @@ func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
 	type data struct {
 		Data []ChannelData `json:"data"`
 	}
+
 	var channel data
 	if err := json.Unmarshal(b, &channel); err != nil {
 		return nil, err
 	}
+
 	return &channel.Data[0], nil
 }
 
 func (api *API) GetFollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", api.helixURL, id)
-	req, err := api.NewGetRequest(u)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+
+	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
 	req.Header.Set("Authorization", api.GetToken())
+
 	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -140,22 +157,26 @@ func (api *API) GetFollowedStreams(id string) (*Streams, error) {
 	if err := json.Unmarshal(b, &streams); err != nil {
 		return nil, err
 	}
+
 	return &streams, nil
 }
 
 func (api *API) GetStream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", api.helixURL, userId)
-	req, err := api.NewGetRequest(u)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", api.config.Creds.ClientID)
+
+	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
 	req.Header.Set("Authorization", api.GetToken())
+
 	resp, err := api.do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -165,5 +186,31 @@ func (api *API) GetStream(userId string) (*Streams, error) {
 	if err := json.Unmarshal(b, &streams); err != nil {
 		return nil, err
 	}
+
 	return &streams, nil
+}
+
+func (tw *API) IsChannelLive(channelName string) (bool, error) {
+	u := fmt.Sprintf("%s/%s", tw.decapiURL, channelName)
+
+	resp, err := http.Get(u)
+	if err != nil {
+		return false, fmt.Errorf("failed getting the response from URL: %s. \nError: %s", u, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return false, fmt.Errorf("channel %s does not exist?", channelName)
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
+	}
+
+	if strings.HasPrefix(string(b), "[Error from Twitch API]") {
+		return false, fmt.Errorf("unexpected error")
+	}
+
+	return !strings.Contains(string(b), "offline"), nil
 }
