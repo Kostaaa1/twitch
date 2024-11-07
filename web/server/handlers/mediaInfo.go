@@ -25,32 +25,30 @@ func replaceImageDimension(imgURL string, w, h int) string {
 
 func (s *Static) mediaInfo(c *gin.Context) {
 	twitchUrl := c.PostForm("twitchUrl")
+
 	slug, vtype, err := s.tw.Slug(twitchUrl)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	switch vtype {
-	case twitch.TypeClip:
-		formData, err := s.getClipData(slug)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.HTML(http.StatusOK, "", server.WithBase(c, components.DownloadClipForm(formData), "Home", ""))
-
-	case twitch.TypeVOD:
-		formData, err := s.getVODData(slug)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.HTML(http.StatusOK, "", server.WithBase(c, components.DownloadVODForm(formData), "Home", ""))
-
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported media type"})
+	var formData components.FormData
+	if vtype == twitch.TypeClip {
+		formData, err = s.getClipData(slug)
 	}
+	if vtype == twitch.TypeVOD {
+		formData, err = s.getVODData(slug)
+	}
+	formData.Type = vtype
+
+	fmt.Println(formData.MediaDuration)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.HTML(http.StatusOK, "", server.WithBase(c, components.MediaForm(formData), "Home", ""))
 }
 
 func (s *Static) getVODData(slug string) (components.FormData, error) {
@@ -80,6 +78,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		Owner:               metadata.Video.Owner.DisplayName,
 		ViewCount:           humanize.Comma(metadata.Video.ViewCount),
 		Qualities:           qualities,
+		MediaDuration:       fmt.Sprintf("%.2f", float64(metadata.Video.LengthSeconds)/3600.00),
 	}
 
 	return formData, nil
@@ -109,6 +108,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		Owner:               clip.Broadcaster.DisplayName,
 		ViewCount:           humanize.Comma(clip.ViewCount),
 		Qualities:           qualities,
+		MediaDuration:       fmt.Sprintf("%.2f", float64(clip.DurationSeconds)/3600.00),
 	}
 
 	return formData, nil
