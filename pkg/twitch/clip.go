@@ -2,32 +2,16 @@ package twitch
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
 
-func (api *API) extractClipSourceURL(videoQualities []VideoQuality, quality string) string {
-	fmt.Println(videoQualities)
-	if quality == "best" {
-		return videoQualities[0].SourceURL
-	}
-	if quality == "worst" {
-		return videoQualities[len(videoQualities)-1].SourceURL
-	}
-	for _, q := range videoQualities {
-		if strings.HasPrefix(quality, q.Quality) || strings.HasPrefix(q.Quality, quality) {
-			return q.SourceURL
-		}
-	}
-	return quality
-}
-
-func (api *API) GetClipUsherURL(clip Clip, sourceURL string) (string, error) {
-	fmt.Println("\nSIG: ", clip.PlaybackAccessToken.Signature)
-	fmt.Println("\nTOKEN: ", clip.PlaybackAccessToken.Value)
-	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.PlaybackAccessToken.Signature), url.QueryEscape(clip.PlaybackAccessToken.Value))
+func (api *API) GetClipUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value))
 	return URL, nil
 }
 
@@ -37,17 +21,19 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 		return err
 	}
 
-	sourceURL := api.extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality)
-	fmt.Println("sourceURL", sourceURL)
-
-	usherURL, err := api.GetClipUsherURL(clip, sourceURL)
+	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality)
+	usherURL, err := api.GetClipUsherURL(clip.PlaybackAccessToken, sourceURL)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("usherURL\n", usherURL)
+	var writtenBytes int64
+	if api.config.Downloader.IsFFmpegEnabled && unit.Quality == "audio_only" {
+		writtenBytes, err = extractAudio(usherURL, unit.W)
+	} else {
+		writtenBytes, err = api.downloadAndWriteSegment(usherURL, unit.W)
+	}
 
-	n, err := api.downloadAndWriteSegment(usherURL, unit.W)
 	if err != nil {
 		return err
 	}
@@ -55,11 +41,37 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 	if file, ok := unit.W.(*os.File); ok {
 		api.progressCh <- ProgresbarChanData{
 			Text:  file.Name(),
-			Bytes: n,
+			Bytes: writtenBytes,
 		}
 	}
 
 	return nil
+}
+
+func extractAudio(segmentURL string, output io.Writer) (int64, error) {
+	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
+	}
+
+	n, err := io.Copy(output, stdout)
+	if err != nil {
+		return 0, fmt.Errorf("failed to copy audio data: %w", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
+	}
+
+	return n, nil
 }
 
 type VideoQuality struct {
@@ -67,6 +79,18 @@ type VideoQuality struct {
 	Quality   string  `json:"quality"`
 	SourceURL string  `json:"sourceURL"`
 	Typename  string  `json:"__typename"`
+}
+
+type PlaybackAccessToken struct {
+	Signature string `json:"signature"`
+	Value     string `json:"value"`
+	Typename  string `json:"__typename"`
+}
+
+type ClipAccessToken struct {
+	ID                  string              `json:"id"`
+	PlaybackAccessToken PlaybackAccessToken `json:"playbackAccessToken"`
+	VideoQualities      []VideoQuality      `json:"videoQualities"`
 }
 
 type Clip struct {
@@ -139,17 +163,13 @@ type Clip struct {
 		} `json:"self"`
 		Typename string `json:"__typename"`
 	} `json:"broadcaster"`
-	ThumbnailURL        string      `json:"thumbnailURL"`
-	CreatedAt           time.Time   `json:"createdAt"`
-	IsPublished         bool        `json:"isPublished"`
-	DurationSeconds     int         `json:"durationSeconds"`
-	ChampBadge          interface{} `json:"champBadge"`
-	PlaybackAccessToken struct {
-		Signature string `json:"signature"`
-		Value     string `json:"value"`
-		Typename  string `json:"__typename"`
-	} `json:"playbackAccessToken"`
-	Video struct {
+	ThumbnailURL        string              `json:"thumbnailURL"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	IsPublished         bool                `json:"isPublished"`
+	DurationSeconds     int                 `json:"durationSeconds"`
+	ChampBadge          interface{}         `json:"champBadge"`
+	PlaybackAccessToken PlaybackAccessToken `json:"playbackAccessToken"`
+	Video               struct {
 		ID            string `json:"id"`
 		BroadcastType string `json:"broadcastType"`
 		Title         string `json:"title"`

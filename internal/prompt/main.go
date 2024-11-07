@@ -12,7 +12,6 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
-// TODO: add flags for filtering video types basd on users.
 // type PromptFilter struct {
 // 	Day   string `json:"day,24h"`
 // 	Week  string `json:"week,7d"`
@@ -59,34 +58,8 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-var (
-	resolutionKeys = []string{"best", "1080p60", "720p60", "480p30", "360p30", "160p30", "worst"}
-)
-
-func getResolution(quality string, vtype twitch.VideoType) string {
-	if quality == "best" {
-		if vtype == twitch.TypeVOD {
-			return "chunked"
-		}
-		return "best"
-	}
-	if quality == "worst" {
-		if vtype == twitch.TypeVOD {
-			return "16030"
-		}
-		return "worst"
-	}
-	for i, q := range resolutionKeys {
-		if strings.HasPrefix(q, quality) || strings.HasPrefix(quality, q) {
-			return resolutionKeys[i]
-		}
-	}
-	return "1080p60"
-}
-
 func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 	var unit twitch.MediaUnit
-
 	slug, vtype, err := tw.Slug(prompt.Input)
 	if err != nil {
 		log.Fatal(err)
@@ -98,17 +71,19 @@ func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 		}
 	}
 
-	// we do not want to do this here, do after trying to get the media, because it can fail. Use unit.SetWriter(),
-	f, err := fileutil.CreateFile(prompt.Output, slug, fileutil.GetExt(prompt.Quality))
+	ext := "mp4"
+	if strings.HasPrefix(prompt.Quality, "audio") {
+		ext = "mp3"
+	}
+	// we do not want to do this here, do after trying to get the media, because it can fail. Use unit.SetWriter()
+	f, err := fileutil.CreateFile(prompt.Output, slug, ext)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	prompt.Quality = getResolution(prompt.Quality, vtype)
-
 	unit.Slug = slug
 	unit.Type = vtype
-	unit.Quality = prompt.Quality
+	unit.Quality = twitch.GetFormat(prompt.Quality, vtype)
 	unit.Start = prompt.Start
 	unit.End = prompt.End
 	unit.W = f
@@ -136,6 +111,7 @@ func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 	for _, prompt := range prompts {
 		units = append(units, newUnit(tw, prompt))
 	}
+
 	return units
 }
 

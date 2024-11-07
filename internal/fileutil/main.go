@@ -58,15 +58,5 @@ func CreateFile(dir, filename, ext string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return f, nil
-}
-
-func GetExt(quality string) string {
-	switch quality {
-	case "audio":
-		return "mp3"
-	default:
-		return "mp4"
-	}
 }

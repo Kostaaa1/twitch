@@ -21,7 +21,3 @@ type MediaUnit struct {
 	End     time.Duration
 	W       io.Writer
 }
-
-func (unit *MediaUnit) SetWriter(w io.Writer) {
-	unit.W = w
-}

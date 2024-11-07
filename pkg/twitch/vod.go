@@ -40,7 +40,6 @@ func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	}
 
 	var vodPlaylistURL string
-
 	if status == http.StatusForbidden {
 		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
 		if err != nil {
@@ -68,12 +67,13 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
+
 	mediaPlaylist, err := api.fetch(vodPlaylistURL)
 	if err != nil {
 		return err
 	}
-	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
 
+	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
 	tempDir, _ := os.MkdirTemp("", fmt.Sprintf("vod_segments_%s", unit.Slug))
 	defer os.RemoveAll(tempDir)
 
@@ -81,7 +81,6 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	sem := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
 
-	// TODO: skip every 2nd iteration
 	for _, seg := range segments {
 		if strings.HasSuffix(seg, ".ts") {
 			wg.Add(1)
@@ -103,6 +102,7 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	if err := api.writeSegmentsToOutput(tempDir, segments, unit); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -116,15 +116,12 @@ func (api *API) writeSegmentsToOutput(tempDir string, segments []string, unit Me
 		if err != nil {
 			return fmt.Errorf("failed to open temp file %s: %w", tempFilePath, err)
 		}
-
 		if _, err := io.Copy(unit.W, tempFile); err != nil {
 			tempFile.Close()
 			return fmt.Errorf("failed to write segment to output file: %w", err)
 		}
-
 		tempFile.Close()
 	}
-
 	return nil
 }
 

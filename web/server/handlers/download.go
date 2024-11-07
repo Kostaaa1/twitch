@@ -43,7 +43,6 @@ func parseDuration(startH, startM, startS string) (time.Duration, error) {
 	if err != nil || startS == "" {
 		seconds = 0
 	}
-
 	duration := time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second
 	return duration, nil
 }

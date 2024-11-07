@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,7 +31,6 @@ type API struct {
 	usherURL    string
 	decapiURL   string
 	gqlClientID string
-	mu          sync.Mutex
 	progressCh  chan ProgresbarChanData
 }
 
@@ -63,7 +63,6 @@ func New() *API {
 	if err != nil {
 		panic(err)
 	}
-
 	return &API{
 		client:      http.DefaultClient,
 		config:      *cfg,
@@ -72,7 +71,6 @@ func New() *API {
 		usherURL:    "https://usher.ttvnw.net",
 		helixURL:    "https://api.twitch.tv/helix",
 		decapiURL:   "https://decapi.me/twitch/uptime",
-		mu:          sync.Mutex{},
 		progressCh:  nil,
 	}
 }
@@ -195,6 +193,18 @@ func (tw *API) Download(unit MediaUnit) {
 		err = tw.RecordStream(unit)
 	}
 
+	if err != nil {
+		logFile, e := os.OpenFile("errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		if e != nil {
+			log.Fatal("Error opening log file: ", e)
+		}
+		defer logFile.Close()
+
+		logger := log.New(logFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+		msg := fmt.Sprintf("Failed to download - %s. ERROR: %v", unit.Slug, err)
+		logger.Printf(msg, unit.Slug, err)
+	}
+
 	if file, ok := unit.W.(*os.File); ok {
 		tw.progressCh <- ProgresbarChanData{
 			Text:   file.Name(),
@@ -205,12 +215,7 @@ func (tw *API) Download(unit MediaUnit) {
 }
 
 func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {
-	req, err := http.NewRequest(http.MethodGet, segmentURL, nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := api.client.Do(req)
+	resp, err := api.client.Get(segmentURL)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get response: %w", err)
 	}
