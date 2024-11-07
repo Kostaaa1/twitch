@@ -35,13 +35,10 @@ func (s *Static) mediaInfo(c *gin.Context) {
 	var formData components.FormData
 	if vtype == twitch.TypeClip {
 		formData, err = s.getClipData(slug)
-	}
-	if vtype == twitch.TypeVOD {
+	} else if vtype == twitch.TypeVOD {
 		formData, err = s.getVODData(slug)
 	}
 	formData.Type = vtype
-
-	fmt.Println(formData.MediaDuration)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -59,7 +56,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 
 	master, _, err := s.tw.GetVODMasterM3u8(slug)
 	if err != nil {
-		return components.FormData{}, nil
+		return components.FormData{}, err
 	}
 
 	var qualities []components.Quality

@@ -868,10 +868,6 @@ video {
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
-.to-violet-200 {
-  --tw-gradient-to: #ddd6fe var(--tw-gradient-to-position);
-}
-
 .to-purple-200 {
   --tw-gradient-to: #e9d5ff var(--tw-gradient-to-position);
 }
