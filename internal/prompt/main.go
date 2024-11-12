@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -59,7 +60,13 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 }
 
 func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
+	// instead of log.Fatal handle it gracefully
 	var unit twitch.MediaUnit
+
+	if !twitch.IsQualityValid(prompt.Quality) {
+		log.Fatalf("Provided quality is not valid: %s. These are valid qualities: %s", prompt.Quality, strings.Join(twitch.Qualities, ", "))
+	}
+
 	slug, vtype, err := tw.Slug(prompt.Input)
 	if err != nil {
 		log.Fatal(err)
@@ -71,19 +78,22 @@ func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 		}
 	}
 
+	////////////////////////
+	// we do not want to do this here, do after trying to get the media, because it can fail. Use unit.SetWriter()
 	ext := "mp4"
 	if strings.HasPrefix(prompt.Quality, "audio") {
 		ext = "mp3"
 	}
-	// we do not want to do this here, do after trying to get the media, because it can fail. Use unit.SetWriter()
-	f, err := fileutil.CreateFile(prompt.Output, slug, ext)
+	mediaName := fmt.Sprintf("%s_%s", slug, prompt.Quality)
+	f, err := fileutil.CreateFile(prompt.Output, mediaName, ext)
 	if err != nil {
 		log.Fatal(err)
 	}
+	////////////////////////
 
 	unit.Slug = slug
 	unit.Type = vtype
-	unit.Quality = twitch.GetFormat(prompt.Quality, vtype)
+	unit.Quality = prompt.Quality
 	unit.Start = prompt.Start
 	unit.End = prompt.End
 	unit.W = f
@@ -117,13 +127,11 @@ func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 
 func processFlagInput(tw *twitch.API, prompt Prompt) []twitch.MediaUnit {
 	urls := strings.Split(prompt.Input, ",")
-
 	var units []twitch.MediaUnit
 	for _, url := range urls {
 		prompt.Input = url
 		units = append(units, newUnit(tw, prompt))
 	}
-
 	return units
 }
 
@@ -133,7 +141,6 @@ func (prompt Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	}
 
 	var units []twitch.MediaUnit
-
 	_, err := url.ParseRequestURI(prompt.Input)
 	if err == nil {
 		units = processFlagInput(tw, prompt)

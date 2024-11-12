@@ -4,7 +4,8 @@
 3. Add better URL parsing. Extract more information: timestamps, etc.
 
 **CLI**
-1. Add flags for filtering video types based on users.
+1. Add flags for filtering media based on users.
+2. Fix spinner spacing/format
 
 **WEB**
 

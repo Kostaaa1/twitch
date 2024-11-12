@@ -10,6 +10,7 @@ type BtnData struct {
 	Include []string
 	Target 	string
 	Body 	map[string]interface{}
+	Type 	string
 }
 
 func jsonStringify(data map[string]interface{}) string  {
@@ -27,6 +28,7 @@ templ Button(data BtnData) {
 		hx-target={data.Target}
 		hx-include={strings.Join(data.Include, ",")}
 		hx-vals={jsonStringify(data.Body)}
+		type={data.Type}
 		@click="loading = true"
 		:disabled="loading"
 		x-on:htmx:after-request.window="loading = false"

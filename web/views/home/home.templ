@@ -3,18 +3,17 @@ package home
 import "github.com/Kostaaa1/twitch/web/views/components"
 
 templ Hero() {
-	<div class="py-20 flex px-4 items-center justify-center flex-col text-white flex-wrap gap-4 text-center">
-		<h1 class="text-7xl font-semibold">Download Twitch media</h1>
-		<h3 class="text-3xl">Download media from twitch.tv</h3>
-		<div class="flex w-[80vw] max-w-[800px] py-4">
+	<div class="flex py-16 px-4 items-center justify-center flex-col text-white flex-wrap text-center gap-3">
+		<h1 class="text-5xl md:text-7xl font-semibold">Download Twitch media</h1>
+		<h3 class="text-xl md:text-3xl">Download media from twitch.tv</h3>
+		<div class="flex w-[80vw] max-w-[800px] mt-3">
 			<input 
 				id="twitchUrl"
 				name="twitchUrl"	
-				class="w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full p-3 transition duration-300 ease focus:outline-none hover:border-slate-300 shadow-sm focus:shadow" placeholder="Paste twitch.tv URL & Download" 
+				class="w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow" placeholder="Paste twitch.tv URL & Download" 
 				autofocus="true"
-				value="https://www.twitch.tv/videos/2289624874?filter=archives&sort=time"
+				value="https://www.twitch.tv/videos/2295067647?filter=archives&sort=time"
 			/>
-
 			@components.Button(components.BtnData{
 				Text: "Submit",
 				URL: "/media/info",
@@ -22,14 +21,30 @@ templ Hero() {
 				Include: []string{"#twitchUrl"},
 				Class: "text-gray-500 rounded-r-full bg-yellow-500 text-white px-4 font-semibold hover:bg-yellow-600 transition duration-300 ease",
 			})
-
 		</div>
 	</div>
 }
 
 templ Home() {
-	<div class="">
+	<div class="flex items-center justify-center flex-col">
 		@Hero()
-		<div id="mediaInfo"></div>
+		<div class="h-full w-full bg-yellow-200 rounded-md bg-clip-padding backdrop-filter backdrop-blur-md bg-opacity-10 border border-gray-100 flex items-center justify-center flex-col p-8 w-[60vw] gap-4 text-xl text-center">
+			<div class="flex flex-col gap-4 px-8">
+				<h3 class="text-3xl font-semibold">How to untwitch a video?</h3>
+				<p>Hello and welcome. Here's a few instructions on how our Twitch video downloader works. By now you've probably realized our site is not a twitch remedy. We are as addicted to watching and doing our own twitch live streams as the next group of fulltime gamers. No.. Our site helps you untwitch, a.k.a. download twitch videos, instead of watching them online over and over. And so we've come up with this website - the only website that claims to download twitch videos and clips and actually does it! Because you know it! None of them websites that claim they do twitch videos actually do do them.. Best you get is some m3u8 file, ok, let's not go there.. On our site you can actually download twitch videos, different formats and sizes, if available. You can also adjust start and end of the video broadcast to download a smaller portion of the video. It is as easy as 1-2-3-4. </p>
+			</div>
+			<div class="flex flex-col gap-4 px-8">
+				<h3 class="text-3xl font-semibold">How to untwitch a clip?</h3>
+				<p>To download a clip from Twitch.tv platform, all you need is the URL link of the page with the video clip. Copy the link, visit Untwitch and proceed to insert the URL into our Twitch Clip downloader. We will scan the clip and offer you several options to download the video file to your device. Then you can share it on other social networks, edit, insert into your YouTube report, etc. </p>
+			</div>
+			<div class="flex flex-col gap-4 px-8">
+				<h3 class="text-3xl font-semibold">How to untwitch a clip?</h3>
+				<p>To download a clip from Twitch.tv platform, all you need is the URL link of the page with the video clip. Copy the link, visit Untwitch and proceed to insert the URL into our Twitch Clip downloader. We will scan the clip and offer you several options to download the video file to your device. Then you can share it on other social networks, edit, insert into your YouTube report, etc. </p>
+			</div>
+			<div class="flex flex-col gap-4 px-8">
+				<h3 class="text-3xl font-semibold">How to untwitch a video?</h3>
+				<p>Hello and welcome. Here's a few instructions on how our Twitch video downloader works. By now you've probably realized our site is not a twitch remedy. We are as addicted to watching and doing our own twitch live streams as the next group of fulltime gamers. No.. Our site helps you untwitch, a.k.a. download twitch videos, instead of watching them online over and over. And so we've come up with this website - the only website that claims to download twitch videos and clips and actually does it! Because you know it! None of them websites that claim they do twitch videos actually do do them.. Best you get is some m3u8 file, ok, let's not go there.. On our site you can actually download twitch videos, different formats and sizes, if available. You can also adjust start and end of the video broadcast to download a smaller portion of the video. It is as easy as 1-2-3-4. </p>
+			</div>
+		</div>
 	</div>
 }

@@ -65,6 +65,7 @@ func segmentFileName(segmentURL string) string {
 func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 

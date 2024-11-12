@@ -81,18 +81,17 @@ templ Base(title, description string) {
 				}
 			</script>
 		</head>
-		<body class="flex justify-between flex-col antialiased min-h-screen bg-gradient-to-b from-violet-950 to-purple-200 text-white" hx-ext="head-support">
-			<div>
+		<body class="flex justify-between flex-col antialiased min-h-screen text-white bg-gradient-to-b from-violet-950 to-purple-300">
 				@components.Navigation()
-				<div
+				<main
 					id="content"
+					class="flex-grow pb-8"  
 					hx-on:htmx:before-swap="handleServerError(event)"
 					hx-on:htmx:send-error="errorToast('A network error occurred')"
 				>	
 					{ children... }
-				</div>
-			</div>	
-			// @components.Footer()
+				</main>
+				@components.Footer() 
 		</body>
 	</html>
 }

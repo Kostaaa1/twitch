@@ -56,6 +56,6 @@ func main() {
 	close(progressCh)
 	time.Sleep(500 * time.Millisecond)
 
-	fmt.Println("Finished downloading 👍👍👍")
+	// fmt.Printl("Finished downloading 👍👍👍")
 	fmt.Printf("\033[?25h")
 }

@@ -51,7 +51,7 @@ func MediaForm(media FormData) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		switch media.Type {
 		case twitch.TypeVOD:
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<form action=\"/media/download/vod\" method=\"GET\" class=\"flex w-full items-center justify-center bg-white gap-8 text-black flex-wrap\"><div><img class=\"object-cover object-center w-full max-w-[460px] h-auto rounded-lg shadow-xl shadow-blue-gray-900/50\" src=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<form action=\"/media/download/vod\" method=\"GET\" class=\"absolute top-0 flex w-full items-center justify-center bg-white gap-8 max-h-[300px] text-black flex-wrap py-4\"><div><img class=\"object-cover object-center w-full max-w-[460px] h-auto rounded-lg shadow-xl shadow-blue-gray-900/50\" src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -196,7 +196,7 @@ func MediaForm(media FormData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		case twitch.TypeClip:
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<form action=\"/media/download/clip\" method=\"GET\" class=\"flex w-full py-2 items-center justify-center bg-white\"><div><img class=\"object-cover object-center w-full max-w-[560px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50\" src=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<form action=\"/media/download/clip\" method=\"GET\" class=\"flex w-full py-2 items-center justify-center bg-white py-8\"><div><img class=\"object-cover object-center w-full max-w-[560px] rounded-lg shadow-xl h-auto shadow-blue-gray-900/50\" src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

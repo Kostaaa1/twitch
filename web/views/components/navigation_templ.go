@@ -29,7 +29,7 @@ func Navigation() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav x-data=\"{ isOpen: false }\"><div class=\"container px-4 py-8 mx-auto flex justify-between items-center\"><div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"20\" height=\"20\"><h3 class=\"text-3xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"flex gap-4 lg:gap-8\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav x-data=\"{ isOpen: false }\"><div class=\"lg:container px-4 lg:px-28 py-8 mx-auto flex justify-between items-center\"><div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"20\" height=\"20\"><h3 class=\"text-2xl md:text-3xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"flex gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

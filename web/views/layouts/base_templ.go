@@ -58,7 +58,7 @@ func Base(title, description string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<script src=\"/assets/js/htmx.min.js\" hx-preserve=\"true\"></script><script src=\"/assets/js/head-support.min.js\" hx-preserve=\"true\" defer></script><script src=\"/assets/js/alpine.min.js\" hx-preserve=\"true\" defer></script><script src=\"/assets/js/toastify.min.js\" hx-preserve=\"true\" defer></script><link href=\"/assets/css/toastify.min.css\" rel=\"stylesheet\" hx-preserve=\"true\"><link href=\"/assets/css/tailwind.css\" rel=\"stylesheet\" hx-preserve=\"true\"><link href=\"/assets/css/main.css\" rel=\"stylesheet\" hx-preserve=\"true\"><script hx-preserve=\"true\">\n\n\t\t\t\t// if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {\n\t\t\t\t// \tdocument.documentElement.classList.add('dark')\n\t\t\t\t// } else {\n\t\t\t\t// \tdocument.documentElement.classList.remove('dark')\n\t\t\t\t// }\n\n\t\t\t\t// function toggleTheme() {\n\t\t\t\t// \tlet theme = localStorage.theme === 'dark' ? 'light' : 'dark'\n\t\t\t\t// \tif (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches) {\n\t\t\t\t// \t\ttheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark'\n\t\t\t\t// \t}\n\t\t\t\t// \tlocalStorage.theme = theme\n\t\t\t\t// \tdocument.documentElement.classList.toggle('dark', theme === 'dark')\n\t\t\t\t// }\n\n\t\t\t\tfunction isServerError(request) {\n\t\t\t\t\treturn request.status >= 400\n\t\t\t\t}\n\n\t\t\t\tfunction handleServerError(event) {\n\t\t\t\t\tif (isServerError(event.detail.xhr)) {\n\t\t\t\t\t\tconst {error} = JSON.parse(event.detail.serverResponse)\n\t\t\t\t\t\terrorToast(error)\n\t\t\t\t\t\t// event.detail.shouldSwap = true\n\t\t\t\t\t\t// event.detail.isError = false\n\t\t\t\t\t} \n\t\t\t\t}\n\n\t\t\t\tfunction errorToast(message) {\n\t\t\t\t\tToastify({\n\t\t\t\t\t\ttext: message,\n\t\t\t\t\t\tduration: 5000,\n\t\t\t\t\t\tnewWindow: true,\n\t\t\t\t\t\tclose: true,\n\t\t\t\t\t\tgravity: 'top',\n\t\t\t\t\t\tposition: 'right',\n\t\t\t\t\t\tbackgroundColor: 'red',\n\t\t\t\t\t\tstopOnFocus: true,\n\t\t\t\t\t}).showToast()\n\t\t\t\t}\n\n\t\t\t\tfunction successToast(message) {\n\t\t\t\t\tToastify({\n\t\t\t\t\t\ttext: message,\n\t\t\t\t\t\tduration: 5000,\n\t\t\t\t\t\tnewWindow: true,\n\t\t\t\t\t\tclose: true,\n\t\t\t\t\t\tgravity: 'top',\n\t\t\t\t\t\tposition: 'right',\n\t\t\t\t\t\tbackgroundColor: 'green',\n\t\t\t\t\t\tstopOnFocus: true,\n\t\t\t\t\t}).showToast()\n\t\t\t\t}\n\t\t\t</script></head><body class=\"flex justify-between flex-col antialiased min-h-screen bg-gradient-to-b from-violet-950 to-purple-200 text-white\" hx-ext=\"head-support\"><div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<script src=\"/assets/js/htmx.min.js\" hx-preserve=\"true\"></script><script src=\"/assets/js/head-support.min.js\" hx-preserve=\"true\" defer></script><script src=\"/assets/js/alpine.min.js\" hx-preserve=\"true\" defer></script><script src=\"/assets/js/toastify.min.js\" hx-preserve=\"true\" defer></script><link href=\"/assets/css/toastify.min.css\" rel=\"stylesheet\" hx-preserve=\"true\"><link href=\"/assets/css/tailwind.css\" rel=\"stylesheet\" hx-preserve=\"true\"><link href=\"/assets/css/main.css\" rel=\"stylesheet\" hx-preserve=\"true\"><script hx-preserve=\"true\">\n\n\t\t\t\t// if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {\n\t\t\t\t// \tdocument.documentElement.classList.add('dark')\n\t\t\t\t// } else {\n\t\t\t\t// \tdocument.documentElement.classList.remove('dark')\n\t\t\t\t// }\n\n\t\t\t\t// function toggleTheme() {\n\t\t\t\t// \tlet theme = localStorage.theme === 'dark' ? 'light' : 'dark'\n\t\t\t\t// \tif (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches) {\n\t\t\t\t// \t\ttheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark'\n\t\t\t\t// \t}\n\t\t\t\t// \tlocalStorage.theme = theme\n\t\t\t\t// \tdocument.documentElement.classList.toggle('dark', theme === 'dark')\n\t\t\t\t// }\n\n\t\t\t\tfunction isServerError(request) {\n\t\t\t\t\treturn request.status >= 400\n\t\t\t\t}\n\n\t\t\t\tfunction handleServerError(event) {\n\t\t\t\t\tif (isServerError(event.detail.xhr)) {\n\t\t\t\t\t\tconst {error} = JSON.parse(event.detail.serverResponse)\n\t\t\t\t\t\terrorToast(error)\n\t\t\t\t\t\t// event.detail.shouldSwap = true\n\t\t\t\t\t\t// event.detail.isError = false\n\t\t\t\t\t} \n\t\t\t\t}\n\n\t\t\t\tfunction errorToast(message) {\n\t\t\t\t\tToastify({\n\t\t\t\t\t\ttext: message,\n\t\t\t\t\t\tduration: 5000,\n\t\t\t\t\t\tnewWindow: true,\n\t\t\t\t\t\tclose: true,\n\t\t\t\t\t\tgravity: 'top',\n\t\t\t\t\t\tposition: 'right',\n\t\t\t\t\t\tbackgroundColor: 'red',\n\t\t\t\t\t\tstopOnFocus: true,\n\t\t\t\t\t}).showToast()\n\t\t\t\t}\n\n\t\t\t\tfunction successToast(message) {\n\t\t\t\t\tToastify({\n\t\t\t\t\t\ttext: message,\n\t\t\t\t\t\tduration: 5000,\n\t\t\t\t\t\tnewWindow: true,\n\t\t\t\t\t\tclose: true,\n\t\t\t\t\t\tgravity: 'top',\n\t\t\t\t\t\tposition: 'right',\n\t\t\t\t\t\tbackgroundColor: 'green',\n\t\t\t\t\t\tstopOnFocus: true,\n\t\t\t\t\t}).showToast()\n\t\t\t\t}\n\t\t\t</script></head><body class=\"flex justify-between flex-col antialiased min-h-screen text-white bg-gradient-to-b from-violet-950 to-purple-300\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -66,7 +66,7 @@ func Base(title, description string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"content\" hx-on:htmx:before-swap=\"handleServerError(event)\" hx-on:htmx:send-error=\"errorToast(&#39;A network error occurred&#39;)\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<main id=\"content\" class=\"flex-grow pb-8\" hx-on:htmx:before-swap=\"handleServerError(event)\" hx-on:htmx:send-error=\"errorToast(&#39;A network error occurred&#39;)\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -74,7 +74,15 @@ func Base(title, description string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></body></html>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</main>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.Footer().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -134,7 +142,7 @@ func WithBase(component templ.Component, title, description string, fullPage boo
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(getTitle(title))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/layouts/base.templ`, Line: 107, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/layouts/base.templ`, Line: 106, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -190,7 +198,7 @@ func descriptionMeta(description string) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/layouts/base.templ`, Line: 116, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/layouts/base.templ`, Line: 115, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {

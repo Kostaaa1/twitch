@@ -53,6 +53,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 	if err != nil {
 		return components.FormData{}, err
 	}
+	fmt.Println(metadata)
 
 	master, _, err := s.tw.GetVODMasterM3u8(slug)
 	if err != nil {
