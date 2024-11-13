@@ -40,6 +40,7 @@ func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	}
 
 	var vodPlaylistURL string
+
 	if status == http.StatusForbidden {
 		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
 		if err != nil {
@@ -149,7 +150,7 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 				return err
 			}
 
-			if file, ok := unit.W.(*os.File); ok {
+			if file, ok := unit.W.(*os.File); ok && file != nil {
 				api.progressCh <- ProgresbarChanData{
 					Text:  file.Name(),
 					Bytes: n,
@@ -181,7 +182,6 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 	}`
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
-
 	type payload struct {
 		Data struct {
 			VideoPlaybackAccessToken VideoCredResponse `json:"videoPlaybackAccessToken"`
@@ -213,25 +213,7 @@ func (api *API) GetVODMasterM3u8(slug string) (*m3u8.MasterPlaylist, int, error)
 		return nil, code, err
 	}
 
-	master := m3u8.New(b)
-	return master, code, nil
-}
-
-type SubVODResponse struct {
-	Data struct {
-		Video struct {
-			BroadcastType string    `json:"broadcastType"`
-			CreatedAt     time.Time `json:"createdAt"`
-			Owner         struct {
-				Login string `json:"login"`
-			} `json:"owner"`
-			SeekPreviewsURL string `json:"seekPreviewsURL"`
-		} `json:"video"`
-	} `json:"data"`
-	Extensions struct {
-		DurationMilliseconds int    `json:"durationMilliseconds"`
-		RequestID            string `json:"requestID"`
-	} `json:"extensions"`
+	return m3u8.Master(b), code, nil
 }
 
 // Getting the sub VOD playlist
@@ -241,12 +223,28 @@ func (api *API) getSubVODPlaylistURL(slug, quality string) (string, error) {
 	}`
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
 
-	var p SubVODResponse
-	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
+	var subVodResponse struct {
+		Data struct {
+			Video struct {
+				BroadcastType string    `json:"broadcastType"`
+				CreatedAt     time.Time `json:"createdAt"`
+				Owner         struct {
+					Login string `json:"login"`
+				} `json:"owner"`
+				SeekPreviewsURL string `json:"seekPreviewsURL"`
+			} `json:"video"`
+		} `json:"data"`
+		Extensions struct {
+			DurationMilliseconds int    `json:"durationMilliseconds"`
+			RequestID            string `json:"requestID"`
+		} `json:"extensions"`
+	}
+
+	if err := api.sendGqlLoadAndDecode(body, &subVodResponse); err != nil {
 		return "", err
 	}
 
-	previewURL, err := url.Parse(p.Data.Video.SeekPreviewsURL)
+	previewURL, err := url.Parse(subVodResponse.Data.Video.SeekPreviewsURL)
 	if err != nil {
 		return "", err
 	}
@@ -259,14 +257,15 @@ func (api *API) getSubVODPlaylistURL(slug, quality string) (string, error) {
 		}
 	}
 
-	// [NOT TESTED] Only old uploaded VOD works with this method now
+	// [NOT TESTED]
+	// This method works for older uploaded VODS
 	// days_difference - difference between current date and p.Data.Video.CreatedAt
 	// if broadcastType == "upload" && days_difference > 7 {
 	// url = fmt.Sprintf(`https://${domain}/${channelData.login}/${vodId}/${vodSpecialID}/${resKey}/index-dvr.m3u8`, previewURL.Host, p.Data.Video.Owner.Login, slug, vodId, resolution)
 	// }
 	// resolution := getResolution(quality, v)
 
-	broadcastType := strings.ToLower(p.Data.Video.BroadcastType)
+	broadcastType := strings.ToLower(subVodResponse.Data.Video.BroadcastType)
 
 	var url string
 	if broadcastType == "highlight" {

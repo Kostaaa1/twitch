@@ -3,7 +3,6 @@ package prompt
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -59,41 +58,41 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
-	// instead of log.Fatal handle it gracefully
+func createNewUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 	var unit twitch.MediaUnit
-
-	if !twitch.IsQualityValid(prompt.Quality) {
-		log.Fatalf("Provided quality is not valid: %s. These are valid qualities: %s", prompt.Quality, strings.Join(twitch.Qualities, ", "))
-	}
 
 	slug, vtype, err := tw.Slug(prompt.Input)
 	if err != nil {
-		log.Fatal(err)
+		unit.Error = err
 	}
 
 	if vtype == twitch.TypeVOD {
 		if prompt.Start > 0 && prompt.End > 0 && prompt.Start >= prompt.End {
-			log.Fatalf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", prompt.Start, prompt.End, prompt.Input)
+			unit.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", prompt.Start, prompt.End, prompt.Input)
 		}
 	}
 
-	////////////////////////
-	// we do not want to do this here, do after trying to get the media, because it can fail. Use unit.SetWriter()
-	ext := "mp4"
-	if strings.HasPrefix(prompt.Quality, "audio") {
-		ext = "mp3"
-	}
-	mediaName := fmt.Sprintf("%s_%s", slug, prompt.Quality)
-	f, err := fileutil.CreateFile(prompt.Output, mediaName, ext)
+	quality, err := twitch.GetQuality(prompt.Quality, vtype)
 	if err != nil {
-		log.Fatal(err)
+		unit.Error = err
 	}
-	////////////////////////
+
+	var f *os.File
+	if unit.Error == nil {
+		ext := "mp4"
+		if quality == "audio_only" {
+			ext = "mp3"
+		}
+		mediaName := fmt.Sprintf("%s_%s", slug, quality)
+		f, err = fileutil.CreateFile(prompt.Output, mediaName, ext)
+		if err != nil {
+			unit.Error = err
+		}
+	}
 
 	unit.Slug = slug
 	unit.Type = vtype
-	unit.Quality = prompt.Quality
+	unit.Quality = quality
 	unit.Start = prompt.Start
 	unit.End = prompt.End
 	unit.W = f
@@ -104,22 +103,22 @@ func newUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 	_, err := os.Stat(input)
 	if os.IsNotExist(err) {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	content, err := os.ReadFile(input)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	var prompts []Prompt
 	if err := json.Unmarshal(content, &prompts); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	var units []twitch.MediaUnit
 	for _, prompt := range prompts {
-		units = append(units, newUnit(tw, prompt))
+		units = append(units, createNewUnit(tw, prompt))
 	}
 
 	return units
@@ -130,14 +129,14 @@ func processFlagInput(tw *twitch.API, prompt Prompt) []twitch.MediaUnit {
 	var units []twitch.MediaUnit
 	for _, url := range urls {
 		prompt.Input = url
-		units = append(units, newUnit(tw, prompt))
+		units = append(units, createNewUnit(tw, prompt))
 	}
 	return units
 }
 
 func (prompt Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	if prompt.Input == "" {
-		log.Fatalf("Input was not provided.")
+		panic("Input was not provided.")
 	}
 
 	var units []twitch.MediaUnit

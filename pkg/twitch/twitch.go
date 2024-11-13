@@ -205,7 +205,7 @@ func (tw *API) Download(unit MediaUnit) {
 		logger.Printf(msg, unit.Slug, err)
 	}
 
-	if file, ok := unit.W.(*os.File); ok {
+	if file, ok := unit.W.(*os.File); ok && file != nil {
 		tw.progressCh <- ProgresbarChanData{
 			Text:   file.Name(),
 			Error:  err,
@@ -244,7 +244,7 @@ func (api *API) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir strin
 		return fmt.Errorf("error downloading segment %s: %w", segmentURL, err)
 	}
 
-	if f, ok := unit.W.(*os.File); ok {
+	if f, ok := unit.W.(*os.File); ok && f != nil {
 		api.progressCh <- ProgresbarChanData{
 			Text:  f.Name(),
 			Bytes: n,

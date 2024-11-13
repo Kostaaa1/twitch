@@ -38,7 +38,7 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 		return err
 	}
 
-	if file, ok := unit.W.(*os.File); ok {
+	if file, ok := unit.W.(*os.File); ok && file != nil {
 		api.progressCh <- ProgresbarChanData{
 			Text:  file.Name(),
 			Bytes: writtenBytes,

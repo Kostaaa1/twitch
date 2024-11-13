@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -18,10 +19,39 @@ var (
 	}
 )
 
+func getVODQuality(quality string) string {
+	switch {
+	case quality == "best":
+		return "chunked"
+	case quality == "1080p60":
+		return "chunked"
+	case strings.HasPrefix(quality, "audio"):
+		return "audio_only"
+	case quality == "worst":
+		return "160p30"
+	default:
+		return quality
+	}
+}
+
+func GetQuality(quality string, vtype VideoType) (string, error) {
+	for _, q := range Qualities {
+		if q == quality || strings.HasPrefix(quality, q) || strings.HasPrefix(q, quality) {
+			if vtype == TypeVOD {
+				return getVODQuality(q), nil
+			}
+			return q, nil
+		}
+	}
+	return "", fmt.Errorf("invalid quality was provided: %s. these are valid: %s", quality, strings.Join(Qualities, ", "))
+}
+
+// has fallback
 func extractClipSourceURL(videoQualities []VideoQuality, quality string) string {
 	if quality == "best" {
 		return videoQualities[0].SourceURL
 	}
+
 	if quality == "worst" {
 		return videoQualities[len(videoQualities)-1].SourceURL
 	}

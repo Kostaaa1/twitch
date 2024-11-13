@@ -2,6 +2,7 @@ package spinner
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 type errMsg error
 
-type SpinnerState struct {
+type Spinner struct {
 	text        string
 	totalBytes  float64
 	startTime   time.Time
@@ -24,31 +25,37 @@ type SpinnerState struct {
 }
 
 type model struct {
-	state        []SpinnerState
+	state        []Spinner
 	progressChan chan twitch.ProgresbarChanData
 	spinner      spinner.Model
 	err          error
 }
 
-func initialModel(titles []string, progChan chan twitch.ProgresbarChanData) model {
+func initialModel(titles []twitch.MediaUnit, progChan chan twitch.ProgresbarChanData) model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	return model{
 		spinner:      s,
-		state:        initSpinnerState(titles),
+		state:        initSpinner(titles),
 		progressChan: progChan,
 	}
 }
 
-func initSpinnerState(titles []string) []SpinnerState {
-	var state []SpinnerState
-	for i := range titles {
-		state = append(state, SpinnerState{
-			text:        titles[i],
+func initSpinner(units []twitch.MediaUnit) []Spinner {
+	var state []Spinner
+	for _, unit := range units {
+		displayPath := ""
+		if f, ok := unit.W.(*os.File); ok && f != nil {
+			displayPath = f.Name()
+		}
+
+		state = append(state, Spinner{
+			text:        displayPath,
 			totalBytes:  0,
 			elapsedTime: 0,
 			isDone:      false,
+			err:         unit.Error,
 		})
 	}
 	return state
@@ -105,6 +112,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
+
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, tea.Batch(cmd, m.waitForMsg())
@@ -125,9 +133,9 @@ func (m *model) updateTime() {
 	}
 }
 
-func (m *model) getProgressMsg(total, ctime float64) string {
+func (m *model) getProgressMsg(total, currentTime float64) string {
 	b := bytecount.ConvertBytes(total)
-	downloadMsg := fmt.Sprintf("(%.1f %s) [%.0fs]", b.Total, b.Unit, ctime)
+	downloadMsg := fmt.Sprintf("(%.1f %s) [%.0fs]", b.Total, b.Unit, currentTime)
 	return downloadMsg
 }
 
@@ -137,32 +145,42 @@ func (m model) View() string {
 	}
 
 	var str strings.Builder
-
-	str.WriteString("\n")
-
+	// str.WriteString("\n")
 	for i := 0; i < len(m.state); i++ {
-		if m.state[i].err != nil {
-			s := fmt.Sprintf("❌ %s: %s \n", m.state[i].text, m.state[i].err)
-			str.WriteString(s)
-			continue
-		}
-
-		downloadMsg := m.getProgressMsg(m.state[i].totalBytes, m.state[i].elapsedTime)
-
-		if m.state[i].isDone {
-			s := fmt.Sprintf("✅ %s: %s \n", m.state[i].text, downloadMsg)
-			str.WriteString(s)
-		} else {
-			s := fmt.Sprintf(" %s%s: %s \n", m.spinner.View(), m.state[i].text, downloadMsg)
-			str.WriteString(s)
-		}
+		str.WriteString(m.constructStateMessage(m.state[i]))
 	}
-
 	return str.String()
 }
 
-func New(titles []string, progressChan chan twitch.ProgresbarChanData) {
-	p := tea.NewProgram(initialModel(titles, progressChan))
+func (m model) constructStateMessage(spinner Spinner) string {
+	if spinner.err != nil {
+		return constructErrorMessage(spinner.text, spinner.err)
+	}
+	message := m.getProgressMsg(spinner.totalBytes, spinner.elapsedTime)
+	if spinner.isDone {
+		return constructSuccessMessage(spinner.text, message)
+	} else {
+		return fmt.Sprintf(" %s%s: %s \n", m.spinner.View(), spinner.text, message)
+	}
+}
+
+func constructSuccessMessage(text, message string) string {
+	return fmt.Sprintf("✅ %s: %s \n", text, message)
+}
+
+func constructErrorMessage(text string, err error) string {
+	if err == nil {
+		return ""
+	}
+	prefix := "❌ "
+	if text != "" {
+		prefix += text + ": "
+	}
+	return fmt.Sprintf("%s%s\n", prefix, err.Error())
+}
+
+func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData) {
+	p := tea.NewProgram(initialModel(units, progressChan))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error starting program: %v", err)
 	}

@@ -70,8 +70,7 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 		return nil, err
 	}
 
-	master := m3u8.New(b)
-	return master, nil
+	return m3u8.Master(b), nil
 }
 
 func (api *API) GetStreamMediaPlaylist(channel, quality string) (*m3u8.VariantPlaylist, error) {
@@ -84,6 +83,7 @@ func (api *API) GetStreamMediaPlaylist(channel, quality string) (*m3u8.VariantPl
 	if err != nil {
 		return nil, fmt.Errorf("failed to get media playlist: %w", err)
 	}
+
 	return &mediaList, nil
 }
 
@@ -145,7 +145,7 @@ func (api *API) RecordStream(unit MediaUnit) error {
 				halfBytes.Reset([]byte{})
 			}
 
-			if f, ok := unit.W.(*os.File); ok {
+			if f, ok := unit.W.(*os.File); ok && f != nil {
 				api.progressCh <- ProgresbarChanData{
 					Text:  f.Name(),
 					Bytes: n,

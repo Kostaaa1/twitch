@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func New(fetchedPlaylist []byte) *MasterPlaylist {
+func Master(fetchedPlaylist []byte) *MasterPlaylist {
 	master := &MasterPlaylist{
 		Serialized: string(fetchedPlaylist),
 	}
@@ -34,13 +34,10 @@ func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (Var
 	if quality == "best" {
 		return mediaLists[0], nil
 	}
-
 	if quality == "worst" {
 		return mediaLists[len(mediaLists)-1], nil
 	}
-
-	for i := 0; i < len(mediaLists); i++ {
-		list := mediaLists[i]
+	for _, list := range mediaLists {
 		if strings.HasPrefix(list.Video, quality) {
 			return list, nil
 		}

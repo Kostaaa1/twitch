@@ -20,4 +20,5 @@ type MediaUnit struct {
 	Start   time.Duration
 	End     time.Duration
 	W       io.Writer
+	Error   error
 }
