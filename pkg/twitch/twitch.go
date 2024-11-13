@@ -179,6 +179,10 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 func (tw *API) Download(unit MediaUnit) {
 	var err error
 
+	if unit.Error != nil {
+		return
+	}
+
 	switch unit.Type {
 	case TypeVOD:
 		err = tw.ParallelVodDownload(unit)

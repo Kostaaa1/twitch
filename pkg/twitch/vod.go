@@ -14,19 +14,24 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
-func (api *API) truncateSegments(mediaPlaylist []byte, start, end time.Duration) []string {
+func (api *API) truncateSegments(mediaPlaylist []byte, start, end time.Duration) ([]string, error) {
 	var segmentDuration float64 = 10
 	s := int(start.Seconds()/segmentDuration) * 2
 	e := int(end.Seconds()/segmentDuration) * 2
 
 	var segments []string
 	lines := strings.Split(string(mediaPlaylist), "\n")[8:]
+
+	if s > len(lines) || e > len(lines) {
+		return segments, fmt.Errorf("invalid start/end parameters. You've choosen %.2f/%.2f but the video duration is %d", start.Seconds(), end.Seconds(), len(lines)) // TODO: calculate duration properly
+	}
+
 	if e == 0 {
 		segments = lines[s:]
 	} else {
 		segments = lines[s:e]
 	}
-	return segments
+	return segments, nil
 }
 
 func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
@@ -66,7 +71,6 @@ func segmentFileName(segmentURL string) string {
 func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 
@@ -75,7 +79,11 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 		return err
 	}
 
-	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
+	segments, err := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
+	if err != nil {
+		return err
+	}
+
 	tempDir, _ := os.MkdirTemp("", fmt.Sprintf("vod_segments_%s", unit.Slug))
 	defer os.RemoveAll(tempDir)
 
@@ -86,10 +94,12 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	for _, seg := range segments {
 		if strings.HasSuffix(seg, ".ts") {
 			wg.Add(1)
+
 			go func(seg string) {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
+
 				if err := api.downloadSegmentToTempFile(seg, vodPlaylistURL, tempDir, unit); err != nil {
 					fmt.Println(err)
 				}
@@ -137,7 +147,10 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 		return err
 	}
 
-	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
+	segments, err := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
+	if err != nil {
+		return err
+	}
 
 	for _, segment := range segments {
 		if strings.HasSuffix(segment, ".ts") {
