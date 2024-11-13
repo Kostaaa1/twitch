@@ -73,20 +73,6 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 	return m3u8.Master(b), nil
 }
 
-func (api *API) GetStreamMediaPlaylist(channel, quality string) (*m3u8.VariantPlaylist, error) {
-	master, err := api.GetStreamMasterPlaylist(channel)
-	if err != nil {
-		return nil, err
-	}
-
-	mediaList, err := master.GetVariantPlaylistByQuality(quality)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get media playlist: %w", err)
-	}
-
-	return &mediaList, nil
-}
-
 func (api *API) RecordStream(unit MediaUnit) error {
 	isLive, err := api.IsChannelLive(unit.Slug)
 	if err != nil {
@@ -96,9 +82,14 @@ func (api *API) RecordStream(unit MediaUnit) error {
 		return fmt.Errorf("%s is offline", unit.Slug)
 	}
 
-	mediaList, err := api.GetStreamMediaPlaylist(unit.Slug, unit.Quality)
+	master, err := api.GetStreamMasterPlaylist(unit.Slug)
 	if err != nil {
-		return fmt.Errorf("failed to get media playlist: %w", err)
+		return err
+	}
+
+	mediaList, err := master.GetVariantPlaylistByQuality(unit.Quality)
+	if err != nil {
+		return err
 	}
 
 	ticker := time.NewTicker(time.Second)
@@ -156,15 +147,17 @@ func (api *API) RecordStream(unit MediaUnit) error {
 }
 
 func (api *API) OpenStreamInMediaPlayer(channel string) error {
-	media, err := api.GetStreamMediaPlaylist(channel, "best")
+	master, err := api.GetStreamMasterPlaylist(channel)
 	if err != nil {
 		return err
 	}
-
-	cmd := exec.Command("vlc", media.URL)
+	list, err := master.GetVariantPlaylistByQuality("best")
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("vlc", list.URL)
 	if err := cmd.Run(); err != nil {
 		return err
 	}
-
 	return nil
 }

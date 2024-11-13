@@ -86,12 +86,10 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	for _, seg := range segments {
 		if strings.HasSuffix(seg, ".ts") {
 			wg.Add(1)
-
 			go func(seg string) {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-
 				if err := api.downloadSegmentToTempFile(seg, vodPlaylistURL, tempDir, unit); err != nil {
 					fmt.Println(err)
 				}
@@ -133,10 +131,12 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 	if err != nil {
 		return err
 	}
+
 	mediaPlaylist, err := api.fetch(vodPlaylistURL)
 	if err != nil {
 		return err
 	}
+
 	segments := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
 
 	for _, segment := range segments {

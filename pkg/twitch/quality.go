@@ -51,17 +51,14 @@ func extractClipSourceURL(videoQualities []VideoQuality, quality string) string 
 	if quality == "best" {
 		return videoQualities[0].SourceURL
 	}
-
 	if quality == "worst" {
 		return videoQualities[len(videoQualities)-1].SourceURL
 	}
-
 	for _, q := range videoQualities {
 		if strings.HasPrefix(quality, q.Quality) || strings.HasPrefix(q.Quality, quality) {
 			return q.SourceURL
 		}
 	}
-
 	id := getFormatId(quality)
 	if id > 0 {
 		return extractClipSourceURL(videoQualities, Qualities[id-1])

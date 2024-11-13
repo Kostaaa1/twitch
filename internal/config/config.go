@@ -37,6 +37,7 @@ type Downloader struct {
 	IsFFmpegEnabled bool   `json:"isFFmpegEnabled"`
 	ShowSpinner     bool   `json:"showSpinner"`
 	Output          string `json:"output"`
+	SpinnerModel    string `json:"spinnerModel"`
 }
 
 type Data struct {
@@ -106,14 +107,11 @@ func InitData() Data {
 				ClientSecret: "4fi3gmc1nzigjii2lf7plwc2ogtd17",
 			},
 		},
-		Downloader: struct {
-			IsFFmpegEnabled bool   `json:"isFFmpegEnabled"`
-			ShowSpinner     bool   `json:"showSpinner"`
-			Output          string `json:"output"`
-		}{
+		Downloader: Downloader{
 			IsFFmpegEnabled: false,
 			ShowSpinner:     true,
 			Output:          "/mnt/c/Users/Kosta/Clips",
+			SpinnerModel:    "dot",
 		},
 		Chat: struct {
 			OpenedChats []string `json:"openedChats"`

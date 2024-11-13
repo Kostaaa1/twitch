@@ -1,10 +1,23 @@
 package m3u8
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
+
+type MasterPlaylist struct {
+	Origin          string `json:"ORIGIN"`
+	B               bool   `json:"B"`
+	Region          string `json:"REGION"`
+	UserIP          string `json:"USER-IP"`
+	ServingID       string `json:"SERVING-ID"`
+	Cluster         string `json:"CLUSTER"`
+	UserCountry     string `json:"USER-COUNTRY"`
+	ManifestCluster string `json:"MANIFEST-CLUSTER"`
+	UsherURL        string
+	Lists           []VariantPlaylist
+	Serialized      string
+}
 
 func Master(fetchedPlaylist []byte) *MasterPlaylist {
 	master := &MasterPlaylist{
@@ -43,16 +56,4 @@ func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (Var
 		}
 	}
 	return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
-}
-
-func (playlist *MasterPlaylist) GetJSONSegments() []string {
-	var segments []string
-	for _, seg := range playlist.Lists {
-		b, err := json.MarshalIndent(seg, "", " ")
-		if err != nil {
-			break
-		}
-		segments = append(segments, string(b))
-	}
-	return segments
 }

@@ -39,7 +39,7 @@ func main() {
 	tw.SetProgressChannel(progressCh)
 
 	go func() {
-		spinner.New(units, progressCh)
+		spinner.New(units, progressCh, jsonCfg.Downloader)
 	}()
 
 	if len(units) > 1 {

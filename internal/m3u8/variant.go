@@ -4,6 +4,16 @@ import (
 	"strings"
 )
 
+type VariantPlaylist struct {
+	Bandwidth  string `json:"BANDWIDTH"`
+	Codecs     string `json:"CODECS"`
+	Resolution string `json:"RESOLUTION"`
+	Video      string `json:"VIDEO"`
+	FrameRate  string `json:"FRAME-RATE"`
+	URL        string
+	Serialized string
+}
+
 func parseVariantPlaylist(line, URL string) VariantPlaylist {
 	var variant VariantPlaylist
 	variant.URL = URL
@@ -30,7 +40,6 @@ func parseVariantPlaylist(line, URL string) VariantPlaylist {
 		case "VIDEO":
 			v := strings.Trim(value, `"`)
 			variant.Video = v
-
 			if v == "chunked" {
 				variant.Video = "1080p60"
 			} else if v == "audio_only" {

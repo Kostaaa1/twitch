@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/bytecount"
+	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,7 +20,7 @@ type Spinner struct {
 	text        string
 	totalBytes  float64
 	startTime   time.Time
-	elapsedTime float64
+	elapsedTime time.Duration
 	isDone      bool
 	err         error
 }
@@ -31,13 +32,34 @@ type model struct {
 	err          error
 }
 
-func initialModel(titles []twitch.MediaUnit, progChan chan twitch.ProgresbarChanData) model {
+var (
+	spinnerMap = map[string]spinner.Spinner{
+		"meter":    spinner.Meter,
+		"dot":      spinner.Dot,
+		"line":     spinner.Line,
+		"pulse":    spinner.Pulse,
+		"ellipsis": spinner.Ellipsis,
+		"jump":     spinner.Jump,
+		"points":   spinner.Points,
+	}
+)
+
+func validateSpinnerModel(model string) spinner.Spinner {
+	_, ok := spinnerMap[model]
+	if ok {
+		return spinnerMap[model]
+	} else {
+		return spinnerMap["dot"]
+	}
+}
+
+func initialModel(units []twitch.MediaUnit, progChan chan twitch.ProgresbarChanData, cfg config.Downloader) model {
 	s := spinner.New()
-	s.Spinner = spinner.Dot
+	s.Spinner = validateSpinnerModel(cfg.SpinnerModel)
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	return model{
 		spinner:      s,
-		state:        initSpinner(titles),
+		state:        initSpinner(units),
 		progressChan: progChan,
 	}
 }
@@ -49,7 +71,6 @@ func initSpinner(units []twitch.MediaUnit) []Spinner {
 		if f, ok := unit.W.(*os.File); ok && f != nil {
 			displayPath = f.Name()
 		}
-
 		state = append(state, Spinner{
 			text:        displayPath,
 			totalBytes:  0,
@@ -84,6 +105,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
+
 	case errMsg:
 		m.err = msg
 		return m, nil
@@ -128,14 +150,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) updateTime() {
 	for i := range m.state {
 		if !m.state[i].isDone && m.state[i].totalBytes > 0 {
-			m.state[i].elapsedTime = time.Since(m.state[i].startTime).Seconds()
+			m.state[i].elapsedTime = time.Since(m.state[i].startTime)
 		}
 	}
 }
 
-func (m *model) getProgressMsg(total, currentTime float64) string {
+func (m *model) getProgressMsg(total float64, elapsed time.Duration) string {
 	b := bytecount.ConvertBytes(total)
-	downloadMsg := fmt.Sprintf("(%.1f %s) [%.0fs]", b.Total, b.Unit, currentTime)
+	downloadMsg := fmt.Sprintf("(%.1f %s) [%s]", b.Total, b.Unit, elapsed.Truncate(time.Second))
 	return downloadMsg
 }
 
@@ -143,24 +165,22 @@ func (m model) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
-
 	var str strings.Builder
-	// str.WriteString("\n")
 	for i := 0; i < len(m.state); i++ {
 		str.WriteString(m.constructStateMessage(m.state[i]))
 	}
 	return str.String()
 }
 
-func (m model) constructStateMessage(spinner Spinner) string {
-	if spinner.err != nil {
-		return constructErrorMessage(spinner.text, spinner.err)
+func (m model) constructStateMessage(s Spinner) string {
+	if s.err != nil {
+		return constructErrorMessage(s.text, s.err)
 	}
-	message := m.getProgressMsg(spinner.totalBytes, spinner.elapsedTime)
-	if spinner.isDone {
-		return constructSuccessMessage(spinner.text, message)
+	message := m.getProgressMsg(s.totalBytes, s.elapsedTime)
+	if s.isDone {
+		return constructSuccessMessage(s.text, message)
 	} else {
-		return fmt.Sprintf(" %s%s: %s \n", m.spinner.View(), spinner.text, message)
+		return fmt.Sprintf(" %s %s: %s \n", m.spinner.View(), s.text, message)
 	}
 }
 
@@ -179,8 +199,8 @@ func constructErrorMessage(text string, err error) string {
 	return fmt.Sprintf("%s%s\n", prefix, err.Error())
 }
 
-func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData) {
-	p := tea.NewProgram(initialModel(units, progressChan))
+func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData, cfg config.Downloader) {
+	p := tea.NewProgram(initialModel(units, progressChan, cfg))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error starting program: %v", err)
 	}

@@ -2,6 +2,7 @@
 1. iz twitch urla moze da se ekstraktuje timestamp (&t=0h13m27s)
 2. Downloadovanje segmenata u paraleli
 3. Add better URL parsing. Extract more information: timestamps, etc.
+4. Embed config.json in binary
 
 **CLI**
 1. Add flags for filtering media based on users.
