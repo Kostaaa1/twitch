@@ -7,6 +7,7 @@
 **CLI**
 1. Add flags for filtering media based on users.
 2. Fix spinner spacing/format
+3. Priority in batches, livestreams should be last in BatchDownload
 
 **WEB**
 

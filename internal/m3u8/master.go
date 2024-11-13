@@ -44,7 +44,7 @@ func (m *MasterPlaylist) Parse() {
 
 func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
 	mediaLists := playlist.Lists
-	if quality == "best" {
+	if quality == "best" || quality == "chunked" {
 		return mediaLists[0], nil
 	}
 	if quality == "worst" {

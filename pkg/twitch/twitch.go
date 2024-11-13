@@ -80,13 +80,11 @@ func (tw *API) do(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request: %s", err)
 	}
-
 	if s := resp.StatusCode; s < 200 || s >= 300 {
 		defer resp.Body.Close()
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed with status code %d: %s", s, string(b))
 	}
-
 	return resp, nil
 }
 
@@ -142,7 +140,6 @@ func (tw *API) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
 	}
 	req.Header.Set("Client-Id", tw.gqlClientID)
-
 	resp, err := tw.do(req)
 	if err != nil {
 		return err
@@ -163,7 +160,6 @@ func (tw *API) GetToken() string {
 
 func (tw *API) BatchDownload(units []MediaUnit) {
 	climit := runtime.NumCPU() / 2
-
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, climit)
 
@@ -173,7 +169,6 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-
 			tw.Download(unit)
 		}(unit)
 	}

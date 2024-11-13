@@ -116,17 +116,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if msg.Error != nil {
 					m.state[i].err = msg.Error
 				}
-
 				if m.state[i].startTime.IsZero() {
 					m.state[i].startTime = time.Now()
 				}
 				m.state[i].totalBytes += float64(msg.Bytes)
-
-				// m.state[i].CurrentTime = time.Since(m.state[i].StartTime).Seconds()
-				// m.state[i].ByteCount.Convert()
-				// if m.state[i].CurrentTime > 0 {
-				// m.state[i].KBsPerSecond = float64(m.state[i].ByteCount) / (1024.0 * 1024.0) / m.state[i].CurrentTime
-				// }
 
 				if msg.IsDone {
 					m.state[i].isDone = true
@@ -155,10 +148,21 @@ func (m *model) updateTime() {
 	}
 }
 
+func downloadSpeedKBs(totalBytes float64, elapsedTime time.Duration) float64 {
+	elapsedSeconds := elapsedTime.Seconds()
+	if elapsedSeconds == 0 {
+		return 0
+	}
+	bytesPerSecond := totalBytes / elapsedSeconds
+	kilobytesPerSecond := bytesPerSecond / (1024 * 1024)
+	return kilobytesPerSecond
+}
+
 func (m *model) getProgressMsg(total float64, elapsed time.Duration) string {
 	b := bytecount.ConvertBytes(total)
-	downloadMsg := fmt.Sprintf("(%.1f %s) [%s]", b.Total, b.Unit, elapsed.Truncate(time.Second))
-	return downloadMsg
+	speed := downloadSpeedKBs(total, elapsed)
+	msg := fmt.Sprintf("(%.1f %s | %.2f Mb/s) [%s]", b.Total, b.Unit, speed, elapsed.Truncate(time.Second))
+	return msg
 }
 
 func (m model) View() string {
@@ -176,6 +180,7 @@ func (m model) constructStateMessage(s Spinner) string {
 	if s.err != nil {
 		return constructErrorMessage(s.text, s.err)
 	}
+
 	message := m.getProgressMsg(s.totalBytes, s.elapsedTime)
 	if s.isDone {
 		return constructSuccessMessage(s.text, message)
