@@ -31,6 +31,7 @@ type model struct {
 	spinner      spinner.Model
 	err          error
 	width        int
+	doneCount    int
 }
 
 var (
@@ -87,17 +88,17 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, m.waitForMsg())
 }
 
-type chanMsg struct {
-	twitch.ProgresbarChanData
-}
-
 func (m *model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		return chanMsg{ProgresbarChanData: <-m.progressChan}
+		return <-m.progressChan
 	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if len(m.state) == m.doneCount {
+		return m, tea.Quit
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -115,7 +116,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg
 		return m, nil
 
-	case chanMsg:
+	case twitch.ProgresbarChanData:
 		for i := range m.state {
 			if m.state[i].text == msg.Text {
 				if msg.Error != nil {
@@ -128,6 +129,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if msg.IsDone {
 					m.state[i].isDone = true
+					m.doneCount++
 				}
 				break
 			}
@@ -174,46 +176,40 @@ func (m model) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
-
 	var str strings.Builder
-
 	for i := 0; i < len(m.state); i++ {
-		msg := m.constructStateMessage(m.state[i])
-		if i == 0 {
-			msg = strings.Split(msg, "\n")[1]
-		}
-		str.WriteString(msg)
+		str.WriteString(m.constructStateMessage(m.state[i]))
 	}
 	return str.String()
 }
 
 func (m model) wrapText(text string) string {
-	return lipgloss.NewStyle().Width(m.width).Render(text)
+	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
 }
 
 func (m model) constructStateMessage(s Spinner) string {
 	if s.err != nil {
-		return m.wrapText(constructErrorMessage(s.err))
+		return constructErrorMessage(s.err)
 	}
 
 	var str strings.Builder
+
 	message := m.getProgressMsg(s.totalBytes, s.elapsedTime)
 	if s.isDone {
-		str.WriteString(m.wrapText(constructSuccessMessage(s.text, message)))
+		str.WriteString(constructSuccessMessage(s.text, message))
 	} else {
-		wrappedText := m.wrapText(fmt.Sprintf("%s %s", s.text, message))
-		str.WriteString(fmt.Sprintf("\n %s %s", m.spinner.View(), wrappedText))
+		str.WriteString(fmt.Sprintf(" %s %s %s\n", m.spinner.View(), s.text, message))
 	}
 
 	return str.String()
 }
 
 func constructSuccessMessage(text, message string) string {
-	return fmt.Sprintf(" \n✅ %s %s", text, message)
+	return fmt.Sprintf("✅ %s %s\n", text, message)
 }
 
 func constructErrorMessage(err error) string {
-	return fmt.Sprintf(" \n❌ %s \n", err.Error())
+	return fmt.Sprintf("❌ %s \n", err.Error())
 }
 
 func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData, cfg config.Downloader) {
