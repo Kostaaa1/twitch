@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -54,7 +53,6 @@ func (tw *API) Slug(URL string) (string, VideoType, error) {
 		_, id := path.Split(parsedURL.Path)
 		return id, TypeVOD, nil
 	}
-
 	return s[1], TypeLivestream, nil
 }
 
@@ -122,7 +120,6 @@ func (tw *API) fetch(url string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading response body failed: %w", err)
 	}
-
 	return bytes, nil
 }
 
@@ -169,16 +166,15 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+
 			tw.Download(unit)
 		}(unit)
 	}
-
 	wg.Wait()
 }
 
 func (tw *API) Download(unit MediaUnit) {
 	var err error
-
 	if unit.Error != nil {
 		return
 	}
@@ -192,19 +188,10 @@ func (tw *API) Download(unit MediaUnit) {
 		err = tw.RecordStream(unit)
 	}
 
-	if err != nil {
-		logFile, e := os.OpenFile("errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-		if e != nil {
-			log.Fatal("Error opening log file: ", e)
-		}
-		defer logFile.Close()
-
-		logger := log.New(logFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
-		msg := fmt.Sprintf("Failed to download - %s. ERROR: %v", unit.Slug, err)
-		logger.Printf(msg, unit.Slug, err)
-	}
-
 	if file, ok := unit.W.(*os.File); ok && file != nil {
+		if err != nil {
+			os.Remove(file.Name())
+		}
 		tw.progressCh <- ProgresbarChanData{
 			Text:   file.Name(),
 			Error:  err,

@@ -5,11 +5,11 @@ import (
 )
 
 type VariantPlaylist struct {
-	Bandwidth  string `json:"BANDWIDTH"`
-	Codecs     string `json:"CODECS"`
-	Resolution string `json:"RESOLUTION"`
-	Video      string `json:"VIDEO"`
-	FrameRate  string `json:"FRAME-RATE"`
+	Bandwidth  string
+	Codecs     string
+	Resolution string
+	Video      string
+	FrameRate  string
 	URL        string
 	Serialized string
 }

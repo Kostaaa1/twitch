@@ -28,6 +28,7 @@ func main() {
 	flag.Parse()
 
 	tw := twitch.New()
+
 	if prompt.Input == "" {
 		if len(os.Args) > 1 {
 			prompt.Input = os.Args[1]
@@ -49,8 +50,8 @@ func main() {
 	}
 
 	close(progressCh)
-	time.Sleep(500 * time.Millisecond)
 
-	// fmt.Printl("Finished downloading 👍👍👍")
+	time.Sleep(500 * time.Millisecond)
+	fmt.Println("Finished downloading 👍👍👍")
 	fmt.Printf("\033[?25h")
 }

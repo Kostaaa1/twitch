@@ -14,26 +14,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
-func (api *API) truncateSegments(mediaPlaylist []byte, start, end time.Duration) ([]string, error) {
-	var segmentDuration float64 = 10
-	s := int(start.Seconds()/segmentDuration) * 2
-	e := int(end.Seconds()/segmentDuration) * 2
-
-	var segments []string
-	lines := strings.Split(string(mediaPlaylist), "\n")[8:]
-
-	if s > len(lines) || e > len(lines) {
-		return segments, fmt.Errorf("invalid start/end parameters. You've choosen %.2f/%.2f but the video duration is %d", start.Seconds(), end.Seconds(), len(lines)) // TODO: calculate duration properly
-	}
-
-	if e == 0 {
-		segments = lines[s:]
-	} else {
-		segments = lines[s:e]
-	}
-	return segments, nil
-}
-
 func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	if slug == "" {
 		return "", fmt.Errorf("slug is required for vod media list")
@@ -45,7 +25,6 @@ func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
 	}
 
 	var vodPlaylistURL string
-
 	if status == http.StatusForbidden {
 		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
 		if err != nil {
@@ -79,8 +58,8 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 		return err
 	}
 
-	segments, err := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
-	if err != nil {
+	media := m3u8.ParseMediaPlaylist(string(mediaPlaylist))
+	if err := media.TruncateSegments(unit.Start, unit.End); err != nil {
 		return err
 	}
 
@@ -91,37 +70,37 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	sem := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
 
-	for _, seg := range segments {
-		if strings.HasSuffix(seg, ".ts") {
+	for _, segURL := range media.Segments {
+		if strings.HasSuffix(segURL, ".ts") {
 			wg.Add(1)
 
-			go func(seg string) {
+			go func(segURL string) {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
 
-				if err := api.downloadSegmentToTempFile(seg, vodPlaylistURL, tempDir, unit); err != nil {
+				if err := api.downloadSegmentToTempFile(segURL, vodPlaylistURL, tempDir, unit); err != nil {
 					fmt.Println(err)
 				}
-			}(seg)
+			}(segURL)
 		}
 	}
 
 	wg.Wait()
 
-	if err := api.writeSegmentsToOutput(tempDir, segments, unit); err != nil {
+	if err := api.writeSegmentsToOutput(media.Segments, tempDir, unit); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (api *API) writeSegmentsToOutput(tempDir string, segments []string, unit MediaUnit) error {
-	for _, tsFile := range segments {
-		if !strings.HasSuffix(tsFile, ".ts") {
+func (api *API) writeSegmentsToOutput(segments []string, tempDir string, unit MediaUnit) error {
+	for _, segURL := range segments {
+		if !strings.HasSuffix(segURL, ".ts") {
 			continue
 		}
-		tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(tsFile))
+		tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(segURL))
 		tempFile, err := os.Open(tempFilePath)
 		if err != nil {
 			return fmt.Errorf("failed to open temp file %s: %w", tempFilePath, err)
@@ -147,12 +126,12 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 		return err
 	}
 
-	segments, err := api.truncateSegments(mediaPlaylist, unit.Start, unit.End)
-	if err != nil {
+	playlist := m3u8.ParseMediaPlaylist(string(mediaPlaylist))
+	if err := playlist.TruncateSegments(unit.Start, unit.End); err != nil {
 		return err
 	}
 
-	for _, segment := range segments {
+	for _, segment := range playlist.Segments {
 		if strings.HasSuffix(segment, ".ts") {
 			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
 			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)

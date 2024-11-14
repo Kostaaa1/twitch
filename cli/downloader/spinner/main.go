@@ -30,6 +30,7 @@ type model struct {
 	progressChan chan twitch.ProgresbarChanData
 	spinner      spinner.Model
 	err          error
+	width        int
 }
 
 var (
@@ -98,6 +99,10 @@ func (m *model) waitForMsg() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
@@ -169,39 +174,46 @@ func (m model) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
+
 	var str strings.Builder
+
 	for i := 0; i < len(m.state); i++ {
-		str.WriteString(m.constructStateMessage(m.state[i]))
+		msg := m.constructStateMessage(m.state[i])
+		if i == 0 {
+			msg = strings.Split(msg, "\n")[1]
+		}
+		str.WriteString(msg)
 	}
 	return str.String()
 }
 
+func (m model) wrapText(text string) string {
+	return lipgloss.NewStyle().Width(m.width).Render(text)
+}
+
 func (m model) constructStateMessage(s Spinner) string {
 	if s.err != nil {
-		return constructErrorMessage(s.text, s.err)
+		return m.wrapText(constructErrorMessage(s.err))
 	}
 
+	var str strings.Builder
 	message := m.getProgressMsg(s.totalBytes, s.elapsedTime)
 	if s.isDone {
-		return constructSuccessMessage(s.text, message)
+		str.WriteString(m.wrapText(constructSuccessMessage(s.text, message)))
 	} else {
-		return fmt.Sprintf(" %s %s: %s \n", m.spinner.View(), s.text, message)
+		wrappedText := m.wrapText(fmt.Sprintf("%s %s", s.text, message))
+		str.WriteString(fmt.Sprintf("\n %s %s", m.spinner.View(), wrappedText))
 	}
+
+	return str.String()
 }
 
 func constructSuccessMessage(text, message string) string {
-	return fmt.Sprintf("✅ %s: %s \n", text, message)
+	return fmt.Sprintf(" \n✅ %s %s", text, message)
 }
 
-func constructErrorMessage(text string, err error) string {
-	if err == nil {
-		return ""
-	}
-	prefix := "❌ "
-	if text != "" {
-		prefix += text + ": "
-	}
-	return fmt.Sprintf("%s%s\n", prefix, err.Error())
+func constructErrorMessage(err error) string {
+	return fmt.Sprintf(" \n❌ %s \n", err.Error())
 }
 
 func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData, cfg config.Downloader) {

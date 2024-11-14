@@ -6,14 +6,14 @@ import (
 )
 
 type MasterPlaylist struct {
-	Origin          string `json:"ORIGIN"`
-	B               bool   `json:"B"`
-	Region          string `json:"REGION"`
-	UserIP          string `json:"USER-IP"`
-	ServingID       string `json:"SERVING-ID"`
-	Cluster         string `json:"CLUSTER"`
-	UserCountry     string `json:"USER-COUNTRY"`
-	ManifestCluster string `json:"MANIFEST-CLUSTER"`
+	Origin          string `m3u8:"ORIGIN"`
+	B               bool   `m3u8:"B"`
+	Region          string `m3u8:"REGION"`
+	UserIP          string `m3u8:"USER-IP"`
+	ServingID       string `m3u8:"SERVING-ID"`
+	Cluster         string `m3u8:"CLUSTER"`
+	UserCountry     string `m3u8:"USER-COUNTRY"`
+	ManifestCluster string `m3u8:"MANIFEST-CLUSTER"`
 	UsherURL        string
 	Lists           []VariantPlaylist
 	Serialized      string
