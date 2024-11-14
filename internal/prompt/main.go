@@ -78,16 +78,14 @@ func createNewUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 	}
 
 	var f *os.File
-	if unit.Error == nil {
-		ext := "mp4"
-		if quality == "audio_only" {
-			ext = "mp3"
-		}
-		mediaName := fmt.Sprintf("%s_%s", slug, quality)
-		f, err = fileutil.CreateFile(prompt.Output, mediaName, ext)
-		if err != nil {
-			unit.Error = err
-		}
+	ext := "mp4"
+	if quality == "audio_only" {
+		ext = "mp3"
+	}
+	mediaName := fmt.Sprintf("%s_%s", slug, quality)
+	f, err = fileutil.CreateFile(prompt.Output, mediaName, ext)
+	if err != nil {
+		unit.Error = err
 	}
 
 	unit.Slug = slug

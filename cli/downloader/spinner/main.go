@@ -36,8 +36,11 @@ type model struct {
 
 var (
 	spinnerMap = map[string]spinner.Spinner{
-		"meter":    spinner.Meter,
-		"dot":      spinner.Dot,
+		"meter": spinner.Meter,
+		"dot": spinner.Spinner{
+			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
+			FPS:    time.Second / 10,
+		},
 		"line":     spinner.Line,
 		"pulse":    spinner.Pulse,
 		"ellipsis": spinner.Ellipsis,
@@ -122,6 +125,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if msg.Error != nil {
 					m.state[i].err = msg.Error
 				}
+
 				if m.state[i].startTime.IsZero() {
 					m.state[i].startTime = time.Now()
 				}
@@ -178,7 +182,8 @@ func (m model) View() string {
 	}
 	var str strings.Builder
 	for i := 0; i < len(m.state); i++ {
-		str.WriteString(m.constructStateMessage(m.state[i]))
+		str.WriteString(m.wrapText(m.constructStateMessage(m.state[i])))
+		str.WriteString("\n")
 	}
 	return str.String()
 }
@@ -198,18 +203,18 @@ func (m model) constructStateMessage(s Spinner) string {
 	if s.isDone {
 		str.WriteString(constructSuccessMessage(s.text, message))
 	} else {
-		str.WriteString(fmt.Sprintf(" %s %s %s\n", m.spinner.View(), s.text, message))
+		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.text, message))
 	}
 
 	return str.String()
 }
 
 func constructSuccessMessage(text, message string) string {
-	return fmt.Sprintf("✅ %s %s\n", text, message)
+	return fmt.Sprintf("✅ %s %s", text, message)
 }
 
 func constructErrorMessage(err error) string {
-	return fmt.Sprintf("❌ %s \n", err.Error())
+	return fmt.Sprintf("❌ %s", err.Error())
 }
 
 func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData, cfg config.Downloader) {

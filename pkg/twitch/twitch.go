@@ -175,21 +175,20 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 
 func (tw *API) Download(unit MediaUnit) {
 	var err error
-	if unit.Error != nil {
-		return
-	}
 
-	switch unit.Type {
-	case TypeVOD:
-		err = tw.ParallelVodDownload(unit)
-	case TypeClip:
-		err = tw.DownloadClip(unit)
-	case TypeLivestream:
-		err = tw.RecordStream(unit)
+	if unit.Error == nil {
+		switch unit.Type {
+		case TypeVOD:
+			err = tw.ParallelVodDownload(unit)
+		case TypeClip:
+			err = tw.DownloadClip(unit)
+		case TypeLivestream:
+			err = tw.RecordStream(unit)
+		}
 	}
 
 	if file, ok := unit.W.(*os.File); ok && file != nil {
-		if err != nil {
+		if unit.Error != nil || err != nil {
 			os.Remove(file.Name())
 		}
 		tw.progressCh <- ProgresbarChanData{

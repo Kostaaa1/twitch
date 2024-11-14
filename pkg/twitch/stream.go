@@ -105,7 +105,6 @@ func (api *API) RecordStream(unit MediaUnit) error {
 			var n int64
 
 			if tickCount%2 != 0 {
-				// TODO: no need to fetch every time, just add 1 to last .ts file (current 182.ts - next 183.ts)
 				b, err := api.fetch(mediaList.URL)
 				if err != nil {
 					return fmt.Errorf("failed to fetch playlist: %w", err)
