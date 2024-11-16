@@ -37,7 +37,7 @@ type model struct {
 var (
 	spinnerMap = map[string]spinner.Spinner{
 		"meter": spinner.Meter,
-		"dot": spinner.Spinner{
+		"dot": {
 			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
 			FPS:    time.Second / 10,
 		},

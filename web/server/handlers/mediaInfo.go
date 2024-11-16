@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// create and move to helpers
 func replaceImageDimension(imgURL string, w, h int) string {
 	re := regexp.MustCompile(`-\d+x\d+\.(jpg|png|jpeg|gif|bmp)$`)
 	if match := re.FindStringSubmatch(imgURL); len(match) > 1 {
@@ -25,6 +24,7 @@ func replaceImageDimension(imgURL string, w, h int) string {
 
 func (s *Static) mediaInfo(c *gin.Context) {
 	twitchUrl := c.PostForm("twitchUrl")
+	fmt.Println("Called")
 
 	slug, vtype, err := s.tw.Slug(twitchUrl)
 	if err != nil {
@@ -39,6 +39,8 @@ func (s *Static) mediaInfo(c *gin.Context) {
 		formData, err = s.getVODData(slug)
 	}
 	formData.Type = vtype
+
+	fmt.Println("formData", formData)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

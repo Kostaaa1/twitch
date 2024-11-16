@@ -53,6 +53,7 @@ func (tw *API) Slug(URL string) (string, VideoType, error) {
 		_, id := path.Split(parsedURL.Path)
 		return id, TypeVOD, nil
 	}
+
 	return s[1], TypeLivestream, nil
 }
 
@@ -174,9 +175,8 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 }
 
 func (tw *API) Download(unit MediaUnit) {
-	var err error
-
-	if unit.Error == nil {
+	err := unit.Error
+	if err == nil {
 		switch unit.Type {
 		case TypeVOD:
 			err = tw.ParallelVodDownload(unit)
@@ -186,7 +186,6 @@ func (tw *API) Download(unit MediaUnit) {
 			err = tw.RecordStream(unit)
 		}
 	}
-
 	if file, ok := unit.W.(*os.File); ok && file != nil {
 		if unit.Error != nil || err != nil {
 			os.Remove(file.Name())
@@ -235,6 +234,5 @@ func (api *API) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir strin
 			Bytes: n,
 		}
 	}
-
 	return nil
 }

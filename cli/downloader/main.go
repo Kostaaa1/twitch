@@ -19,7 +19,6 @@ func main() {
 	}
 
 	var prompt prompt.Prompt
-
 	flag.StringVar(&prompt.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them with comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
 	flag.StringVar(&prompt.Output, "output", jsonCfg.Downloader.Output, "Path where to store the downloaded media.")
 	flag.StringVar(&prompt.Quality, "quality", "", "[best 1080 720 480 360 160 worst]. Example: -quality 1080p (optional)")
@@ -50,7 +49,6 @@ func main() {
 	}
 
 	close(progressCh)
-
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("Finished downloading!!!")
 	fmt.Printf("\033[?25h")

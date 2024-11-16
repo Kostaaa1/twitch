@@ -26,13 +26,10 @@ templ MediaForm(media FormData) {
 		<form 
 			action="/media/download/vod" 
 			method="GET"	
-			class="absolute top-0 flex w-full items-center justify-center bg-white gap-8 max-h-[300px] text-black flex-wrap py-4"
+			class="flex w-full items-center justify-center bg-white gap-8 max-h-[420px] text-black flex-wrap py-4"
 		>
 			<div>
-				<img
-					class="object-cover object-center w-full max-w-[460px] h-auto rounded-lg shadow-xl shadow-blue-gray-900/50"
-					src={media.PreviewThumbnailURL}
-				/>
+				<img class="object-cover object-center w-full max-w-[460px] h-auto rounded-lg shadow-xl shadow-blue-gray-900/50" src={media.PreviewThumbnailURL} />
 			</div>
 			<div class="flex flex-col gap-4 py-4 max-w-[380px] w-full flex-wrap px-2">
 				<h1 class="text-2xl font-semibold text-left"> 
