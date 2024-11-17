@@ -114,7 +114,7 @@ func (api *API) writeSegmentsToOutput(segments []string, tempDir string, unit Me
 	return nil
 }
 
-// Stream segment, one by one to writer. used in web.
+// Stream segment, one by one. used in web.
 func (api *API) StreamVOD(unit MediaUnit) error {
 	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
 	if err != nil {

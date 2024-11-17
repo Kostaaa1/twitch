@@ -1,14 +1,18 @@
 package components
 
 templ Footer() {
-	<footer class="bg-violet-950 text-white">
-		<div hx-boost="true" hx-target="#content" hx-swap="innerHTML show:window:top" class="container flex flex-col items-center justify-between px-6 py-8 mx-auto lg:flex-row">
+	<footer class="bg-purple-900 text-white">
+		<div 
+			hx-boost="true" 
+			hx-target="#content" 
+			hx-swap="innerHTML show:window:top" 
+			class="container flex flex-col items-center justify-between px-6 py-8 mx-auto lg:flex-row">
 			<div class="flex flex-wrap items-center justify-center gap-4 mt-6 lg:gap-6 lg:mt-0">
 				for _, link := range navigationLinks {
 					<a href={ templ.URL(link.Href) } class="text-sm transition-colors duration-300 hover:text-blue-500">{ link.Text }</a>
 				}
 			</div>
-			<p class="mt-6 text-sm lg:mt-0">© Copyright 2024 Guillem Bonet</p>
+			<p class="mt-6 text-sm lg:mt-0">© Copyright 2024</p>
 		</div>
 	</footer>
 }

@@ -24,8 +24,6 @@ func replaceImageDimension(imgURL string, w, h int) string {
 
 func (s *Static) mediaInfo(c *gin.Context) {
 	twitchUrl := c.PostForm("twitchUrl")
-	fmt.Println("Called")
-
 	slug, vtype, err := s.tw.Slug(twitchUrl)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -40,14 +38,12 @@ func (s *Static) mediaInfo(c *gin.Context) {
 	}
 	formData.Type = vtype
 
-	fmt.Println("formData", formData)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.HTML(http.StatusOK, "", server.WithBase(c, components.MediaForm(formData), "Home", ""))
+	c.HTML(http.StatusOK, "", server.WithBase(c, components.DownloadForm(formData), "Home", ""))
 }
 
 func (s *Static) getVODData(slug string) (components.FormData, error) {
@@ -55,19 +51,37 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 	if err != nil {
 		return components.FormData{}, err
 	}
-	fmt.Println(metadata)
 
-	master, _, err := s.tw.GetVODMasterM3u8(slug)
-	if err != nil {
-		return components.FormData{}, err
-	}
+	master, status, err := s.tw.GetVODMasterM3u8(slug)
 
 	var qualities []components.Quality
-	for _, list := range master.Lists {
+	if status == 403 {
 		qualities = append(qualities, components.Quality{
-			Resolution: list.Resolution,
-			Value:      list.Video,
+			Resolution: "1920x1080",
+			Value:      "1080p60",
 		})
+		qualities = append(qualities, components.Quality{
+			Resolution: "1280x720",
+			Value:      "720p30",
+		})
+		qualities = append(qualities, components.Quality{
+			Resolution: "852x480",
+			Value:      "480p30",
+		})
+		qualities = append(qualities, components.Quality{
+			Resolution: "640x360",
+			Value:      "360p30",
+		})
+	} else {
+		if err != nil {
+			return components.FormData{}, err
+		}
+		for _, list := range master.Lists {
+			qualities = append(qualities, components.Quality{
+				Resolution: list.Resolution,
+				Value:      list.Video,
+			})
+		}
 	}
 
 	formData := components.FormData{
@@ -90,25 +104,34 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		return components.FormData{}, err
 	}
 
-	var qualities []components.Quality
-	for _, q := range clip.Assets[0].VideoQualities {
-		fmt.Println(q)
-		// res := GetResolution(q.Quality, twitch.TypeClip)
-		// qualities = append(qualities, components.Quality{
-		// 	Resolution: res,
-		// 	Value:      res,
-		// })
+	videoSrc, err := s.tw.GetClipVideoURL(clip, "best")
+	if err != nil {
+		return components.FormData{}, err
 	}
+
+	var qualities []components.Quality
+	for _, data := range clip.Assets[0].VideoQualities {
+		qualities = append(qualities, components.Quality{
+			Resolution: data.Quality,
+			Value:      data.Quality,
+		})
+	}
+	qualities = append(qualities, components.Quality{
+		Resolution: "audio_only",
+		Value:      "audio_only",
+	})
 
 	formData := components.FormData{
 		PreviewThumbnailURL: clip.Assets[0].ThumbnailURL,
+		VideoURL:            videoSrc,
 		ID:                  clip.Slug,
-		Title:               clip.Video.Title,
+		Title:               clip.Title,
 		CreatedAt:           clip.CreatedAt,
 		Owner:               clip.Broadcaster.DisplayName,
 		ViewCount:           humanize.Comma(clip.ViewCount),
 		Qualities:           qualities,
-		MediaDuration:       fmt.Sprintf("%.2f", float64(clip.DurationSeconds)/3600.00),
+		MediaDuration:       fmt.Sprintf("%.2f", float64(clip.DurationSeconds)),
+		Curator:             clip.Curator,
 	}
 
 	return formData, nil

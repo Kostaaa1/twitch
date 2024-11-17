@@ -24,8 +24,8 @@ templ Base(title, description string) {
 			<link href="/assets/css/toastify.min.css" rel="stylesheet" hx-preserve="true"/>
 			<link href="/assets/css/tailwind.css" rel="stylesheet" hx-preserve="true"/>
 			<link href="/assets/css/main.css" rel="stylesheet" hx-preserve="true"/>
+			<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" hx-preserve="true">
 			<script hx-preserve="true">
-
 				// if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
 				// 	document.documentElement.classList.add('dark')
 				// } else {
@@ -79,17 +79,18 @@ templ Base(title, description string) {
 				}
 			</script>
 		</head>
-		<body class="flex justify-between flex-col antialiased min-h-screen text-white bg-gradient-to-b from-purple-950 to-purple-300 via-violet-600">
-				@components.Navigation()
-				<main
-					id="content"
-					class="flex-grow pb-8"  
-					hx-on:htmx:before-swap="handleServerError(event)"
-					hx-on:htmx:send-error="errorToast('A network error occurred')"
-				>	
-					{ children... }
-				</main>
-				@components.Footer() 
+		<body class="relative flex justify-between flex-col antialiased min-h-screen text-black">
+			<div class="absolute -z-10 top-0 left-0 w-full h-[520px] bg-gradient-to-b from-purple-900 via-purple-600 to-white"></div>
+			@components.Navigation()
+			<main
+				id="content"
+				class="flex-grow pb-8"
+				hx-on:htmx:before-swap="handleServerError(event)"
+				hx-on:htmx:send-error="errorToast('A network error occurred')"
+			>	
+				{ children... }
+			</main>
+			@components.Footer() 
 		</body>
 	</html>
 }

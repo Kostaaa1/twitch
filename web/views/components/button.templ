@@ -27,7 +27,6 @@ templ Button(data BtnData) {
 		hx-post={string(templ.URL(data.URL))}
 		hx-target={data.Target}
 		hx-include={strings.Join(data.Include, ",")}
-		hx-vals={jsonStringify(data.Body)}
 		type={data.Type}
 		@click="loading = true"
 		:disabled="loading"

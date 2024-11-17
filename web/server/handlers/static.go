@@ -31,6 +31,5 @@ func (s *Static) Register(r *gin.RouterGroup) {
 	r.GET("/", s.Root)
 	r.GET("/home", s.Home)
 	r.POST("/media/info", s.mediaInfo)
-	r.GET("/media/download/vod", s.downloadVOD)
-	r.GET("/media/download/clip", s.downloadClip)
+	r.GET("/media/download", s.downloadHandler)
 }

@@ -42,6 +42,10 @@ func NewServer(addr string, handler ...Handler) (*Server, error) {
 		server: &http.Server{
 			Addr:    addr,
 			Handler: g,
+			// ReadTimeout:    30 * time.Second,
+			// WriteTimeout:   30 * time.Second,
+			// IdleTimeout:    120 * time.Second,
+			// MaxHeaderBytes: 1 << 20,
 		},
 	}, nil
 }

@@ -10,9 +10,18 @@ import (
 	"time"
 )
 
-func (api *API) GetClipUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+func (api *API) constructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
 	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value))
 	return URL, nil
+}
+
+func (api *API) GetClipVideoURL(clip Clip, quality string) (string, error) {
+	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, quality)
+	usherURL, err := api.constructUsherURL(clip.PlaybackAccessToken, sourceURL)
+	if err != nil {
+		return "", err
+	}
+	return usherURL, nil
 }
 
 func (api *API) DownloadClip(unit MediaUnit) error {
@@ -21,14 +30,13 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 		return err
 	}
 
-	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality)
-	usherURL, err := api.GetClipUsherURL(clip.PlaybackAccessToken, sourceURL)
+	usherURL, err := api.GetClipVideoURL(clip, unit.Quality)
 	if err != nil {
 		return err
 	}
 
 	var writtenBytes int64
-	if api.config.Downloader.IsFFmpegEnabled && unit.Quality == "audio_only" {
+	if unit.Quality == "audio_only" {
 		writtenBytes, err = extractAudio(usherURL, unit.W)
 	} else {
 		writtenBytes, err = api.downloadAndWriteSegment(usherURL, unit.W)
@@ -93,6 +101,14 @@ type ClipAccessToken struct {
 	VideoQualities      []VideoQuality      `json:"videoQualities"`
 }
 
+type Curator struct {
+	ID              string `json:"id"`
+	Login           string `json:"login"`
+	DisplayName     string `json:"displayName"`
+	ProfileImageURL string `json:"profileImageURL"`
+	Typename        string `json:"__typename"`
+}
+
 type Clip struct {
 	ID         string `json:"id"`
 	Slug       string `json:"slug"`
@@ -120,14 +136,8 @@ type Clip struct {
 		PortraitMetadata interface{}    `json:"portraitMetadata"`
 		Typename         string         `json:"__typename"`
 	} `json:"assets"`
-	Curator struct {
-		ID              string `json:"id"`
-		Login           string `json:"login"`
-		DisplayName     string `json:"displayName"`
-		ProfileImageURL string `json:"profileImageURL"`
-		Typename        string `json:"__typename"`
-	} `json:"curator"`
-	Game struct {
+	Curator Curator `json:"curator"`
+	Game    struct {
 		ID          string `json:"id"`
 		Name        string `json:"name"`
 		BoxArtURL   string `json:"boxArtURL"`

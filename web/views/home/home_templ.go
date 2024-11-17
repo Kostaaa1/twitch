@@ -31,7 +31,7 @@ func Hero() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex py-16 px-4 items-center justify-center flex-col text-white flex-wrap text-center gap-3\"><h1 class=\"text-5xl md:text-7xl font-semibold\">Download Twitch media</h1><h3 class=\"text-xl md:text-3xl\">Download media from twitch.tv</h3><div class=\"flex w-[80vw] max-w-[800px] mt-3\"><input id=\"twitchUrl\" name=\"twitchUrl\" autofocus=\"true\" value=\"https://www.twitch.tv/videos/2281851774?filter=archives&amp;sort=time\" class=\"w-full bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"Paste twitch.tv URL &amp; Download\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<section class=\"w-full flex pt-16 px-4 items-center flex-col text-white flex-wrap text-center gap-3 h-[420px]\"><h1 class=\"text-5xl md:text-7xl font-semibold\">Download Twitch media</h1><h3 class=\"text-xl md:text-3xl\">Download media from twitch.tv</h3><div class=\"flex w-full mt-3\"><input id=\"twitchUrl\" name=\"twitchUrl\" autofocus=\"true\" value=\"https://www.twitch.tv/videos/2301606149\" class=\"w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"Paste twitch.tv URL &amp; Download\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -40,12 +40,12 @@ func Hero() templ.Component {
 			URL:     "/media/info",
 			Target:  "#mediaInfo",
 			Include: []string{"#twitchUrl"},
-			Class:   "text-gray-500 rounded-r-full bg-yellow-500 text-white px-4 font-semibold hover:bg-yellow-600 transition duration-300 ease",
+			Class:   "text-gray-500 rounded-r-full bg-yellow-400 text-white px-4 font-semibold hover:bg-yellow-500 transition duration-300 ease",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -74,7 +74,7 @@ func Home() templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex items-center justify-center flex-col gap-6\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex items-center justify-center flex-col max-w-[1000px] w-full mx-auto\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -82,7 +82,15 @@ func Home() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"mediaInfo\"></div><div class=\"px-80\"><div class=\"h-full w-full bg-yellow-200 rounded-md bg-clip-padding backdrop-filter backdrop-blur-md bg-opacity-10 border border-gray-100 flex items-center justify-center flex-col p-8 w-[60vw] gap-4 text-xl text-center\"><div class=\"flex flex-col gap-4 px-8\"><h3 class=\"text-3xl font-semibold\">How to untwitch a video?</h3><p>Hello and welcome. Here's a few instructions on how our Twitch video downloader works. By now you've probably realized our site is not a twitch remedy. We are as addicted to watching and doing our own twitch live streams as the next group of fulltime gamers. No.. Our site helps you untwitch, a.k.a. download twitch videos, instead of watching them online over and over. And so we've come up with this website - the only website that claims to download twitch videos and clips and actually does it! Because you know it! None of them websites that claim they do twitch videos actually do do them.. Best you get is some m3u8 file, ok, let's not go there.. On our site you can actually download twitch videos, different formats and sizes, if available. You can also adjust start and end of the video broadcast to download a smaller portion of the video. It is as easy as 1-2-3-4. </p></div><div class=\"flex flex-col gap-4 px-8\"><h3 class=\"text-3xl font-semibold\">How to untwitch a clip?</h3><p>To download a clip from Twitch.tv platform, all you need is the URL link of the page with the video clip. Copy the link, visit Untwitch and proceed to insert the URL into our Twitch Clip downloader. We will scan the clip and offer you several options to download the video file to your device. Then you can share it on other social networks, edit, insert into your YouTube report, etc. </p></div><div class=\"flex flex-col gap-4 px-8\"><h3 class=\"text-3xl font-semibold\">How to untwitch a clip?</h3><p>To download a clip from Twitch.tv platform, all you need is the URL link of the page with the video clip. Copy the link, visit Untwitch and proceed to insert the URL into our Twitch Clip downloader. We will scan the clip and offer you several options to download the video file to your device. Then you can share it on other social networks, edit, insert into your YouTube report, etc. </p></div><div class=\"flex flex-col gap-4 px-8\"><h3 class=\"text-3xl font-semibold\">How to untwitch a video?</h3><p>Hello and welcome. Here's a few instructions on how our Twitch video downloader works. By now you've probably realized our site is not a twitch remedy. We are as addicted to watching and doing our own twitch live streams as the next group of fulltime gamers. No.. Our site helps you untwitch, a.k.a. download twitch videos, instead of watching them online over and over. And so we've come up with this website - the only website that claims to download twitch videos and clips and actually does it! Because you know it! None of them websites that claim they do twitch videos actually do do them.. Best you get is some m3u8 file, ok, let's not go there.. On our site you can actually download twitch videos, different formats and sizes, if available. You can also adjust start and end of the video broadcast to download a smaller portion of the video. It is as easy as 1-2-3-4. </p></div></div></div></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"mediaInfo\"></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.Instructions().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -10,26 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *Static) downloadClip(c *gin.Context) {
-	mediaTitle := c.Query("media_title")
-	mediaFormat := c.Query("media_format")
-	slug := c.Query("media_slug")
-
-	c.Header("Content-Type", "video/mp4")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.mp4"`, mediaTitle))
-
-	u := twitch.MediaUnit{
-		Slug:    slug,
-		Quality: mediaFormat,
-		Type:    twitch.TypeClip,
-		W:       c.Writer,
-	}
-
-	if err := s.tw.DownloadClip(u); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	}
-}
-
 func parseDuration(startH, startM, startS string) (time.Duration, error) {
 	hours, err := strconv.Atoi(startH)
 	if err != nil || startH == "" {
@@ -47,39 +27,23 @@ func parseDuration(startH, startM, startS string) (time.Duration, error) {
 	return duration, nil
 }
 
-func (s *Static) downloadVOD(c *gin.Context) {
+// Add validations for this
+func (s *Static) downloadHandler(c *gin.Context) {
 	mediaTitle := c.Query("media_title")
 	mediaFormat := c.Query("media_format")
-	slug := c.Query("media_slug")
+	mediaType := c.Query("media_type")
 
-	startH := c.Query("start_h")
-	startM := c.Query("start_m")
-	startS := c.Query("start_s")
+	var unit twitch.MediaUnit
+	unit.Slug = c.Query("media_slug")
 
-	start, err := parseDuration(startH, startM, startS)
+	videoType, err := twitch.GetVideoType(mediaType)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	endH := c.DefaultQuery("end_h", "0")
-	endM := c.DefaultQuery("end_m", "0")
-	endS := c.DefaultQuery("end_s", "0")
-
-	end, err := parseDuration(endH, endM, endS)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	unit := twitch.MediaUnit{
-		Slug:    slug,
-		Type:    twitch.TypeVOD,
-		Start:   start,
-		End:     end,
-		Quality: mediaFormat,
-		W:       c.Writer,
-	}
+	unit.Type = videoType
+	unit.Quality = mediaFormat
+	unit.W = c.Writer
 
 	ext := "mp4"
 	if mediaFormat == "audio_only" {
@@ -89,9 +53,42 @@ func (s *Static) downloadVOD(c *gin.Context) {
 		c.Header("Content-Type", "video/mp4")
 	}
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.%s"`, mediaTitle, ext))
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Flush()
 
-	if err := s.tw.StreamVOD(unit); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	switch unit.Type {
+	case twitch.TypeClip:
+		if err := s.tw.DownloadClip(unit); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+
+	case twitch.TypeVOD:
+		startH := c.Query("start_h")
+		startM := c.Query("start_m")
+		startS := c.Query("start_s")
+		start, err := parseDuration(startH, startM, startS)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		unit.Start = start
+
+		endH := c.DefaultQuery("end_h", "0")
+		endM := c.DefaultQuery("end_m", "0")
+		endS := c.DefaultQuery("end_s", "0")
+		end, err := parseDuration(endH, endM, endS)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		unit.End = end
+
+		unit.Quality = "chunked"
+
+		if err := s.tw.StreamVOD(unit); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 }

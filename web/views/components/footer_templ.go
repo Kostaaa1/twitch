@@ -29,7 +29,7 @@ func Footer() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<footer class=\"bg-violet-950 text-white\"><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"container flex flex-col items-center justify-between px-6 py-8 mx-auto lg:flex-row\"><div class=\"flex flex-wrap items-center justify-center gap-4 mt-6 lg:gap-6 lg:mt-0\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<footer class=\"bg-purple-900 text-white\"><div hx-boost=\"true\" hx-target=\"#content\" hx-swap=\"innerHTML show:window:top\" class=\"container flex flex-col items-center justify-between px-6 py-8 mx-auto lg:flex-row\"><div class=\"flex flex-wrap items-center justify-center gap-4 mt-6 lg:gap-6 lg:mt-0\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -50,7 +50,7 @@ func Footer() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(link.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/footer.templ`, Line: 8, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/footer.templ`, Line: 12, Col: 116}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -61,7 +61,7 @@ func Footer() templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><p class=\"mt-6 text-sm lg:mt-0\">© Copyright 2024 Guillem Bonet</p></div></footer>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><p class=\"mt-6 text-sm lg:mt-0\">© Copyright 2024</p></div></footer>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
