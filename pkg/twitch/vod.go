@@ -132,10 +132,14 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 		return err
 	}
 
+	fmt.Println("Lists:", master.Lists)
+
 	variant, err := master.GetVariantPlaylistByQuality(unit.Quality)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("S", variant.URL)
 
 	mediaPlaylist, err := api.fetch(variant.URL)
 	if err != nil {

@@ -31,7 +31,7 @@ func Hero() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<section class=\"w-full flex pt-16 px-4 items-center flex-col text-white flex-wrap text-center gap-3 h-[420px]\"><h1 class=\"text-5xl md:text-7xl font-semibold\">Download Twitch media</h1><h3 class=\"text-xl md:text-3xl\">Download media from twitch.tv</h3><div class=\"flex w-full mt-3\"><input id=\"twitchUrl\" name=\"twitchUrl\" autofocus=\"true\" value=\"https://www.twitch.tv/videos/2301606149\" class=\"w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"Paste twitch.tv URL &amp; Download\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<section class=\"w-full flex pt-16 px-4 items-center flex-col text-white flex-wrap text-center gap-3 h-[420px]\"><h1 class=\"text-5xl md:text-7xl font-semibold\">Download Twitch media</h1><h3 class=\"text-xl md:text-3xl\">Download media from twitch.tv</h3><div class=\"flex w-full mt-3\"><input id=\"twitchUrl\" name=\"twitchUrl\" autofocus=\"true\" value=\"https://www.twitch.tv/videos/2304172308\" class=\"w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"Paste twitch.tv URL &amp; Download\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

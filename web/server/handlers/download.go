@@ -84,8 +84,6 @@ func (s *Static) downloadHandler(c *gin.Context) {
 		}
 		unit.End = end
 
-		unit.Quality = "chunked"
-
 		if err := s.tw.StreamVOD(unit); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return

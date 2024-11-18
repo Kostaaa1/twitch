@@ -42,7 +42,6 @@ func (s *Static) mediaInfo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.HTML(http.StatusOK, "", server.WithBase(c, components.DownloadForm(formData), "Home", ""))
 }
 
@@ -58,6 +57,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 	if err != nil {
 		return components.FormData{}, err
 	}
+
 	for _, list := range master.Lists {
 		qualities = append(qualities, components.Quality{
 			Resolution: list.Resolution,
@@ -74,6 +74,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		ViewCount:           humanize.Comma(metadata.Video.ViewCount),
 		Qualities:           qualities,
 		MediaDuration:       fmt.Sprintf("%.2f", float64(metadata.Video.LengthSeconds)/3600.00),
+		Type:                twitch.TypeVOD,
 	}
 
 	return formData, nil
@@ -97,6 +98,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 			Value:      data.Quality,
 		})
 	}
+
 	qualities = append(qualities, components.Quality{
 		Resolution: "audio_only",
 		Value:      "audio_only",
@@ -113,6 +115,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		Qualities:           qualities,
 		MediaDuration:       fmt.Sprintf("%.2f", float64(clip.DurationSeconds)),
 		Curator:             clip.Curator,
+		Type:                twitch.TypeClip,
 	}
 
 	return formData, nil

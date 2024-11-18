@@ -149,7 +149,7 @@ func DownloadForm(media FormData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" views</span></div><div class=\"w-full max-w-[420px] flex flex-col gap-6 font-semibold bg-slate-100 shadow-xl shadow-blue-gray-900/50 p-6 rounded-2xl\"><a class=\"text-2xl w-max\" target=\"_blank\" href=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" views</span></div><div class=\"w-full max-w-[420px] flex flex-col gap-6 font-semibold bg-slate-100 shadow-xl shadow-blue-gray-900/50 p-6 rounded-2xl\"><a target=\"_blank\" href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -158,7 +158,7 @@ func DownloadForm(media FormData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><span class=\"text-violet-500 hover:underline font-semibold\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"text-2xl w-max\"><span class=\"text-violet-500 hover:underline font-semibold\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
