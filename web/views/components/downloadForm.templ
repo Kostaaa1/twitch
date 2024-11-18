@@ -64,7 +64,7 @@ templ DownloadForm(media FormData) {
 					<select
 						id="media_format"
 						name="media_format"
-						class="w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
+						class="w-full placeholder:text-slate-400 text-slate-700 bg-white border border-slate-200 rounded pl-3 pr-8 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md appearance-none cursor-pointer">
 							for _, list := range media.Qualities {
 								<option value={list.Value}>{list.Value} ~ {list.Resolution}</option>
 							}
@@ -74,7 +74,6 @@ templ DownloadForm(media FormData) {
 					</svg>
 				</div>
 			</div>
-	
 			switch media.Type {
 				case twitch.TypeVOD:
 				<div class="flex justify-between flex-wrap">

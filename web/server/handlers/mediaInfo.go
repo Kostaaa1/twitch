@@ -52,36 +52,17 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		return components.FormData{}, err
 	}
 
-	master, status, err := s.tw.GetVODMasterM3u8(slug)
+	master, _, err := s.tw.GetVODMasterM3u8(slug)
 
 	var qualities []components.Quality
-	if status == 403 {
+	if err != nil {
+		return components.FormData{}, err
+	}
+	for _, list := range master.Lists {
 		qualities = append(qualities, components.Quality{
-			Resolution: "1920x1080",
-			Value:      "1080p60",
+			Resolution: list.Resolution,
+			Value:      list.Video,
 		})
-		qualities = append(qualities, components.Quality{
-			Resolution: "1280x720",
-			Value:      "720p30",
-		})
-		qualities = append(qualities, components.Quality{
-			Resolution: "852x480",
-			Value:      "480p30",
-		})
-		qualities = append(qualities, components.Quality{
-			Resolution: "640x360",
-			Value:      "360p30",
-		})
-	} else {
-		if err != nil {
-			return components.FormData{}, err
-		}
-		for _, list := range master.Lists {
-			qualities = append(qualities, components.Quality{
-				Resolution: list.Resolution,
-				Value:      list.Video,
-			})
-		}
 	}
 
 	formData := components.FormData{

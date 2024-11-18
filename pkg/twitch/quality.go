@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+type Quality struct {
+	Res string
+	FPS int32
+}
+
 var (
 	Qualities = []string{
 		"best",
@@ -43,6 +48,7 @@ func GetQuality(quality string, vtype VideoType) (string, error) {
 			return q, nil
 		}
 	}
+
 	return "", fmt.Errorf("invalid quality was provided: %s. these are valid: %s", quality, strings.Join(Qualities, ", "))
 }
 

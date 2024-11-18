@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,33 +15,30 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
-func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
-	if slug == "" {
-		return "", fmt.Errorf("slug is required for vod media list")
-	}
-
-	master, status, err := api.GetVODMasterM3u8(slug)
-	if err != nil && status != http.StatusForbidden {
-		return "", err
-	}
-
-	var vodPlaylistURL string
-	if status == http.StatusForbidden {
-		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
-		if err != nil {
-			return "", err
-		}
-		vodPlaylistURL = subUrl
-	} else {
-		variantList, err := master.GetVariantPlaylistByQuality(quality)
-		if err != nil {
-			return "", err
-		}
-		vodPlaylistURL = variantList.URL
-	}
-
-	return vodPlaylistURL, nil
-}
+// func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
+// 	if slug == "" {
+// 		return "", fmt.Errorf("slug is required for vod media list")
+// 	}
+// 	master, status, err := api.GetVODMasterM3u8(slug)
+// 	if err != nil && status != http.StatusForbidden {
+// 		return "", err
+// 	}
+// 	var vodPlaylistURL string
+// 	if status == http.StatusForbidden {
+// 		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
+// 		if err != nil {
+// 			return "", err
+// 		}
+// 		vodPlaylistURL = subUrl
+// 	} else {
+// 		variantList, err := master.GetVariantPlaylistByQuality(quality)
+// 		if err != nil {
+// 			return "", err
+// 		}
+// 		vodPlaylistURL = variantList.URL
+// 	}
+// 	return vodPlaylistURL, nil
+// }
 
 func segmentFileName(segmentURL string) string {
 	parts := strings.Split(segmentURL, "/")
@@ -48,17 +46,26 @@ func segmentFileName(segmentURL string) string {
 }
 
 func (api *API) ParallelVodDownload(unit MediaUnit) error {
-	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
+	if unit.Slug == "" {
+		return errors.New("slug is required for vod media list")
+	}
+
+	master, status, err := api.GetVODMasterM3u8(unit.Slug)
+	if err != nil && status != http.StatusForbidden {
+		return err
+	}
+
+	variant, err := master.GetVariantPlaylistByQuality(unit.Quality)
 	if err != nil {
 		return err
 	}
 
-	mediaPlaylist, err := api.fetch(vodPlaylistURL)
+	mp, err := api.fetch(variant.URL)
 	if err != nil {
 		return err
 	}
 
-	media := m3u8.ParseMediaPlaylist(string(mediaPlaylist))
+	media := m3u8.ParseMediaPlaylist(string(mp))
 	if err := media.TruncateSegments(unit.Start, unit.End); err != nil {
 		return err
 	}
@@ -79,7 +86,7 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 				sem <- struct{}{}
 				defer func() { <-sem }()
 
-				if err := api.downloadSegmentToTempFile(segURL, vodPlaylistURL, tempDir, unit); err != nil {
+				if err := api.downloadSegmentToTempFile(segURL, variant.URL, tempDir, unit); err != nil {
 					fmt.Println(err)
 				}
 			}(segURL)
@@ -116,12 +123,21 @@ func (api *API) writeSegmentsToOutput(segments []string, tempDir string, unit Me
 
 // Stream segment, one by one. used in web.
 func (api *API) StreamVOD(unit MediaUnit) error {
-	vodPlaylistURL, err := api.GetVODMediaPlaylist(unit.Slug, unit.Quality)
+	if unit.Slug == "" {
+		return errors.New("slug is required for vod media list")
+	}
+
+	master, status, err := api.GetVODMasterM3u8(unit.Slug)
+	if err != nil && status != http.StatusForbidden {
+		return err
+	}
+
+	variant, err := master.GetVariantPlaylistByQuality(unit.Quality)
 	if err != nil {
 		return err
 	}
 
-	mediaPlaylist, err := api.fetch(vodPlaylistURL)
+	mediaPlaylist, err := api.fetch(variant.URL)
 	if err != nil {
 		return err
 	}
@@ -133,8 +149,8 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 
 	for _, segment := range playlist.Segments {
 		if strings.HasSuffix(segment, ".ts") {
-			lastIndex := strings.LastIndex(vodPlaylistURL, "/")
-			segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
+			lastIndex := strings.LastIndex(variant.URL, "/")
+			segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
 
 			n, err := api.downloadAndWriteSegment(segmentURL, unit.W)
 			if err != nil {
@@ -192,15 +208,27 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (api *API) GetVODMasterM3u8(slug string) (*m3u8.MasterPlaylist, int, error) {
-	token, sig, err := api.getVideoCredentials(slug)
+func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error) {
+	token, sig, err := api.getVideoCredentials(vodID)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
+	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", api.usherURL, vodID, token, sig)
 
-	u := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", api.usherURL, slug, token, sig)
+	b, code, err := api.fetchWithCode(m3u8Url)
+	if code == http.StatusForbidden {
+		// this means that you need to be subscribed to access the m3u8 master. In that case, i am creating fake playlist.
+		subVOD, err := api.SubVODData(vodID)
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		return m3u8.CreateMockMaster(api.client, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
+	}
 
-	b, code, err := api.fetchWithCode(u)
 	if err != nil {
 		return nil, code, err
 	}
@@ -209,66 +237,6 @@ func (api *API) GetVODMasterM3u8(slug string) (*m3u8.MasterPlaylist, int, error)
 }
 
 // Getting the sub VOD playlist
-func (api *API) getSubVODPlaylistURL(slug, quality string) (string, error) {
-	gqlPayload := `{
- 	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
-	}`
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-
-	var subVodResponse struct {
-		Data struct {
-			Video struct {
-				BroadcastType string    `json:"broadcastType"`
-				CreatedAt     time.Time `json:"createdAt"`
-				Owner         struct {
-					Login string `json:"login"`
-				} `json:"owner"`
-				SeekPreviewsURL string `json:"seekPreviewsURL"`
-			} `json:"video"`
-		} `json:"data"`
-		Extensions struct {
-			DurationMilliseconds int    `json:"durationMilliseconds"`
-			RequestID            string `json:"requestID"`
-		} `json:"extensions"`
-	}
-
-	if err := api.sendGqlLoadAndDecode(body, &subVodResponse); err != nil {
-		return "", err
-	}
-
-	previewURL, err := url.Parse(subVodResponse.Data.Video.SeekPreviewsURL)
-	if err != nil {
-		return "", err
-	}
-
-	paths := strings.Split(previewURL.Path, "/")
-	var vodId string
-	for i, p := range paths {
-		if p == "storyboards" {
-			vodId = paths[i-1]
-		}
-	}
-
-	// [NOT TESTED]
-	// This method works for older uploaded VODS
-	// days_difference - difference between current date and p.Data.Video.CreatedAt
-	// if broadcastType == "upload" && days_difference > 7 {
-	// url = fmt.Sprintf(`https://${domain}/${channelData.login}/${vodId}/${vodSpecialID}/${resKey}/index-dvr.m3u8`, previewURL.Host, p.Data.Video.Owner.Login, slug, vodId, resolution)
-	// }
-	// resolution := getResolution(quality, v)
-
-	broadcastType := strings.ToLower(subVodResponse.Data.Video.BroadcastType)
-
-	var url string
-	if broadcastType == "highlight" {
-		url = fmt.Sprintf(`https://%s/%s/%s/highlight-%s.m3u8`, previewURL.Host, vodId, quality, slug)
-	} else if broadcastType != "upload" {
-		url = fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, previewURL.Host, vodId, quality)
-	}
-
-	return url, nil
-}
-
 type VideoMetadata struct {
 	User struct {
 		ID              string `json:"id"`
