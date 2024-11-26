@@ -243,7 +243,7 @@ func ValidateCreds() error {
 
 	if len(errors) > 0 {
 		for _, err := range errors {
-			msg := fmt.Sprintf("missing %s from config.json", err)
+			msg := fmt.Sprintf("missing %s from twith_config.json", err)
 			return fmt.Errorf(msg)
 		}
 	}
