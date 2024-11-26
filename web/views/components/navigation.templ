@@ -4,7 +4,7 @@ templ Navigation() {
 <nav x-data="{ isOpen: false }">
 	<div class="lg:container px-4 lg:px-28 py-8 mx-auto flex justify-between items-center text-white">
 		@Logo()	
-		<div hx-boost="true" hx-target="#content" hx-swap="innerHTML show:window:top" class="flex gap-4">
+		<div hx-boost="true" hx-target="#content" hx-swap="innerHTML show:window:top" class="flex gap-8">
 		for _, link := range navigationLinks {
 			<a href={ templ.URL(link.Href) } @click="isOpen = false" class="transition-colors font-semibold duration-300 transform hover:text-gray-900 dark:hover:text-gray-200">
 				{ link.Text }

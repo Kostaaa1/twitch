@@ -1,14 +1,19 @@
 package config
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
+
+//go:embed config.json
+var embeddedConfig embed.FS
 
 type UserConfig struct {
 	BroadcasterType string    `json:"broadcasterType"`
@@ -153,46 +158,67 @@ func InitData() Data {
 	}
 }
 
+func getConfigPath() (string, error) {
+	configPath := os.Getenv("TWITCH_CONFIG_PATH")
+
+	if configPath == "" {
+		execPath, err := os.Executable()
+
+		if err != nil || strings.HasPrefix(execPath, "/tmp") {
+			wd, err := os.Getwd()
+			if err != nil {
+				return "", err
+			}
+			return filepath.Join(wd, "twitch_config.json"), err
+		}
+
+		execDir := filepath.Dir(execPath)
+		configPath = filepath.Join(execDir, "twitch_config.json")
+	}
+
+	return configPath, nil
+}
+
 func Get() (*Data, error) {
 	var data Data
 
-	wd, err := os.Getwd()
+	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
 	}
 
-	p := filepath.Join(wd, "config.json")
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			data = InitData()
 
-	_, err = os.Stat(p)
+			b, err := json.MarshalIndent(data, "", " ")
+			if err != nil {
+				return nil, err
+			}
 
-	if os.IsNotExist(err) {
-		data = InitData()
+			f, err := os.Create(configPath)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
 
-		b, err := json.MarshalIndent(data, "", " ")
-		if err != nil {
+			if _, err := f.Write(b); err != nil {
+				return nil, err
+			}
+		} else {
 			return nil, err
 		}
-
-		f, err := os.Create(p)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-
-		if _, err := f.Write(b); err != nil {
-			return nil, err
-		}
-	} else {
-		viper.SetConfigName("config")
-		viper.SetConfigType("json")
-		viper.AddConfigPath(".")
-
-		err := viper.ReadInConfig()
-		if err != nil {
-			return nil, err
-		}
-		viper.Unmarshal(&data)
 	}
+
+	viper.SetConfigName("twitch_config")
+	viper.SetConfigType("json")
+	viper.AddConfigPath(".")
+
+	err = viper.ReadInConfig()
+	if err != nil {
+		return nil, err
+	}
+	viper.Unmarshal(&data)
 
 	return &data, nil
 }
@@ -202,16 +228,15 @@ func ValidateCreds() error {
 	if err != nil {
 		return err
 	}
+
 	errors := []string{}
 
 	if cfg.User.Creds.AccessToken == "" {
 		errors = append(errors, "AccessToken")
 	}
-
 	if cfg.User.Creds.ClientSecret == "" {
 		errors = append(errors, "ClientSecret")
 	}
-
 	if cfg.User.Creds.ClientID == "" {
 		errors = append(errors, "ClientID")
 	}
@@ -222,5 +247,6 @@ func ValidateCreds() error {
 			return fmt.Errorf(msg)
 		}
 	}
+
 	return nil
 }

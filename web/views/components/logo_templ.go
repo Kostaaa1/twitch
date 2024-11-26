@@ -29,7 +29,7 @@ func Logo() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"20\" height=\"20\"><h3 class=\"text-2xl md:text-3xl\">Twitch<span class=\"text-violet-300\">Rip</span></h3></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex gap-2 items-center font-semibold cursor-pointer\"><img src=\"../assets/images/glitch_flat_ice.png\" width=\"20\" height=\"20\"> <a href=\"/\" @click=\"isOpen = false\" class=\"text-2xl md:text-3xl\">Twitch<span class=\"text-violet-300\">Rip</span></a></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

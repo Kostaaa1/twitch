@@ -48,11 +48,9 @@ func GetQuality(quality string, vtype VideoType) (string, error) {
 			return q, nil
 		}
 	}
-
 	return "", fmt.Errorf("invalid quality was provided: %s. these are valid: %s", quality, strings.Join(Qualities, ", "))
 }
 
-// has fallback
 func extractClipSourceURL(videoQualities []VideoQuality, quality string) string {
 	if quality == "best" {
 		return videoQualities[0].SourceURL

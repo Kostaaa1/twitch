@@ -6,7 +6,7 @@ type navigationLink struct {
 }
 
 var navigationLinks = []navigationLink{
-	{Text: "Home", Href: "#home"},
+	{Text: "Home", Href: "/"},
 	{Text: "Services", Href: "#services"},
 	{Text: "Instructions", Href: "#instructions"},
 }

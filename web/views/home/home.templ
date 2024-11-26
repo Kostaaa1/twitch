@@ -12,7 +12,8 @@ templ Hero() {
 				name="twitchUrl"	
 				autofocus="true"
 				value="https://www.twitch.tv/videos/2304172308"
-				class="w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow" placeholder="Paste twitch.tv URL & Download" 
+				class="w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow" 
+				placeholder="Paste twitch.tv URL & Download" 
 			/>
 			@components.Button(components.BtnData{
 				Text: "Submit",
@@ -26,9 +27,14 @@ templ Hero() {
 }
 
 templ Home() {
-	<div class="flex items-center justify-center flex-col max-w-[1000px] w-full mx-auto">
+	<div class="flex items-center justify-center flex-col max-w-[1300px] w-full mx-auto">
 		@Hero()
-		<div id="mediaInfo"></div>	
+		<form 
+			id="mediaInfo"
+			action="/media/download"
+			method="GET"	
+			class="flex items-center justify-evenly w-full text-black flex-wrap p-4 mb-20 gap-8"
+		></form>
 		@components.Instructions()
 	</div>
 }

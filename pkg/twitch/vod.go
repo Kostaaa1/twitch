@@ -15,31 +15,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
-// func (api *API) GetVODMediaPlaylist(slug, quality string) (string, error) {
-// 	if slug == "" {
-// 		return "", fmt.Errorf("slug is required for vod media list")
-// 	}
-// 	master, status, err := api.GetVODMasterM3u8(slug)
-// 	if err != nil && status != http.StatusForbidden {
-// 		return "", err
-// 	}
-// 	var vodPlaylistURL string
-// 	if status == http.StatusForbidden {
-// 		subUrl, err := api.getSubVODPlaylistURL(slug, quality)
-// 		if err != nil {
-// 			return "", err
-// 		}
-// 		vodPlaylistURL = subUrl
-// 	} else {
-// 		variantList, err := master.GetVariantPlaylistByQuality(quality)
-// 		if err != nil {
-// 			return "", err
-// 		}
-// 		vodPlaylistURL = variantList.URL
-// 	}
-// 	return vodPlaylistURL, nil
-// }
-
 func segmentFileName(segmentURL string) string {
 	parts := strings.Split(segmentURL, "/")
 	return parts[len(parts)-1]
@@ -94,7 +69,6 @@ func (api *API) ParallelVodDownload(unit MediaUnit) error {
 	}
 
 	wg.Wait()
-
 	if err := api.writeSegmentsToOutput(media.Segments, tempDir, unit); err != nil {
 		return err
 	}
@@ -121,7 +95,6 @@ func (api *API) writeSegmentsToOutput(segments []string, tempDir string, unit Me
 	return nil
 }
 
-// Stream segment, one by one. used in web.
 func (api *API) StreamVOD(unit MediaUnit) error {
 	if unit.Slug == "" {
 		return errors.New("slug is required for vod media list")
@@ -132,14 +105,10 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 		return err
 	}
 
-	fmt.Println("Lists:", master.Lists)
-
 	variant, err := master.GetVariantPlaylistByQuality(unit.Quality)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("S", variant.URL)
 
 	mediaPlaylist, err := api.fetch(variant.URL)
 	if err != nil {

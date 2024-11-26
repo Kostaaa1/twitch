@@ -130,7 +130,6 @@ func (m *MasterPlaylist) parseLineInfo(line string) {
 		if err != nil {
 			continue
 		}
-
 		switch key {
 		case "ORIGIN":
 			m.Origin = value
@@ -160,7 +159,6 @@ func (m *MasterPlaylist) Parse() {
 		if strings.HasPrefix(line, "#EXT-X-TWITCH-INFO:") {
 			m.parseLineInfo(line)
 		}
-
 		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
 			vl := parseVariantPlaylist(line, lines[i+1])
 			m.Lists = append(m.Lists, vl)
@@ -172,20 +170,31 @@ func (m *MasterPlaylist) Parse() {
 	}
 }
 
+func (playlist *MasterPlaylist) findVariantByVideo(quality string) (VariantPlaylist, bool) {
+	for _, list := range playlist.Lists {
+		if strings.HasPrefix(list.Video, quality) {
+			return list, true
+		}
+	}
+	return VariantPlaylist{}, false
+}
+
 func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
 	if quality == "" {
 		return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
 	}
 
-	mediaLists := playlist.Lists
-	if quality == "best" || quality == "chunked" {
-		return mediaLists[0], nil
-	}
-	if quality == "worst" {
-		return mediaLists[len(mediaLists)-1], nil
-	}
-	for _, list := range mediaLists {
-		if strings.HasPrefix(list.Video, quality) {
+	switch quality {
+	case "chunked", "best":
+		if list, found := playlist.findVariantByVideo("chunked"); found {
+			return list, nil
+		}
+	case "worst":
+		if list, found := playlist.findVariantByVideo("160"); found {
+			return list, nil
+		}
+	default:
+		if list, found := playlist.findVariantByVideo(quality); found {
 			return list, nil
 		}
 	}

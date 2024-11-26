@@ -27,7 +27,6 @@ func parseDuration(startH, startM, startS string) (time.Duration, error) {
 	return duration, nil
 }
 
-// Add validations for this
 func (s *Static) downloadHandler(c *gin.Context) {
 	mediaTitle := c.Query("media_title")
 	mediaFormat := c.Query("media_format")

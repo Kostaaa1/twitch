@@ -12,12 +12,6 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
-// type PromptFilter struct {
-// 	Day   string `json:"day,24h"`
-// 	Week  string `json:"week,7d"`
-// 	Month string `json:"month,30d"`
-// }
-
 type Prompt struct {
 	Input   string        `json:"url"`
 	Quality string        `json:"quality"`
@@ -82,6 +76,7 @@ func createNewUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 	if quality == "audio_only" {
 		ext = "mp3"
 	}
+
 	mediaName := fmt.Sprintf("%s_%s", slug, quality)
 	f, err = fileutil.CreateFile(prompt.Output, mediaName, ext)
 	if err != nil {

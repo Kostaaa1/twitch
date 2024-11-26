@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/web/server"
@@ -65,6 +66,8 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		})
 	}
 
+	duration := time.Duration(metadata.Video.LengthSeconds) * time.Second
+
 	formData := components.FormData{
 		PreviewThumbnailURL: replaceImageDimension(metadata.Video.PreviewThumbnailURL, 1920, 1080),
 		ID:                  metadata.Video.ID,
@@ -73,7 +76,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		Owner:               metadata.Video.Owner.DisplayName,
 		ViewCount:           humanize.Comma(metadata.Video.ViewCount),
 		Qualities:           qualities,
-		MediaDuration:       fmt.Sprintf("%.2f", float64(metadata.Video.LengthSeconds)/3600.00),
+		Duration:            duration.String(),
 		Type:                twitch.TypeVOD,
 	}
 
@@ -104,6 +107,8 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		Value:      "audio_only",
 	})
 
+	duration := time.Duration(clip.DurationSeconds) * time.Second
+
 	formData := components.FormData{
 		PreviewThumbnailURL: clip.Assets[0].ThumbnailURL,
 		VideoURL:            videoSrc,
@@ -113,7 +118,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		Owner:               clip.Broadcaster.DisplayName,
 		ViewCount:           humanize.Comma(clip.ViewCount),
 		Qualities:           qualities,
-		MediaDuration:       fmt.Sprintf("%.2f", float64(clip.DurationSeconds)),
+		Duration:            duration.String(),
 		Curator:             clip.Curator,
 		Type:                twitch.TypeClip,
 	}
