@@ -165,7 +165,7 @@ func getConfigPath() (string, error) {
 		execPath, err := os.Executable()
 
 		if err != nil || strings.HasPrefix(execPath, "/tmp") {
-			wd, err := os.Getwd()
+			wd, err := os.UserHomeDir()
 			if err != nil {
 				return "", err
 			}

@@ -22,7 +22,7 @@ func newWalkPath(dstpath, filename, ext string) string {
 
 func constructPathname(dstPath, fileName, ext string) (string, error) {
 	if dstPath == "" {
-		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via config.json (outputPath)")
+		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via twitch_config.json (outputPath)")
 	}
 
 	info, err := os.Stat(dstPath)
