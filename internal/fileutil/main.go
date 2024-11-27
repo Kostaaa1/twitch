@@ -33,7 +33,6 @@ func constructPathname(dstPath, fileName, ext string) (string, error) {
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
 				return "", fmt.Errorf("directory does not exist: %s", dir)
 			}
-
 			dir, fname := filepath.Split(dstPath)
 			ext := filepath.Ext(fname)
 			return newWalkPath(dir, fname, ext), nil

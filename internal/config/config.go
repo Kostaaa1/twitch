@@ -1,7 +1,6 @@
 package config
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,9 +10,6 @@ import (
 
 	"github.com/spf13/viper"
 )
-
-//go:embed config.json
-var embeddedConfig embed.FS
 
 type UserConfig struct {
 	BroadcasterType string    `json:"broadcasterType"`
