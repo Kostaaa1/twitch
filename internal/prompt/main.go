@@ -2,12 +2,14 @@ package prompt
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -71,14 +73,13 @@ func createNewUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 		unit.Error = err
 	}
 
-	var f *os.File
+	mediaName := fmt.Sprintf("%s_%s", slug, quality)
 	ext := "mp4"
 	if quality == "audio_only" {
 		ext = "mp3"
 	}
 
-	mediaName := fmt.Sprintf("%s_%s", slug, quality)
-	f, err = fileutil.CreateFile(prompt.Output, mediaName, ext)
+	f, err := fileutil.CreateFile(prompt.Output, mediaName, ext)
 	if err != nil {
 		unit.Error = err
 	}
@@ -141,4 +142,22 @@ func (prompt Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	}
 
 	return units
+}
+
+func ParseFlags(jsonCfg *config.Data) Prompt {
+	var prompt Prompt
+	flag.StringVar(&prompt.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them with comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
+	flag.StringVar(&prompt.Output, "output", jsonCfg.Downloader.Output, "Path where to store the downloaded media.")
+	flag.StringVar(&prompt.Quality, "quality", "", "[best 1080 720 480 360 160 worst]. Example: -quality 1080p (optional)")
+	flag.DurationVar(&prompt.Start, "start", time.Duration(0), "The start of the VOD subset. It only works with VODs and it needs to be in this format: '1h30m0s' (optional)")
+	flag.DurationVar(&prompt.End, "end", time.Duration(0), "The end of the VOD subset. It only works with VODs and it needs to be in this format: '1h33m0s' (optional)")
+	flag.Parse()
+
+	if prompt.Input == "" {
+		if len(os.Args) > 1 {
+			prompt.Input = os.Args[1]
+		}
+	}
+
+	return prompt
 }

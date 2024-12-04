@@ -103,15 +103,15 @@ func InitData() Data {
 				ClientID     string `json:"clientId"`
 				ClientSecret string `json:"clientSecret"`
 			}{
-				AccessToken:  "5891t7kqiu6tfpws77082wmjbm7t5w",
-				ClientID:     "xdovt7giiklpnx7bf0ewnh892ce8pf",
-				ClientSecret: "4fi3gmc1nzigjii2lf7plwc2ogtd17",
+				AccessToken:  "rgtyj73qol873r67tcb7u6jade5cao",
+				ClientID:     "8lu60q33jxsrwjs3m19ktewx8y1ohs",
+				ClientSecret: "bvjgex1acc8wx0c1g4qnumtxnwhdgl",
 			},
 		},
 		Downloader: Downloader{
 			IsFFmpegEnabled: false,
 			ShowSpinner:     true,
-			Output:          "/mnt/c/Users/Kosta/Clips",
+			Output:          "",
 			SpinnerModel:    "dot",
 		},
 		Chat: struct {
@@ -161,7 +161,7 @@ func getConfigPath() (string, error) {
 		execPath, err := os.Executable()
 
 		if err != nil || strings.HasPrefix(execPath, "/tmp") {
-			wd, err := os.UserHomeDir()
+			wd, err := os.Getwd()
 			if err != nil {
 				return "", err
 			}

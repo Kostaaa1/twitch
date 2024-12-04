@@ -20,6 +20,7 @@ type ProgresbarChanData struct {
 	Bytes  int64
 	Error  error
 	IsDone bool
+	Exit   bool
 }
 
 type API struct {
@@ -163,18 +164,31 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 
 	for _, unit := range units {
 		wg.Add(1)
+
 		go func(unit MediaUnit) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			tw.Download(unit)
+			if err := tw.Download(unit); err != nil {
+				if file, ok := unit.W.(*os.File); ok && file != nil {
+					if unit.Error != nil || err != nil {
+						os.Remove(file.Name())
+					}
+					tw.progressCh <- ProgresbarChanData{
+						Text:   file.Name(),
+						Error:  err,
+						IsDone: true,
+					}
+				}
+			}
 		}(unit)
 	}
+
 	wg.Wait()
 }
 
-func (tw *API) Download(unit MediaUnit) {
+func (tw *API) Download(unit MediaUnit) error {
 	err := unit.Error
 	if err == nil {
 		switch unit.Type {
@@ -186,16 +200,8 @@ func (tw *API) Download(unit MediaUnit) {
 			err = tw.RecordStream(unit)
 		}
 	}
-	if file, ok := unit.W.(*os.File); ok && file != nil {
-		if unit.Error != nil || err != nil {
-			os.Remove(file.Name())
-		}
-		tw.progressCh <- ProgresbarChanData{
-			Text:   file.Name(),
-			Error:  err,
-			IsDone: true,
-		}
-	}
+
+	return err
 }
 
 func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {

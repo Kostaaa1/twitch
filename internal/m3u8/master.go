@@ -184,12 +184,8 @@ func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (Var
 		return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
 	}
 
-	fmt.Println(quality, len(quality), playlist.Lists)
-
 	switch quality {
 	case "chunked", "best":
-		fmt.Println("USLO")
-
 		list, found := playlist.findVariantByVideo("1080")
 		if found {
 			return list, nil

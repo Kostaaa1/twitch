@@ -36,16 +36,21 @@ type model struct {
 
 var (
 	spinnerMap = map[string]spinner.Spinner{
-		"meter": spinner.Meter,
 		"dot": {
 			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
 			FPS:    time.Second / 10,
 		},
-		"line":     spinner.Line,
-		"pulse":    spinner.Pulse,
-		"ellipsis": spinner.Ellipsis,
-		"jump":     spinner.Jump,
-		"points":   spinner.Points,
+		"meter":     spinner.Meter,
+		"line":      spinner.Line,
+		"pulse":     spinner.Pulse,
+		"ellipsis":  spinner.Ellipsis,
+		"jump":      spinner.Jump,
+		"points":    spinner.Points,
+		"globe":     spinner.Globe,
+		"hamburger": spinner.Hamburger,
+		"minidot":   spinner.MiniDot,
+		"monkey":    spinner.Monkey,
+		"moon":      spinner.Moon,
 	}
 )
 
@@ -120,6 +125,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case twitch.ProgresbarChanData:
+		if msg.Exit {
+			return m, tea.Quit
+		}
+
 		for i := range m.state {
 			if m.state[i].text == msg.Text {
 				if msg.Error != nil {
