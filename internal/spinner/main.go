@@ -2,13 +2,11 @@ package spinner
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/bytecount"
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,18 +14,26 @@ import (
 
 type errMsg error
 
-type Spinner struct {
-	text        string
-	totalBytes  float64
-	startTime   time.Time
-	elapsedTime time.Duration
-	isDone      bool
-	err         error
+type ChannelMessage struct {
+	Text   string
+	Bytes  int64
+	Error  error
+	IsDone bool
+	Exit   bool
+}
+
+type Unit struct {
+	Text        string
+	TotalBytes  float64
+	StartTime   time.Time
+	ElapsedTime time.Duration
+	IsDone      bool
+	Err         error
 }
 
 type model struct {
-	state        []Spinner
-	progressChan chan twitch.ProgresbarChanData
+	units        []Unit
+	progressChan chan ChannelMessage
 	spinner      spinner.Model
 	err          error
 	width        int
@@ -63,33 +69,15 @@ func validateSpinnerModel(model string) spinner.Spinner {
 	}
 }
 
-func initialModel(units []twitch.MediaUnit, progChan chan twitch.ProgresbarChanData, cfg config.Downloader) model {
+func initialModel(units []Unit, progChan chan ChannelMessage, cfg config.Downloader) model {
 	s := spinner.New()
 	s.Spinner = validateSpinnerModel(cfg.SpinnerModel)
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	return model{
 		spinner:      s,
-		state:        initSpinner(units),
+		units:        units,
 		progressChan: progChan,
 	}
-}
-
-func initSpinner(units []twitch.MediaUnit) []Spinner {
-	var state []Spinner
-	for _, unit := range units {
-		displayPath := ""
-		if f, ok := unit.W.(*os.File); ok && f != nil {
-			displayPath = f.Name()
-		}
-		state = append(state, Spinner{
-			text:        displayPath,
-			totalBytes:  0,
-			elapsedTime: 0,
-			isDone:      false,
-			err:         unit.Error,
-		})
-	}
-	return state
 }
 
 func (m model) Init() tea.Cmd {
@@ -103,7 +91,7 @@ func (m *model) waitForMsg() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if len(m.state) == m.doneCount {
+	if len(m.units) == m.doneCount {
 		return m, tea.Quit
 	}
 
@@ -124,24 +112,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg
 		return m, nil
 
-	case twitch.ProgresbarChanData:
+	case ChannelMessage:
 		if msg.Exit {
 			return m, tea.Quit
 		}
 
-		for i := range m.state {
-			if m.state[i].text == msg.Text {
+		for i := range m.units {
+			if m.units[i].Text == msg.Text {
 				if msg.Error != nil {
-					m.state[i].err = msg.Error
+					m.units[i].Err = msg.Error
 				}
 
-				if m.state[i].startTime.IsZero() {
-					m.state[i].startTime = time.Now()
+				if m.units[i].StartTime.IsZero() {
+					m.units[i].StartTime = time.Now()
 				}
-				m.state[i].totalBytes += float64(msg.Bytes)
+				m.units[i].TotalBytes += float64(msg.Bytes)
 
 				if msg.IsDone {
-					m.state[i].isDone = true
+					m.units[i].IsDone = true
 					m.doneCount++
 				}
 				break
@@ -161,9 +149,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updateTime() {
-	for i := range m.state {
-		if !m.state[i].isDone && m.state[i].totalBytes > 0 {
-			m.state[i].elapsedTime = time.Since(m.state[i].startTime)
+	for i := range m.units {
+		if !m.units[i].IsDone && m.units[i].TotalBytes > 0 {
+			m.units[i].ElapsedTime = time.Since(m.units[i].StartTime)
 		}
 	}
 }
@@ -190,8 +178,8 @@ func (m model) View() string {
 		return m.err.Error()
 	}
 	var str strings.Builder
-	for i := 0; i < len(m.state); i++ {
-		str.WriteString(m.wrapText(m.constructStateMessage(m.state[i])))
+	for i := 0; i < len(m.units); i++ {
+		str.WriteString(m.wrapText(m.constructStateMessage(m.units[i])))
 		str.WriteString("\n")
 	}
 	return str.String()
@@ -201,18 +189,18 @@ func (m model) wrapText(text string) string {
 	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
 }
 
-func (m model) constructStateMessage(s Spinner) string {
-	if s.err != nil {
-		return constructErrorMessage(s.err)
+func (m model) constructStateMessage(s Unit) string {
+	if s.Err != nil {
+		return constructErrorMessage(s.Err)
 	}
 
 	var str strings.Builder
 
-	message := m.getProgressMsg(s.totalBytes, s.elapsedTime)
-	if s.isDone {
-		str.WriteString(constructSuccessMessage(s.text, message))
+	message := m.getProgressMsg(s.TotalBytes, s.ElapsedTime)
+	if s.IsDone {
+		str.WriteString(constructSuccessMessage(s.Text, message))
 	} else {
-		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.text, message))
+		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.Text, message))
 	}
 
 	return str.String()
@@ -226,7 +214,7 @@ func constructErrorMessage(err error) string {
 	return fmt.Sprintf("❌ %s", err.Error())
 }
 
-func New(units []twitch.MediaUnit, progressChan chan twitch.ProgresbarChanData, cfg config.Downloader) {
+func New(units []Unit, progressChan chan ChannelMessage, cfg config.Downloader) {
 	p := tea.NewProgram(initialModel(units, progressChan, cfg))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error starting program: %v", err)

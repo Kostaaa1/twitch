@@ -13,15 +13,8 @@ import (
 	"sync"
 
 	"github.com/Kostaaa1/twitch/internal/config"
+	"github.com/Kostaaa1/twitch/internal/spinner"
 )
-
-type ProgresbarChanData struct {
-	Text   string
-	Bytes  int64
-	Error  error
-	IsDone bool
-	Exit   bool
-}
 
 type API struct {
 	config      config.Data
@@ -31,7 +24,7 @@ type API struct {
 	usherURL    string
 	decapiURL   string
 	gqlClientID string
-	progressCh  chan ProgresbarChanData
+	progressCh  chan spinner.ChannelMessage
 }
 
 func (tw *API) Slug(URL string) (string, VideoType, error) {
@@ -149,7 +142,7 @@ func (tw *API) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	return nil
 }
 
-func (tw *API) SetProgressChannel(progressCh chan ProgresbarChanData) {
+func (tw *API) SetProgressChannel(progressCh chan spinner.ChannelMessage) {
 	tw.progressCh = progressCh
 }
 
@@ -175,7 +168,7 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 					if unit.Error != nil || err != nil {
 						os.Remove(file.Name())
 					}
-					tw.progressCh <- ProgresbarChanData{
+					tw.progressCh <- spinner.ChannelMessage{
 						Text:   file.Name(),
 						Error:  err,
 						IsDone: true,
@@ -189,19 +182,17 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 }
 
 func (tw *API) Download(unit MediaUnit) error {
-	err := unit.Error
-	if err == nil {
+	if unit.Error == nil {
 		switch unit.Type {
 		case TypeVOD:
-			err = tw.ParallelVodDownload(unit)
+			unit.Error = tw.ParallelVodDownload(unit)
 		case TypeClip:
-			err = tw.DownloadClip(unit)
+			unit.Error = tw.DownloadClip(unit)
 		case TypeLivestream:
-			err = tw.RecordStream(unit)
+			unit.Error = tw.RecordStream(unit)
 		}
 	}
-
-	return err
+	return unit.Error
 }
 
 func (api *API) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {
@@ -235,7 +226,7 @@ func (api *API) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir strin
 	}
 
 	if f, ok := unit.W.(*os.File); ok && f != nil {
-		api.progressCh <- ProgresbarChanData{
+		api.progressCh <- spinner.ChannelMessage{
 			Text:  f.Name(),
 			Bytes: n,
 		}

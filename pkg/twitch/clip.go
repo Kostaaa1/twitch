@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/Kostaaa1/twitch/internal/spinner"
 )
 
 func (api *API) constructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
@@ -47,7 +49,7 @@ func (api *API) DownloadClip(unit MediaUnit) error {
 	}
 
 	if file, ok := unit.W.(*os.File); ok && file != nil {
-		api.progressCh <- ProgresbarChanData{
+		api.progressCh <- spinner.ChannelMessage{
 			Text:  file.Name(),
 			Bytes: writtenBytes,
 		}

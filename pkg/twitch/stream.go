@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
+	"github.com/Kostaaa1/twitch/internal/spinner"
 )
 
 func (api *API) GetLivestreamCreds(id string) (string, string, error) {
@@ -136,7 +137,7 @@ func (api *API) RecordStream(unit MediaUnit) error {
 			}
 
 			if f, ok := unit.W.(*os.File); ok && f != nil {
-				api.progressCh <- ProgresbarChanData{
+				api.progressCh <- spinner.ChannelMessage{
 					Text:  f.Name(),
 					Bytes: n,
 				}

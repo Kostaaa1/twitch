@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
+	"github.com/Kostaaa1/twitch/internal/spinner"
 )
 
 func segmentFileName(segmentURL string) string {
@@ -132,7 +133,7 @@ func (api *API) StreamVOD(unit MediaUnit) error {
 			}
 
 			if file, ok := unit.W.(*os.File); ok && file != nil {
-				api.progressCh <- ProgresbarChanData{
+				api.progressCh <- spinner.ChannelMessage{
 					Text:  file.Name(),
 					Bytes: n,
 				}
