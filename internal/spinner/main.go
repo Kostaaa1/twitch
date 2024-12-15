@@ -14,16 +14,17 @@ import (
 
 type errMsg error
 
+type quitMsg struct{}
+
 type ChannelMessage struct {
 	Text   string
 	Bytes  int64
 	Error  error
 	IsDone bool
-	Exit   bool
 }
 
-type Unit struct {
-	Text        string
+type unit struct {
+	Title       string
 	TotalBytes  float64
 	StartTime   time.Time
 	ElapsedTime time.Duration
@@ -31,13 +32,19 @@ type Unit struct {
 	Err         error
 }
 
+type UnitProvider interface {
+	GetTitle() string
+	GetError() error
+}
+
 type model struct {
-	units        []Unit
-	progressChan chan ChannelMessage
-	spinner      spinner.Model
-	err          error
-	width        int
-	doneCount    int
+	units     []unit
+	spinner   spinner.Model
+	err       error
+	width     int
+	doneCount int
+	program   *tea.Program
+	ProgChan  chan ChannelMessage
 }
 
 var (
@@ -69,24 +76,13 @@ func validateSpinnerModel(model string) spinner.Spinner {
 	}
 }
 
-func initialModel(units []Unit, progChan chan ChannelMessage, cfg config.Downloader) model {
-	s := spinner.New()
-	s.Spinner = validateSpinnerModel(cfg.SpinnerModel)
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return model{
-		spinner:      s,
-		units:        units,
-		progressChan: progChan,
-	}
-}
-
 func (m model) Init() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, m.waitForMsg())
 }
 
 func (m *model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		return <-m.progressChan
+		return <-m.ProgChan
 	}
 }
 
@@ -96,6 +92,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case quitMsg:
+		return m, tea.Quit
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		return m, nil
@@ -113,12 +112,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ChannelMessage:
-		if msg.Exit {
-			return m, tea.Quit
-		}
-
 		for i := range m.units {
-			if m.units[i].Text == msg.Text {
+			if m.units[i].Title == msg.Text {
 				if msg.Error != nil {
 					m.units[i].Err = msg.Error
 				}
@@ -189,7 +184,7 @@ func (m model) wrapText(text string) string {
 	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
 }
 
-func (m model) constructStateMessage(s Unit) string {
+func (m model) constructStateMessage(s unit) string {
 	if s.Err != nil {
 		return constructErrorMessage(s.Err)
 	}
@@ -198,9 +193,9 @@ func (m model) constructStateMessage(s Unit) string {
 
 	message := m.getProgressMsg(s.TotalBytes, s.ElapsedTime)
 	if s.IsDone {
-		str.WriteString(constructSuccessMessage(s.Text, message))
+		str.WriteString(constructSuccessMessage(s.Title, message))
 	} else {
-		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.Text, message))
+		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.Title, message))
 	}
 
 	return str.String()
@@ -214,9 +209,48 @@ func constructErrorMessage(err error) string {
 	return fmt.Sprintf("❌ %s", err.Error())
 }
 
-func New(units []Unit, progressChan chan ChannelMessage, cfg config.Downloader) {
-	p := tea.NewProgram(initialModel(units, progressChan, cfg))
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error starting program: %v", err)
+func initModel(cfg config.Downloader) model {
+	s := spinner.New()
+	s.Spinner = validateSpinnerModel(cfg.SpinnerModel)
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	return model{
+		spinner: s,
 	}
+}
+
+func New[T UnitProvider](units []T, spinnerModel string) *model {
+	progChan := make(chan ChannelMessage, len(units))
+	su := make([]unit, len(units))
+
+	for i, u := range units {
+		su[i] = unit{
+			Title:       u.GetTitle(),
+			TotalBytes:  0,
+			ElapsedTime: 0,
+			IsDone:      false,
+			Err:         u.GetError(),
+		}
+	}
+
+	s := spinner.New()
+	s.Spinner = validateSpinnerModel(spinnerModel)
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	return &model{
+		units:    su,
+		spinner:  s,
+		ProgChan: progChan,
+	}
+}
+
+func (m *model) Run() {
+	m.program = tea.NewProgram(m)
+	if _, err := m.program.Run(); err != nil {
+		fmt.Printf("Error starting programram: %v", err)
+		panic(err)
+	}
+}
+
+func (m model) Close() {
+	m.program.Send(quitMsg{})
 }

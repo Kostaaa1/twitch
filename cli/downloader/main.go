@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"time"
+	"log"
+	"sync"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/prompt"
@@ -14,38 +13,33 @@ import (
 func main() {
 	jsonCfg, err := config.Get()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	tw := twitch.New()
-	prompt := prompt.ParseFlags(jsonCfg)
-	units := prompt.ProcessInput(tw)
+	units := prompt.ParseFlags(tw, jsonCfg)
 
-	progressCh := make(chan spinner.ChannelMessage, len(units))
-	tw.SetProgressChannel(progressCh)
+	m := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
+	tw.SetProgressChannel(m.ProgChan)
 
-	t := make([]spinner.Unit, len(units))
-	for _, u := range units {
-		displayPath := ""
-		if f, ok := u.W.(*os.File); ok && f != nil {
-			displayPath = f.Name()
-		}
-		t = append(t, spinner.Unit{
-			Text:        displayPath,
-			TotalBytes:  0,
-			ElapsedTime: 0,
-			IsDone:      false,
-			Err:         u.Error,
-		})
-	}
+	var wg sync.WaitGroup
 
-	go spinner.New(t, progressCh, jsonCfg.Downloader)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		m.Run()
+	}()
 
-	tw.BatchDownload(units)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tw.BatchDownload(units)
+	}()
 
-	progressCh <- spinner.ChannelMessage{Exit: true}
-	close(progressCh)
+	wg.Wait()
 
-	time.Sleep(500 * time.Millisecond)
-	fmt.Printf("\033[?25h")
+	close(m.ProgChan)
+
+	// time.Sleep(500 * time.Millisecond)
+	// fmt.Printf("\033[?25h")
 }

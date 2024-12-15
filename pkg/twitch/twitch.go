@@ -164,15 +164,17 @@ func (tw *API) BatchDownload(units []MediaUnit) {
 			defer func() { <-sem }()
 
 			if err := tw.Download(unit); err != nil {
-				if file, ok := unit.W.(*os.File); ok && file != nil {
-					if unit.Error != nil || err != nil {
-						os.Remove(file.Name())
-					}
-					tw.progressCh <- spinner.ChannelMessage{
-						Text:   file.Name(),
-						Error:  err,
-						IsDone: true,
-					}
+				unit.Error = err
+			}
+
+			if file, ok := unit.W.(*os.File); ok && file != nil {
+				if unit.Error != nil {
+					os.Remove(file.Name())
+				}
+				tw.progressCh <- spinner.ChannelMessage{
+					Text:   file.Name(),
+					Error:  unit.Error,
+					IsDone: true,
 				}
 			}
 		}(unit)

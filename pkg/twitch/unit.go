@@ -3,6 +3,7 @@ package twitch
 import (
 	"fmt"
 	"io"
+	"os"
 	"time"
 )
 
@@ -48,4 +49,18 @@ type MediaUnit struct {
 	End     time.Duration
 	W       io.Writer
 	Error   error
+}
+
+func (u MediaUnit) GetTitle() string {
+	if file, ok := u.W.(*os.File); ok && file != nil {
+		if u.Error != nil {
+			os.Remove(file.Name())
+		}
+		return file.Name()
+	}
+	return u.Slug
+}
+
+func (u MediaUnit) GetError() error {
+	return u.Error
 }

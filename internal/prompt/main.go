@@ -128,7 +128,7 @@ func processFlagInput(tw *twitch.API, prompt Prompt) []twitch.MediaUnit {
 	return units
 }
 
-func (prompt Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
+func (prompt Prompt) processInput(tw *twitch.API) []twitch.MediaUnit {
 	if prompt.Input == "" {
 		panic("Input was not provided.")
 	}
@@ -144,7 +144,7 @@ func (prompt Prompt) ProcessInput(tw *twitch.API) []twitch.MediaUnit {
 	return units
 }
 
-func ParseFlags(jsonCfg *config.Data) Prompt {
+func ParseFlags(tw *twitch.API, jsonCfg *config.Data) []twitch.MediaUnit {
 	var prompt Prompt
 	flag.StringVar(&prompt.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them with comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
 	flag.StringVar(&prompt.Output, "output", jsonCfg.Downloader.Output, "Path where to store the downloaded media.")
@@ -159,5 +159,5 @@ func ParseFlags(jsonCfg *config.Data) Prompt {
 		}
 	}
 
-	return prompt
+	return prompt.processInput(tw)
 }
