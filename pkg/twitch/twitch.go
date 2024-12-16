@@ -17,8 +17,8 @@ import (
 )
 
 type API struct {
-	config      config.Data
 	client      *http.Client
+	config      config.Data
 	gqlURL      string
 	helixURL    string
 	usherURL    string
@@ -52,13 +52,8 @@ func (tw *API) Slug(URL string) (string, VideoType, error) {
 }
 
 func New() *API {
-	cfg, err := config.Get()
-	if err != nil {
-		panic(err)
-	}
 	return &API{
 		client:      http.DefaultClient,
-		config:      *cfg,
 		gqlURL:      "https://gql.twitch.tv/gql",
 		gqlClientID: "kimne78kx3ncx6brgo4mv6wki5h1ko",
 		usherURL:    "https://usher.ttvnw.net",
@@ -66,6 +61,10 @@ func New() *API {
 		decapiURL:   "https://decapi.me/twitch/uptime",
 		progressCh:  nil,
 	}
+}
+
+func (tw *API) SetConfig(cfg config.Data) {
+	tw.config = cfg
 }
 
 func (tw *API) do(req *http.Request) (*http.Response, error) {

@@ -208,8 +208,7 @@ func Get() (*Data, error) {
 
 	viper.SetConfigName("twitch_config")
 	viper.SetConfigType("json")
-	viper.AddConfigPath(".")
-
+	viper.AddConfigPath(filepath.Dir(configPath))
 	err = viper.ReadInConfig()
 	if err != nil {
 		return nil, err

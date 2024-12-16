@@ -17,6 +17,7 @@ func main() {
 	}
 
 	tw := twitch.New()
+	tw.SetConfig(*jsonCfg)
 	units := prompt.ParseFlags(tw, jsonCfg)
 
 	m := spinner.New(units, jsonCfg.Downloader.SpinnerModel)

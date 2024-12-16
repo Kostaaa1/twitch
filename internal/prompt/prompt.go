@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -97,17 +98,17 @@ func createNewUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
 func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 	_, err := os.Stat(input)
 	if os.IsNotExist(err) {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	content, err := os.ReadFile(input)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var prompts []Prompt
 	if err := json.Unmarshal(content, &prompts); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var units []twitch.MediaUnit
@@ -130,7 +131,7 @@ func processFlagInput(tw *twitch.API, prompt Prompt) []twitch.MediaUnit {
 
 func (prompt Prompt) processInput(tw *twitch.API) []twitch.MediaUnit {
 	if prompt.Input == "" {
-		panic("Input was not provided.")
+		log.Fatalf("Input was not provided.")
 	}
 
 	var units []twitch.MediaUnit

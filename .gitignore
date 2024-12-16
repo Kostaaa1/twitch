@@ -1,5 +1,5 @@
 node_modules
-twitch_config.json
+**/twitch_config.json
 examples
 example.json
 tmp

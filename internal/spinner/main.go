@@ -222,14 +222,20 @@ func New[T UnitProvider](units []T, spinnerModel string) *model {
 	progChan := make(chan ChannelMessage, len(units))
 	su := make([]unit, len(units))
 
+	doneCount := 0
 	for i, u := range units {
+		err := u.GetError()
 		su[i] = unit{
 			Title:       u.GetTitle(),
 			TotalBytes:  0,
 			ElapsedTime: 0,
 			IsDone:      false,
-			Err:         u.GetError(),
+			Err:         err,
 		}
+		if err != nil {
+			doneCount++
+		}
+
 	}
 
 	s := spinner.New()
@@ -237,9 +243,10 @@ func New[T UnitProvider](units []T, spinnerModel string) *model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return &model{
-		units:    su,
-		spinner:  s,
-		ProgChan: progChan,
+		units:     su,
+		spinner:   s,
+		doneCount: doneCount,
+		ProgChan:  progChan,
 	}
 }
 

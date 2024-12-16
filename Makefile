@@ -20,10 +20,6 @@ build-chat:
 	@go build -o $(CHAT_BIN) ./cli/chat
 	@echo "Twitch chat built successfully."
 
-run:
-	@echo "Running the twitch downloader..."
-	@$(DOWNLOADER_BIN)
-
 clean:
 	@echo "Cleaning up old binaries..."
 	@rm -rf $(BIN_DIR)
