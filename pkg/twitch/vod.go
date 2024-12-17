@@ -187,11 +187,11 @@ func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", api.usherURL, vodID, token, sig)
+	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, token, sig)
 
 	b, code, err := api.fetchWithCode(m3u8Url)
 	if code == http.StatusForbidden {
-		// this means that you need to be subscribed to access the m3u8 master. In that case, i am creating fake playlist.
+		// this means that you need to be subscribed to access the m3u8 master. In that case, creating fake playlist.
 		subVOD, err := api.SubVODData(vodID)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err

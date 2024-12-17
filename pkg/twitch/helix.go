@@ -62,7 +62,7 @@ type UserData struct {
 }
 
 func (api *API) GetUserInfo(loginName string) (*UserData, error) {
-	u := fmt.Sprintf("%s/users?login=%s", api.helixURL, loginName)
+	u := fmt.Sprintf("%s/users?login=%s", helixURL, loginName)
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
@@ -100,7 +100,7 @@ func (api *API) GetUserInfo(loginName string) (*UserData, error) {
 }
 
 func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
-	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", api.helixURL, broadcasterID)
+	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
 }
 
 func (api *API) GetFollowedStreams(id string) (*Streams, error) {
-	u := fmt.Sprintf("%s/streams/followed?user_id=%s", api.helixURL, id)
+	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (api *API) GetFollowedStreams(id string) (*Streams, error) {
 }
 
 func (api *API) GetStream(userId string) (*Streams, error) {
-	u := fmt.Sprintf("%s/streams?user_id=%s", api.helixURL, userId)
+	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func (api *API) GetStream(userId string) (*Streams, error) {
 }
 
 func (tw *API) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", tw.decapiURL, channelName)
+	u := fmt.Sprintf("%s/%s", decapiURL, channelName)
 
 	resp, err := http.Get(u)
 	if err != nil {

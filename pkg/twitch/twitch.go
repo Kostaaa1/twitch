@@ -17,15 +17,18 @@ import (
 )
 
 type API struct {
-	client      *http.Client
-	config      config.Data
-	gqlURL      string
-	helixURL    string
-	usherURL    string
-	decapiURL   string
-	gqlClientID string
-	progressCh  chan spinner.ChannelMessage
+	client     *http.Client
+	config     config.Data
+	progressCh chan spinner.ChannelMessage
 }
+
+const (
+	gqlURL      = "https://gql.twitch.tv/gql"
+	gqlClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+	usherURL    = "https://usher.ttvnw.net"
+	helixURL    = "https://api.twitch.tv/helix"
+	decapiURL   = "https://decapi.me/twitch/uptime"
+)
 
 func (tw *API) Slug(URL string) (string, VideoType, error) {
 	parsedURL, err := url.Parse(URL)
@@ -53,13 +56,8 @@ func (tw *API) Slug(URL string) (string, VideoType, error) {
 
 func New() *API {
 	return &API{
-		client:      http.DefaultClient,
-		gqlURL:      "https://gql.twitch.tv/gql",
-		gqlClientID: "kimne78kx3ncx6brgo4mv6wki5h1ko",
-		usherURL:    "https://usher.ttvnw.net",
-		helixURL:    "https://api.twitch.tv/helix",
-		decapiURL:   "https://decapi.me/twitch/uptime",
-		progressCh:  nil,
+		client:     http.DefaultClient,
+		progressCh: nil,
 	}
 }
 
@@ -126,11 +124,11 @@ func (tw *API) decodeJSONResponse(resp *http.Response, p interface{}) error {
 }
 
 func (tw *API) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
-	req, err := http.NewRequest(http.MethodPost, tw.gqlURL, body)
+	req, err := http.NewRequest(http.MethodPost, gqlURL, body)
 	if err != nil {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
 	}
-	req.Header.Set("Client-Id", tw.gqlClientID)
+	req.Header.Set("Client-Id", gqlClientID)
 	resp, err := tw.do(req)
 	if err != nil {
 		return err
@@ -232,5 +230,6 @@ func (api *API) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir strin
 			Bytes: n,
 		}
 	}
+
 	return nil
 }

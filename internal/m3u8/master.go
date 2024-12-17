@@ -35,7 +35,6 @@ func Master(fetchedPlaylist []byte) *MasterPlaylist {
 func createServingID() string {
 	w := strings.Split("0123456789abcdefghijklmnopqrstuvwxyz", "")
 	id := ""
-
 	for i := 0; i < 32; i++ {
 		id += w[rand.Intn(len(w))]
 	}
@@ -106,6 +105,9 @@ func CreateMockMaster(c *http.Client, vodID string, previewURL *url.URL, broadca
 		// }
 
 		if isQualityValid(URL) {
+			if key == "chunked" {
+				key = "1080p60"
+			}
 			master.Lists = append(master.Lists, VariantPlaylist{
 				URL:        URL,
 				Bandwidth:  "", // ????
@@ -123,6 +125,7 @@ func CreateMockMaster(c *http.Client, vodID string, previewURL *url.URL, broadca
 func (m *MasterPlaylist) parseLineInfo(line string) {
 	t := strings.Split(line, ":")[1]
 	kv := strings.Split(t, ",")
+
 	for _, pair := range kv {
 		parts := strings.Split(pair, "=")
 		key := parts[0]
@@ -130,6 +133,7 @@ func (m *MasterPlaylist) parseLineInfo(line string) {
 		if err != nil {
 			continue
 		}
+
 		switch key {
 		case "ORIGIN":
 			m.Origin = value
@@ -179,23 +183,23 @@ func (playlist *MasterPlaylist) findVariantByVideo(quality string) (VariantPlayl
 	return VariantPlaylist{}, false
 }
 
-func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
+func (master *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
 	if quality == "" {
 		return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
 	}
 
 	switch quality {
 	case "chunked", "best":
-		list, found := playlist.findVariantByVideo("1080")
-		if found {
+		list, ok := master.findVariantByVideo("1080")
+		if ok {
 			return list, nil
 		}
 	case "worst":
-		if list, found := playlist.findVariantByVideo("160"); found {
+		if list, ok := master.findVariantByVideo("160"); ok {
 			return list, nil
 		}
 	default:
-		if list, found := playlist.findVariantByVideo(quality); found {
+		if list, ok := master.findVariantByVideo(quality); ok {
 			return list, nil
 		}
 	}

@@ -54,7 +54,7 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
-	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", api.usherURL, channel, tok, sig)
+	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
 	resp, err := api.client.Get(u)
 	if err != nil {

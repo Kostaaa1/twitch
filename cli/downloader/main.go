@@ -40,7 +40,4 @@ func main() {
 	wg.Wait()
 
 	close(m.ProgChan)
-
-	// time.Sleep(500 * time.Millisecond)
-	// fmt.Printf("\033[?25h")
 }
