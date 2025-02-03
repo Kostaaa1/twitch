@@ -1,16 +1,12 @@
 package twitch
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
-	"github.com/Kostaaa1/twitch/internal/spinner"
 )
 
 func (api *API) GetLivestreamCreds(id string) (string, string, error) {
@@ -41,14 +37,6 @@ func (api *API) GetLivestreamCreds(id string) (string, string, error) {
 }
 
 func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
-	isLive, err := api.IsChannelLive(channel)
-	if err != nil {
-		return nil, err
-	}
-	if !isLive {
-		return nil, fmt.Errorf("%s is offline", channel)
-	}
-
 	tok, sig, err := api.GetLivestreamCreds(channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
@@ -74,77 +62,72 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 	return m3u8.Master(b), nil
 }
 
-func (api *API) RecordStream(unit MediaUnit) error {
-	isLive, err := api.IsChannelLive(unit.Slug)
-	if err != nil {
-		return err
-	}
-	if !isLive {
-		return fmt.Errorf("%s is offline", unit.Slug)
-	}
+// can be improved with intercepting requests?
 
-	master, err := api.GetStreamMasterPlaylist(unit.Slug)
-	if err != nil {
-		return err
-	}
+// func (api *API) RecordStream(unit MediaUnit) error {
+// 	isLive, err := api.IsChannelLive(unit.Slug)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	mediaList, err := master.GetVariantPlaylistByQuality(unit.Quality)
-	if err != nil {
-		return err
-	}
+// 	if !isLive {
+// 		return fmt.Errorf("%s is offline", unit.Slug)
+// 	}
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+// 	master, err := api.GetStreamMasterPlaylist(unit.Slug)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	tickCount := 0
-	var halfBytes *bytes.Reader
+// 	mediaList, err := master.GetVariantPlaylistByQuality(unit.Quality)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	for {
-		select {
-		case <-ticker.C:
-			tickCount++
-			var n int64
+// 	ticker := time.NewTicker(time.Second)
+// 	defer ticker.Stop()
 
-			if tickCount%2 != 0 {
-				b, err := api.fetch(mediaList.URL)
-				if err != nil {
-					return fmt.Errorf("failed to fetch playlist: %w", err)
-				}
+// 	tickCount := 0
+// 	var halfBytes *bytes.Reader
 
-				segments := strings.Split(string(b), "\n")
-				tsURL := segments[len(segments)-2]
+// 	for {
+// 		select {
+// 		case <-ticker.C:
+// 			tickCount++
+// 			var n int64
 
-				bodyBytes, err := api.fetch(tsURL)
-				if err != nil {
-					return err
-				}
+// 			if tickCount%2 != 0 {
+// 				b, err := api.fetch(mediaList.URL)
+// 				if err != nil {
+// 					fmt.Println("Stream ended: ", err)
+// 					return nil
+// 				}
 
-				half := len(bodyBytes) / 2
-				halfBytes = bytes.NewReader(bodyBytes[half:])
+// 				segments := strings.Split(string(b), "\n")
+// 				tsURL := segments[len(segments)-2]
 
-				n, err = io.Copy(unit.W, bytes.NewReader(bodyBytes[:half]))
-				if err != nil {
-					return err
-				}
-			}
+// 				bodyBytes, _ := api.fetch(tsURL)
 
-			if tickCount%2 == 0 && halfBytes.Len() > 0 {
-				n, err = io.Copy(unit.W, halfBytes)
-				if err != nil {
-					return err
-				}
-				halfBytes.Reset([]byte{})
-			}
+// 				half := len(bodyBytes) / 2
+// 				halfBytes = bytes.NewReader(bodyBytes[half:])
 
-			if f, ok := unit.W.(*os.File); ok && f != nil {
-				api.progressCh <- spinner.ChannelMessage{
-					Text:  f.Name(),
-					Bytes: n,
-				}
-			}
-		}
-	}
-}
+// 				n, _ = io.Copy(unit.W, bytes.NewReader(bodyBytes[:half]))
+// 			}
+
+// 			if tickCount%2 == 0 && halfBytes.Len() > 0 {
+// 				n, _ = io.Copy(unit.W, halfBytes)
+// 				halfBytes.Reset([]byte{})
+// 			}
+
+// 			if file, ok := unit.W.(*os.File); ok && file != nil {
+// 				api.progressCh <- spinner.ChannelMessage{
+// 					Text:  file.Name(),
+// 					Bytes: n,
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 func (api *API) OpenStreamInMediaPlayer(channel string) error {
 	master, err := api.GetStreamMasterPlaylist(channel)

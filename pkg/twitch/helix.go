@@ -33,7 +33,7 @@ type Streams struct {
 	} `json:"pagination"`
 }
 
-type ChannelData struct {
+type Channel struct {
 	BroadcasterID               string   `json:"broadcaster_id"`
 	BroadcasterLogin            string   `json:"broadcaster_login"`
 	BroadcasterName             string   `json:"broadcaster_name"`
@@ -47,7 +47,7 @@ type ChannelData struct {
 	IsBrandedContent            bool     `json:"is_branded_content"`
 }
 
-type UserData struct {
+type User struct {
 	ID              string    `json:"id"`
 	Login           string    `json:"login"`
 	DisplayName     string    `json:"display_name"`
@@ -61,7 +61,7 @@ type UserData struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func (api *API) GetUserInfo(loginName string) (*UserData, error) {
+func (api *API) GetUserInfo(loginName string) (*User, error) {
 	u := fmt.Sprintf("%s/users?login=%s", helixURL, loginName)
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -84,7 +84,7 @@ func (api *API) GetUserInfo(loginName string) (*UserData, error) {
 	}
 
 	type data struct {
-		Data []UserData `json:"data"`
+		Data []User `json:"data"`
 	}
 	var user data
 
@@ -99,7 +99,7 @@ func (api *API) GetUserInfo(loginName string) (*UserData, error) {
 	return &user.Data[0], nil
 }
 
-func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
+func (api *API) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
@@ -121,7 +121,7 @@ func (api *API) GetChannelInfo(broadcasterID string) (*ChannelData, error) {
 	}
 
 	type data struct {
-		Data []ChannelData `json:"data"`
+		Data []Channel `json:"data"`
 	}
 
 	var channel data
@@ -191,7 +191,7 @@ func (api *API) GetStream(userId string) (*Streams, error) {
 }
 
 func (tw *API) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", decapiURL, channelName)
+	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
 
 	resp, err := http.Get(u)
 	if err != nil {
@@ -209,7 +209,7 @@ func (tw *API) IsChannelLive(channelName string) (bool, error) {
 	}
 
 	if strings.HasPrefix(string(b), "[Error from Twitch API]") {
-		return false, fmt.Errorf("unexpected error")
+		return false, fmt.Errorf("[Error from Twitch API]")
 	}
 
 	return !strings.Contains(string(b), "offline"), nil

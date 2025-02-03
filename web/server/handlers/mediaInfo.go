@@ -25,19 +25,20 @@ func replaceImageDimension(imgURL string, w, h int) string {
 
 func (s *Static) mediaInfo(c *gin.Context) {
 	twitchUrl := c.PostForm("twitchUrl")
-	slug, vtype, err := s.tw.Slug(twitchUrl)
+
+	parsed, err := s.tw.ParseURL(twitchUrl)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	var formData components.FormData
-	if vtype == twitch.TypeClip {
-		formData, err = s.getClipData(slug)
-	} else if vtype == twitch.TypeVOD {
-		formData, err = s.getVODData(slug)
+	if parsed.Type == twitch.TypeClip {
+		formData, err = s.getClipData(parsed.ID)
+	} else if parsed.Type == twitch.TypeVOD {
+		formData, err = s.getVODData(parsed.ID)
 	}
-	formData.Type = vtype
+	formData.Type = parsed.Type
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

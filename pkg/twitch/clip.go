@@ -2,87 +2,72 @@ package twitch
 
 import (
 	"fmt"
-	"io"
 	"net/url"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
-
-	"github.com/Kostaaa1/twitch/internal/spinner"
 )
 
-func (api *API) constructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+func (api *API) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
 	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value))
 	return URL, nil
 }
 
-func (api *API) GetClipVideoURL(clip Clip, quality string) (string, error) {
-	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, quality)
-	usherURL, err := api.constructUsherURL(clip.PlaybackAccessToken, sourceURL)
-	if err != nil {
-		return "", err
-	}
-	return usherURL, nil
-}
+// func (api *API) GetClipVideoURL(clip Clip, quality string) (string, error) {
+// 	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, quality)
+// 	usherURL, err := api.constructUsherURL(clip.PlaybackAccessToken, sourceURL)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return usherURL, nil
+// }
 
-func (api *API) DownloadClip(unit MediaUnit) error {
-	clip, err := api.ClipData(unit.Slug)
-	if err != nil {
-		return err
-	}
+// func (api *API) DownloadClip(unit MediaUnit) error {
+// 	clip, err := api.ClipData(unit.Slug)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	usherURL, err := api.GetClipVideoURL(clip, unit.Quality)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	var writtenBytes int64
+// 	if unit.Quality == "audio_only" {
+// 		writtenBytes, err = extractAudio(usherURL, unit.W)
+// 	} else {
+// 		writtenBytes, err = api.downloadAndWriteSegment(usherURL, unit.W)
+// 	}
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if file, ok := unit.W.(*os.File); ok && file != nil {
+// 		api.progressCh <- spinner.ChannelMessage{
+// 			Text:  file.Name(),
+// 			Bytes: writtenBytes,
+// 		}
+// 	}
+// 	return nil
+// }
 
-	usherURL, err := api.GetClipVideoURL(clip, unit.Quality)
-	if err != nil {
-		return err
-	}
-
-	var writtenBytes int64
-	if unit.Quality == "audio_only" {
-		writtenBytes, err = extractAudio(usherURL, unit.W)
-	} else {
-		writtenBytes, err = api.downloadAndWriteSegment(usherURL, unit.W)
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if file, ok := unit.W.(*os.File); ok && file != nil {
-		api.progressCh <- spinner.ChannelMessage{
-			Text:  file.Name(),
-			Bytes: writtenBytes,
-		}
-	}
-
-	return nil
-}
-
-func extractAudio(segmentURL string, output io.Writer) (int64, error) {
-	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
-	}
-
-	n, err := io.Copy(output, stdout)
-	if err != nil {
-		return 0, fmt.Errorf("failed to copy audio data: %w", err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
-	}
-
-	return n, nil
-}
+// func extractAudio(segmentURL string, output io.Writer) (int64, error) {
+// 	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
+// 	cmd.Stdout = nil
+// 	cmd.Stderr = nil
+// 	stdout, err := cmd.StdoutPipe()
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
+// 	}
+// 	if err := cmd.Start(); err != nil {
+// 		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
+// 	}
+// 	n, err := io.Copy(output, stdout)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to copy audio data: %w", err)
+// 	}
+// 	if err := cmd.Wait(); err != nil {
+// 		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
+// 	}
+// 	return n, nil
+// }
 
 type VideoQuality struct {
 	FrameRate float64 `json:"frameRate"`
@@ -222,7 +207,7 @@ func (api *API) ClipData(slug string) (Clip, error) {
 	}
 
 	if result.Data.Clip.ID == "" {
-		return Clip{}, fmt.Errorf("failed to get the video data for %s", slug)
+		return Clip{}, fmt.Errorf("failed to get the clip data for %s", slug)
 	}
 
 	return result.Data.Clip, nil

@@ -3,7 +3,6 @@ package prompt
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -11,8 +10,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/internal/fileutil"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
 
 type Prompt struct {
@@ -55,47 +53,7 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func createNewUnit(tw *twitch.API, prompt Prompt) twitch.MediaUnit {
-	var unit twitch.MediaUnit
-
-	slug, vtype, err := tw.Slug(prompt.Input)
-	if err != nil {
-		unit.Error = err
-	}
-
-	if vtype == twitch.TypeVOD {
-		if prompt.Start > 0 && prompt.End > 0 && prompt.Start >= prompt.End {
-			unit.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", prompt.Start, prompt.End, prompt.Input)
-		}
-	}
-
-	quality, err := twitch.GetQuality(prompt.Quality, vtype)
-	if err != nil {
-		unit.Error = err
-	}
-
-	mediaName := fmt.Sprintf("%s_%s", slug, quality)
-	ext := "mp4"
-	if quality == "audio_only" {
-		ext = "mp3"
-	}
-
-	f, err := fileutil.CreateFile(prompt.Output, mediaName, ext)
-	if err != nil {
-		unit.Error = err
-	}
-
-	unit.Slug = slug
-	unit.Type = vtype
-	unit.Quality = quality
-	unit.Start = prompt.Start
-	unit.End = prompt.End
-	unit.W = f
-
-	return unit
-}
-
-func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
+func processFileInput(input string) []twitchdl.MediaUnit {
 	_, err := os.Stat(input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
@@ -111,42 +69,43 @@ func processFileInput(tw *twitch.API, input string) []twitch.MediaUnit {
 		log.Fatal(err)
 	}
 
-	var units []twitch.MediaUnit
+	var units []twitchdl.MediaUnit
 	for _, prompt := range prompts {
-		units = append(units, createNewUnit(tw, prompt))
+		units = append(units, twitchdl.NewMediaUnit(prompt.Input, prompt.Quality, prompt.Output, prompt.Start, prompt.End))
 	}
 
 	return units
 }
 
-func processFlagInput(tw *twitch.API, prompt Prompt) []twitch.MediaUnit {
+func processFlagInput(prompt *Prompt) []twitchdl.MediaUnit {
 	urls := strings.Split(prompt.Input, ",")
-	var units []twitch.MediaUnit
+	var units []twitchdl.MediaUnit
 	for _, url := range urls {
 		prompt.Input = url
-		units = append(units, createNewUnit(tw, prompt))
+		units = append(units, twitchdl.NewMediaUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End))
 	}
 	return units
 }
 
-func (prompt Prompt) processInput(tw *twitch.API) []twitch.MediaUnit {
+func (prompt *Prompt) processInput() []twitchdl.MediaUnit {
 	if prompt.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
 
-	var units []twitch.MediaUnit
+	var units []twitchdl.MediaUnit
 	_, err := url.ParseRequestURI(prompt.Input)
 	if err == nil {
-		units = processFlagInput(tw, prompt)
+		units = processFlagInput(prompt)
 	} else {
-		units = processFileInput(tw, prompt.Input)
+		units = processFileInput(prompt.Input)
 	}
 
 	return units
 }
 
-func ParseFlags(tw *twitch.API, jsonCfg *config.Data) []twitch.MediaUnit {
+func ParseFlags(jsonCfg *config.Data) []twitchdl.MediaUnit {
 	var prompt Prompt
+
 	flag.StringVar(&prompt.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them with comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
 	flag.StringVar(&prompt.Output, "output", jsonCfg.Downloader.Output, "Path where to store the downloaded media.")
 	flag.StringVar(&prompt.Quality, "quality", "", "[best 1080 720 480 360 160 worst]. Example: -quality 1080p (optional)")
@@ -160,5 +119,5 @@ func ParseFlags(tw *twitch.API, jsonCfg *config.Data) []twitch.MediaUnit {
 		}
 	}
 
-	return prompt.processInput(tw)
+	return prompt.processInput()
 }

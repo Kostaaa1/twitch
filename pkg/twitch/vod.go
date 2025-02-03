@@ -1,148 +1,14 @@
 package twitch
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
-	"github.com/Kostaaa1/twitch/internal/spinner"
 )
-
-func segmentFileName(segmentURL string) string {
-	parts := strings.Split(segmentURL, "/")
-	return parts[len(parts)-1]
-}
-
-func (api *API) ParallelVodDownload(unit MediaUnit) error {
-	if unit.Slug == "" {
-		return errors.New("slug is required for vod media list")
-	}
-
-	master, status, err := api.GetVODMasterM3u8(unit.Slug)
-	if err != nil && status != http.StatusForbidden {
-		return err
-	}
-
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality)
-	if err != nil {
-		return err
-	}
-
-	mp, err := api.fetch(variant.URL)
-	if err != nil {
-		return err
-	}
-
-	media := m3u8.ParseMediaPlaylist(string(mp))
-	if err := media.TruncateSegments(unit.Start, unit.End); err != nil {
-		return err
-	}
-
-	tempDir, _ := os.MkdirTemp("", fmt.Sprintf("vod_segments_%s", unit.Slug))
-	defer os.RemoveAll(tempDir)
-
-	maxConcurrency := runtime.NumCPU() / 2
-	sem := make(chan struct{}, maxConcurrency)
-	var wg sync.WaitGroup
-
-	for _, segURL := range media.Segments {
-		if strings.HasSuffix(segURL, ".ts") {
-			wg.Add(1)
-
-			go func(segURL string) {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-
-				if err := api.downloadSegmentToTempFile(segURL, variant.URL, tempDir, unit); err != nil {
-					fmt.Println(err)
-				}
-			}(segURL)
-		}
-	}
-
-	wg.Wait()
-	if err := api.writeSegmentsToOutput(media.Segments, tempDir, unit); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (api *API) writeSegmentsToOutput(segments []string, tempDir string, unit MediaUnit) error {
-	for _, segURL := range segments {
-		if !strings.HasSuffix(segURL, ".ts") {
-			continue
-		}
-		tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(segURL))
-		tempFile, err := os.Open(tempFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to open temp file %s: %w", tempFilePath, err)
-		}
-		if _, err := io.Copy(unit.W, tempFile); err != nil {
-			tempFile.Close()
-			return fmt.Errorf("failed to write segment to output file: %w", err)
-		}
-		tempFile.Close()
-	}
-	return nil
-}
-
-func (api *API) StreamVOD(unit MediaUnit) error {
-	if unit.Slug == "" {
-		return errors.New("slug is required for vod media list")
-	}
-
-	master, status, err := api.GetVODMasterM3u8(unit.Slug)
-	if err != nil && status != http.StatusForbidden {
-		return err
-	}
-
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality)
-	if err != nil {
-		return err
-	}
-
-	mediaPlaylist, err := api.fetch(variant.URL)
-	if err != nil {
-		return err
-	}
-
-	playlist := m3u8.ParseMediaPlaylist(string(mediaPlaylist))
-	if err := playlist.TruncateSegments(unit.Start, unit.End); err != nil {
-		return err
-	}
-
-	for _, segment := range playlist.Segments {
-		if strings.HasSuffix(segment, ".ts") {
-			lastIndex := strings.LastIndex(variant.URL, "/")
-			segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
-
-			n, err := api.downloadAndWriteSegment(segmentURL, unit.W)
-			if err != nil {
-				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
-				return err
-			}
-
-			if file, ok := unit.W.(*os.File); ok && file != nil {
-				api.progressCh <- spinner.ChannelMessage{
-					Text:  file.Name(),
-					Bytes: n,
-				}
-			}
-		}
-	}
-
-	return nil
-}
 
 type VideoCredResponse struct {
 	Typename  string `json:"__typename"`
@@ -229,33 +95,8 @@ type VideoMetadata struct {
 		} `json:"followers"`
 		Typename string `json:"__typename"`
 	} `json:"user"`
-	CurrentUser any `json:"currentUser"`
-	Video       struct {
-		ID                  string    `json:"id"`
-		Title               string    `json:"title"`
-		Description         any       `json:"description"`
-		PreviewThumbnailURL string    `json:"previewThumbnailURL"`
-		CreatedAt           time.Time `json:"createdAt"`
-		ViewCount           int64     `json:"viewCount"`
-		PublishedAt         time.Time `json:"publishedAt"`
-		LengthSeconds       int64     `json:"lengthSeconds"`
-		BroadcastType       string    `json:"broadcastType"`
-		Owner               struct {
-			ID          string `json:"id"`
-			Login       string `json:"login"`
-			DisplayName string `json:"displayName"`
-			Typename    string `json:"__typename"`
-		} `json:"owner"`
-		Game struct {
-			ID          string `json:"id"`
-			Slug        string `json:"slug"`
-			BoxArtURL   string `json:"boxArtURL"`
-			Name        string `json:"name"`
-			DisplayName string `json:"displayName"`
-			Typename    string `json:"__typename"`
-		} `json:"game"`
-		Typename string `json:"__typename"`
-	} `json:"video"`
+	CurrentUser any   `json:"currentUser"`
+	Video       Video `json:"video"`
 }
 
 func (api *API) VideoMetadata(id string) (VideoMetadata, error) {
@@ -288,4 +129,86 @@ func (api *API) VideoMetadata(id string) (VideoMetadata, error) {
 	}
 
 	return p.Data, nil
+}
+
+type Video struct {
+	ID                  string        `json:"id"`
+	Title               string        `json:"title"`
+	PreviewThumbnailURL string        `json:"previewThumbnailURL"`
+	PublishedAt         time.Time     `json:"publishedAt"`
+	ViewCount           int64         `json:"viewCount"`
+	LengthSeconds       int64         `json:"lengthSeconds"`
+	AnimatedPreviewURL  string        `json:"animatedPreviewURL"`
+	ResourceRestriction interface{}   `json:"resourceRestriction"`
+	ContentTags         []interface{} `json:"contentTags"`
+	CreatedAt           time.Time     `json:"created_at"`
+	Self                struct {
+		IsRestricted   bool `json:"isRestricted"`
+		ViewingHistory struct {
+			Position int    `json:"position"`
+			Typename string `json:"__typename"`
+		} `json:"viewingHistory"`
+		Typename string `json:"__typename"`
+	} `json:"self"`
+	Game struct {
+		ID          string `json:"id"`
+		Slug        string `json:"slug"`
+		BoxArtURL   string `json:"boxArtURL"`
+		DisplayName string `json:"displayName"`
+		Name        string `json:"name"`
+		Typename    string `json:"__typename"`
+	} `json:"game"`
+	Owner struct {
+		ID              string `json:"id"`
+		DisplayName     string `json:"displayName"`
+		Login           string `json:"login"`
+		ProfileImageURL string `json:"profileImageURL"`
+		PrimaryColorHex string `json:"primaryColorHex"`
+		Typename        string `json:"__typename"`
+	} `json:"owner"`
+	Typename string `json:"__typename"`
+}
+
+func (api *API) GetVideosByUsername(username string) ([]Video, error) {
+	gqlPl := `{
+		"operationName": "HomeShelfVideos",
+		"variables": {
+			"channelLogin": "%s",
+			"first": 1
+		},
+		"extensions": {
+			"persistedQuery": {
+				"version": 1,
+				"sha256Hash": "951c268434dc36a482c6f854215df953cf180fc2757f1e0e47aa9821258debf7"
+			}
+		}
+	}`
+
+	body := strings.NewReader(fmt.Sprintf(gqlPl, username))
+
+	type payload struct {
+		Data struct {
+			User struct {
+				ID           string `json:"id"`
+				VideoShelves struct {
+					Edges []struct {
+						Node struct {
+							Items    []Video `json:"items"`
+							Typename string  `json:"__typename"`
+						} `json:"node"`
+						Typename string `json:"__typename"`
+					} `json:"edges"`
+					Typename string `json:"__typename"`
+				} `json:"videoShelves"`
+				Typename string `json:"__typename"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	var p payload
+
+	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
+		return nil, err
+	}
+
+	return p.Data.User.VideoShelves.Edges[0].Node.Items, nil
 }

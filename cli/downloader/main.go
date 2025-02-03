@@ -7,7 +7,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/prompt"
 	"github.com/Kostaaa1/twitch/internal/spinner"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
 
 func main() {
@@ -16,27 +16,24 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tw := twitch.New()
-	tw.SetConfig(*jsonCfg)
-	units := prompt.ParseFlags(tw, jsonCfg)
+	units := prompt.ParseFlags(jsonCfg)
 
 	m := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
-	tw.SetProgressChannel(m.ProgChan)
+
+	dl := twitchdl.New()
+	dl.SetProgressChannel(m.ProgChan)
 
 	var wg sync.WaitGroup
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		m.Run()
 	}()
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		tw.BatchDownload(units)
+		dl.BatchDownload(units)
 	}()
-
 	wg.Wait()
 
 	close(m.ProgChan)
