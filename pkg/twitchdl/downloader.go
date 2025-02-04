@@ -46,19 +46,6 @@ func (dl *Downloader) Download(u MediaUnit) error {
 	return u.Error
 }
 
-func (dl *Downloader) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {
-	resp, err := dl.client.Get(segmentURL)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get response: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
-	}
-	return io.Copy(w, resp.Body)
-}
-
 func (dl *Downloader) BatchDownload(units []MediaUnit) {
 	climit := runtime.NumCPU() / 2
 
@@ -157,30 +144,39 @@ func (mu *MediaUnit) recordStream(dl *Downloader) error {
 	}
 }
 
-func (dl *Downloader) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir string, mu MediaUnit) error {
-	lastIndex := strings.LastIndex(vodPlaylistURL, "/")
-	segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
-	tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(segment))
+// func (dl *Downloader) downloadSegmentToTempFile(segment, vodPlaylistURL, tempDir string, mu MediaUnit) error {
+// 	lastIndex := strings.LastIndex(vodPlaylistURL, "/")
+// 	segmentURL := fmt.Sprintf("%s/%s", vodPlaylistURL[:lastIndex], segment)
+// 	tempFilePath := fmt.Sprintf("%s/%s", tempDir, segmentFileName(segment))
+// 	tempFile, err := os.Create(tempFilePath)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create temp file %s: %w", tempFilePath, err)
+// 	}
+// 	defer tempFile.Close()
+// 	n, err := dl.downloadAndWriteSegment(segmentURL, tempFile)
+// 	if err != nil {
+// 		return fmt.Errorf("error downloading segment %s: %w", segmentURL, err)
+// 	}
+// 	if f, ok := mu.Writer.(*os.File); ok && f != nil {
+// 		dl.progressCh <- spinner.ChannelMessage{
+// 			Text:  f.Name(),
+// 			Bytes: n,
+// 		}
+// 	}
+// 	return nil
+// }
 
-	tempFile, err := os.Create(tempFilePath)
+func (dl *Downloader) downloadAndWriteSegment(segmentURL string, w io.Writer) (int64, error) {
+	resp, err := dl.client.Get(segmentURL)
 	if err != nil {
-		return fmt.Errorf("failed to create temp file %s: %w", tempFilePath, err)
+		return 0, fmt.Errorf("failed to get response: %w", err)
 	}
-	defer tempFile.Close()
+	defer resp.Body.Close()
 
-	n, err := dl.downloadAndWriteSegment(segmentURL, tempFile)
-	if err != nil {
-		return fmt.Errorf("error downloading segment %s: %w", segmentURL, err)
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("received non-OK response: %s", resp.Status)
 	}
-
-	if f, ok := mu.Writer.(*os.File); ok && f != nil {
-		dl.progressCh <- spinner.ChannelMessage{
-			Text:  f.Name(),
-			Bytes: n,
-		}
-	}
-
-	return nil
+	return io.Copy(w, resp.Body)
 }
 
 func (dl *Downloader) fetch(url string) ([]byte, error) {

@@ -71,33 +71,35 @@ func processFileInput(input string) []twitchdl.MediaUnit {
 
 	var units []twitchdl.MediaUnit
 	for _, prompt := range prompts {
-		units = append(units, twitchdl.NewMediaUnit(prompt.Input, prompt.Quality, prompt.Output, prompt.Start, prompt.End))
+		unit := twitchdl.NewMediaUnit(prompt.Input, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
+		units = append(units, unit)
 	}
 
 	return units
 }
 
-func processFlagInput(prompt *Prompt) []twitchdl.MediaUnit {
+func processFlagInput(prompt Prompt) []twitchdl.MediaUnit {
 	urls := strings.Split(prompt.Input, ",")
 	var units []twitchdl.MediaUnit
 	for _, url := range urls {
 		prompt.Input = url
-		units = append(units, twitchdl.NewMediaUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End))
+		unit := twitchdl.NewMediaUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
+		units = append(units, unit)
 	}
 	return units
 }
 
-func (prompt *Prompt) processInput() []twitchdl.MediaUnit {
-	if prompt.Input == "" {
+func process(p Prompt) []twitchdl.MediaUnit {
+	if p.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
 
 	var units []twitchdl.MediaUnit
-	_, err := url.ParseRequestURI(prompt.Input)
+	_, err := url.ParseRequestURI(p.Input)
 	if err == nil {
-		units = processFlagInput(prompt)
+		units = processFlagInput(p)
 	} else {
-		units = processFileInput(prompt.Input)
+		units = processFileInput(p.Input)
 	}
 
 	return units
@@ -119,5 +121,5 @@ func ParseFlags(jsonCfg *config.Data) []twitchdl.MediaUnit {
 		}
 	}
 
-	return prompt.processInput()
+	return process(prompt)
 }

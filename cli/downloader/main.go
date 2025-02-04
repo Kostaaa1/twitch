@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/prompt"
@@ -11,6 +13,8 @@ import (
 )
 
 func main() {
+	s := time.Now()
+
 	jsonCfg, err := config.Get()
 	if err != nil {
 		log.Fatal(err)
@@ -37,4 +41,7 @@ func main() {
 	wg.Wait()
 
 	close(m.ProgChan)
+
+	n := time.Since(s)
+	fmt.Println("Download finished in: ", n.Seconds())
 }

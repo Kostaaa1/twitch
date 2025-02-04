@@ -26,26 +26,21 @@ var (
 	}
 )
 
-func getVODQuality(quality string) string {
-	switch {
-	case quality == "best":
-		return "chunked"
-	case quality == "1080p60":
-		return "chunked"
-	case strings.HasPrefix(quality, "audio"):
-		return "audio_only"
-	case quality == "worst":
-		return "160p30"
-	default:
-		return quality
-	}
-}
-
 func GetQuality(quality string, vtype VideoType) (string, error) {
 	for _, q := range Qualities {
 		if q == quality || strings.HasPrefix(quality, q) || strings.HasPrefix(q, quality) {
 			if vtype == TypeVOD {
-				return getVODQuality(q), nil
+				switch {
+				case quality == "best":
+					q = "chunked"
+				case quality == "1080p60":
+					q = "chunked"
+				case strings.HasPrefix(quality, "audio"):
+					q = "audio_only"
+				case quality == "worst":
+					q = "160p30"
+				default:
+				}
 			}
 			return q, nil
 		}

@@ -121,14 +121,15 @@ func ParseURL(URL string) (*ParsedURL, error) {
 
 	if strings.Contains(u.Path, "/videos/") {
 		t := u.Query().Get("t")
-
-		start, err := time.ParseDuration(t)
-		if err != nil {
-			return nil, errors.New("timestamp not valid format. valid - [1h3m22s]")
+		var start time.Duration
+		if t != "" {
+			start, err = time.ParseDuration(t)
+			if err != nil {
+				return nil, errors.New("timestamp not valid format. valid - [1h3m22s]")
+			}
 		}
 
 		_, id := path.Split(u.Path)
-
 		return &ParsedURL{
 			ID:        id,
 			Type:      TypeVOD,

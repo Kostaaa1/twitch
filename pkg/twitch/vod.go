@@ -76,6 +76,10 @@ func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error
 	return m3u8.Master(b), code, nil
 }
 
+func GetVodMediaPlaylist() {
+
+}
+
 // Getting the sub VOD playlist
 type VideoMetadata struct {
 	User struct {
