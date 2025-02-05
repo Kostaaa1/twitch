@@ -20,7 +20,7 @@ func (dl *Downloader) GetClipVideoURL(clip twitch.Clip, quality string) (string,
 }
 
 func (mu DownloadUnit) downloadClip(dl *Downloader) error {
-	clip, err := dl.api.Clip(mu.ID)
+	clip, err := dl.api.ClipMetadata(mu.ID)
 	if err != nil {
 		return err
 	}

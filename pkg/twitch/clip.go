@@ -133,7 +133,7 @@ type Clip struct {
 	Typename               string `json:"__typename"`
 }
 
-func (api *API) Clip(slug string) (Clip, error) {
+func (api *API) ClipMetadata(slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {

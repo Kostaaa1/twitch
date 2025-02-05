@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -37,14 +38,13 @@ func (mu DownloadUnit) GetError() error {
 }
 
 func (mu DownloadUnit) GetTitle() string {
-	return mu.Title
-	// if f, ok := mu.Writer.(*os.File); ok && f != nil {
-	// 	if mu.Error != nil { // ??
-	// 		os.Remove(f.Name())
-	// 	}
-	// 	return f.Name()
-	// }
-	// return mu.ID
+	if f, ok := mu.Writer.(*os.File); ok && f != nil {
+		if mu.Error != nil { // ??
+			os.Remove(f.Name())
+		}
+		return f.Name()
+	}
+	return mu.ID
 }
 
 func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Duration) DownloadUnit {
@@ -68,53 +68,40 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 
 	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
 		du.Type = TypeClip
-		clip, err := dl.api.Clip(du.ID)
-
-		if err != nil {
-			du.Error = err
-			return du
-		}
-
-		du.Title = clip.Video.Title
+		du.Title, err = dl.getClipTitle(du.ID)
 	} else if strings.Contains(u.Path, "/videos/") {
+		du.Type = TypeVOD
+		du.Title, err = dl.getVODTitle(du.ID)
 		assignTimestampFromURL(&du, u)
 		if du.Start > 0 && du.End > 0 && du.Start >= du.End {
 			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", du.Start, du.End, URL)
-			return du
 		}
-
-		du.Type = TypeVOD
-		vod, err := dl.api.VideoMetadata(du.ID)
-		if err != nil {
-			du.Error = err
-			return du
-		}
-		du.Title = vod.Video.Title
 	} else {
-		stream, err := dl.api.StreamMetadata(du.ID)
-		if err != nil {
-			du.Error = err
-			return du
-		}
-		du.Title = stream.BroadcastSettings.Title
 		du.Type = TypeLivestream
+		du.Title, err = dl.getStreamTitle(du.ID)
+	}
+
+	if err != nil {
+		du.Error = err
+		return du
 	}
 
 	du.Quality, du.Error = ValidateQuality(quality, du.Type)
+	if du.Error != nil {
+		return du
+	}
 
 	ext := "mp4"
 	if quality == "audio_only" {
 		ext = "mp3"
 	}
 
-	if du.Error == nil {
-		f, err := fileutil.CreateFile(output, du.Title, ext)
-		if err != nil {
-			du.Error = err
-			return du
-		}
-		du.Writer = f
+	f, err := fileutil.CreateFile(output, du.Title, ext)
+	if err != nil {
+		du.Error = err
+		return du
 	}
+	du.Writer = f
 
 	return du
 }
@@ -126,4 +113,28 @@ func assignTimestampFromURL(du *DownloadUnit, u *url.URL) {
 			du.Start, _ = time.ParseDuration(t)
 		}
 	}
+}
+
+func (dl *Downloader) getVODTitle(id string) (string, error) {
+	d, err := dl.api.VideoMetadata(id)
+	if err != nil {
+		return "", err
+	}
+	return d.Video.Title, nil
+}
+
+func (dl *Downloader) getStreamTitle(id string) (string, error) {
+	d, err := dl.api.StreamMetadata(id)
+	if err != nil {
+		return "", err
+	}
+	return d.BroadcastSettings.Title, nil
+}
+
+func (dl *Downloader) getClipTitle(id string) (string, error) {
+	d, err := dl.api.ClipMetadata(id)
+	if err != nil {
+		return "", err
+	}
+	return d.Video.Title, nil
 }
