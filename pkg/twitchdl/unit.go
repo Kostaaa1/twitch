@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -22,6 +22,7 @@ const (
 
 type DownloadUnit struct {
 	ID      string
+	Title   string
 	Type    VideoType
 	URL     string
 	Quality string
@@ -31,61 +32,22 @@ type DownloadUnit struct {
 	Error   error
 }
 
-// DownloadUnit
-// func (du *DownloadUnit) Validate() *ValidatedUnit {
-// 	validated := ValidatedUnit{
-// 		URL:     du.URL,
-// 		Quality: du.Quality,
-// 		Writer:  du.Writer,
-// 		Start:   du.Start,
-// 		End:     du.End,
-// 		Error:   du.Error,
-// 	}
-// 	u, err := url.Parse(du.URL)
-// 	if err != nil {
-// 		validated.Error = fmt.Errorf("failed to parse the URL: %s", err)
-// 	}
-// 	_, id := path.Split(u.Path)
-// 	validated.ID = id
-// 	if !strings.Contains(u.Hostname(), "twitch.tv") {
-// 		validated.Error = errors.New("the hostname of the URL does not contain twitch.tv")
-// 	}
-// 	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
-// 		validated.Type = TypeClip
-// 	} else if strings.Contains(u.Path, "/videos/") {
-// 		if validated.Start == 0 {
-// 			t := u.Query().Get("t")
-// 			if t != "" {
-// 				s, err := time.ParseDuration(t)
-// 				if err != nil {
-// 					validated.Error = errors.New("timestamp not valid format. valid - [1h3m22s]")
-// 				}
-// 				validated.Start = s
-// 			}
-// 		}
-// 		validated.Type = TypeVOD
-// 	} else {
-// 		validated.Type = TypeLivestream
-// 	}
-// 	return &validated
-// }
-
 func (mu DownloadUnit) GetError() error {
 	return mu.Error
 }
 
 func (mu DownloadUnit) GetTitle() string {
-	if f, ok := mu.Writer.(*os.File); ok && f != nil {
-		if mu.Error != nil {
-			os.Remove(f.Name())
-		}
-		return f.Name()
-	}
-	return mu.ID
+	return mu.Title
+	// if f, ok := mu.Writer.(*os.File); ok && f != nil {
+	// 	if mu.Error != nil { // ??
+	// 		os.Remove(f.Name())
+	// 	}
+	// 	return f.Name()
+	// }
+	// return mu.ID
 }
 
-// refactor this
-func NewUnit(URL, quality, output string, start, end time.Duration) DownloadUnit {
+func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Duration) DownloadUnit {
 	du := DownloadUnit{
 		Start: start,
 		End:   end,
@@ -94,54 +56,74 @@ func NewUnit(URL, quality, output string, start, end time.Duration) DownloadUnit
 	u, err := url.Parse(URL)
 	if err != nil {
 		du.Error = err
+		return du
 	}
 
 	if !strings.Contains(u.Hostname(), "twitch.tv") {
 		du.Error = errors.New("the hostname of the URL does not contain twitch.tv")
+		return du
 	}
+
+	_, du.ID = path.Split(u.Path)
 
 	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
 		du.Type = TypeClip
-	} else if strings.Contains(u.Path, "/videos/") {
-		if du.Start == 0 {
-			t := u.Query().Get("t")
-			if t != "" {
-				s, err := time.ParseDuration(t)
-				if err != nil {
-					du.Error = errors.New("timestamp not valid format. valid - [1h3m22s]")
-				}
-				du.Start = s
-			}
+		clip, err := dl.api.Clip(du.ID)
+
+		if err != nil {
+			du.Error = err
+			return du
 		}
+
+		du.Title = clip.Video.Title
+	} else if strings.Contains(u.Path, "/videos/") {
+		assignTimestampFromURL(&du, u)
+		if du.Start > 0 && du.End > 0 && du.Start >= du.End {
+			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", du.Start, du.End, URL)
+			return du
+		}
+
 		du.Type = TypeVOD
+		vod, err := dl.api.VideoMetadata(du.ID)
+		if err != nil {
+			du.Error = err
+			return du
+		}
+		du.Title = vod.Video.Title
 	} else {
+		stream, err := dl.api.StreamMetadata(du.ID)
+		if err != nil {
+			du.Error = err
+			return du
+		}
+		du.Title = stream.BroadcastSettings.Title
 		du.Type = TypeLivestream
 	}
 
-	if du.Type == TypeVOD {
-		if start > 0 && end > 0 && start >= end {
-			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", start, end, URL)
-		}
-	}
+	du.Quality, du.Error = ValidateQuality(quality, du.Type)
 
-	quality, err = GetQuality(quality, du.Type)
-	if err != nil {
-		du.Error = err
-	}
-
-	fileName := fmt.Sprintf("%s_%s", du.ID, quality)
 	ext := "mp4"
 	if quality == "audio_only" {
 		ext = "mp3"
 	}
 
 	if du.Error == nil {
-		f, err := fileutil.CreateFile(output, fileName, ext)
+		f, err := fileutil.CreateFile(output, du.Title, ext)
 		if err != nil {
 			du.Error = err
+			return du
 		}
 		du.Writer = f
 	}
 
 	return du
+}
+
+func assignTimestampFromURL(du *DownloadUnit, u *url.URL) {
+	if du.Start == 0 {
+		t := u.Query().Get("t")
+		if t != "" {
+			du.Start, _ = time.ParseDuration(t)
+		}
+	}
 }

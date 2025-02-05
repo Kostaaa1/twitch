@@ -2,11 +2,61 @@ package twitch
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
+
+type StreamMetadata struct {
+	ID                string `json:"id"`
+	BroadcastSettings struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	} `json:"broadcastSettings"`
+	Stream struct {
+		ID        string    `json:"id"`
+		CreatedAt time.Time `json:"createdAt"`
+		Game      struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"displayName"`
+		} `json:"game"`
+	} `json:"stream"`
+}
+
+func (api *API) StreamMetadata(channelName string) (*StreamMetadata, error) {
+	gqlPl := `{
+		"operationName": "NielsenContentMetadata",
+		"variables": {
+			"isCollectionContent": false,
+			"isLiveContent": true,
+			"isVODContent": false,
+			"collectionID": "",
+			"login": "%s",
+			"vodID": ""
+		},
+		"extensions": {
+			"persistedQuery": {
+				"version": 1,
+				"sha256Hash": "2dbf505ee929438369e68e72319d1106bb3c142e295332fac157c90638968586"
+			}
+		}
+	}`
+
+	type payload struct {
+		Data struct {
+			Stream StreamMetadata `json:"user"`
+		} `json:"data"`
+	}
+	var resp payload
+
+	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
+	if err := api.sendGqlLoadAndDecode(body, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp.Data.Stream, nil
+}
 
 func (api *API) GetLivestreamCreds(id string) (string, string, error) {
 	gqlPl := `{
@@ -32,6 +82,7 @@ func (api *API) GetLivestreamCreds(id string) (string, string, error) {
 	if err := api.sendGqlLoadAndDecode(body, &data); err != nil {
 		return "", "", err
 	}
+
 	return data.Data.VideoPlaybackAccessToken.Value, data.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
@@ -51,18 +102,18 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 	return m3u8.Master(b), nil
 }
 
-func (api *API) OpenStreamInMediaPlayer(channel string) error {
-	master, err := api.GetStreamMasterPlaylist(channel)
-	if err != nil {
-		return err
-	}
-	list, err := master.GetVariantPlaylistByQuality("best")
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("vlc", list.URL)
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
-}
+// func (api *API) OpenStreamInMediaPlayer(channel string) error {
+// 	master, err := api.GetStreamMasterPlaylist(channel)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	list, err := master.GetVariantPlaylistByQuality("best")
+// 	if err != nil {
+// 		return err
+// 	}
+// 	cmd := exec.Command("vlc", list.URL)
+// 	if err := cmd.Run(); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }

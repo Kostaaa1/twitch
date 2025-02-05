@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -248,10 +249,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.removeActiveChat()
 			}
 		case tea.KeyCtrlO:
-			go func() {
+			go func() { // check if safe
 				chat := m.getActiveChat()
-				if err := m.twitch.OpenStreamInMediaPlayer(chat.Channel); err != nil {
+
+				master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
+				if err != nil {
 					m.msgChan <- errMsg{err: err}
+					return
+				}
+				list, err := master.GetVariantPlaylistByQuality("best")
+				if err != nil {
+					m.msgChan <- errMsg{err: err}
+					return
+				}
+				cmd := exec.Command("vlc", list.URL)
+				if err := cmd.Run(); err != nil {
+					m.msgChan <- errMsg{err: err}
+					return
 				}
 			}()
 		case tea.KeyTab:

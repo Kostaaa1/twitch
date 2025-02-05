@@ -21,54 +21,6 @@ func (api *API) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (s
 // 	return usherURL, nil
 // }
 
-// func (api *API) DownloadClip(unit DownloadUnit) error {
-// 	clip, err := api.ClipData(unit.Slug)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	usherURL, err := api.GetClipVideoURL(clip, unit.Quality)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	var writtenBytes int64
-// 	if unit.Quality == "audio_only" {
-// 		writtenBytes, err = extractAudio(usherURL, unit.W)
-// 	} else {
-// 		writtenBytes, err = api.downloadAndWriteSegment(usherURL, unit.W)
-// 	}
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if file, ok := unit.W.(*os.File); ok && file != nil {
-// 		api.progressCh <- spinner.ChannelMessage{
-// 			Text:  file.Name(),
-// 			Bytes: writtenBytes,
-// 		}
-// 	}
-// 	return nil
-// }
-
-// func extractAudio(segmentURL string, output io.Writer) (int64, error) {
-// 	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
-// 	cmd.Stdout = nil
-// 	cmd.Stderr = nil
-// 	stdout, err := cmd.StdoutPipe()
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-// 	}
-// 	if err := cmd.Start(); err != nil {
-// 		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
-// 	}
-// 	n, err := io.Copy(output, stdout)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to copy audio data: %w", err)
-// 	}
-// 	if err := cmd.Wait(); err != nil {
-// 		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
-// 	}
-// 	return n, nil
-// }
-
 type VideoQuality struct {
 	FrameRate float64 `json:"frameRate"`
 	Quality   string  `json:"quality"`
@@ -181,7 +133,7 @@ type Clip struct {
 	Typename               string `json:"__typename"`
 }
 
-func (api *API) ClipData(slug string) (Clip, error) {
+func (api *API) Clip(slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {

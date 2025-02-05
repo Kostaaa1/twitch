@@ -75,8 +75,6 @@ func CreateFakeMaster(c *http.Client, vodID string, previewURL *url.URL, broadca
 		"audio_only": {Res: "audio_only", FPS: ""},
 	}
 
-	// bt := strings.ToLower(broadcastType)
-
 	isQualityValid := func(u string) bool {
 		resp, err := c.Get(u)
 		if err != nil {

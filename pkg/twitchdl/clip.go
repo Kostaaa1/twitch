@@ -20,7 +20,7 @@ func (dl *Downloader) GetClipVideoURL(clip twitch.Clip, quality string) (string,
 }
 
 func (mu DownloadUnit) downloadClip(dl *Downloader) error {
-	clip, err := dl.api.ClipData(mu.ID)
+	clip, err := dl.api.Clip(mu.ID)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func (mu DownloadUnit) downloadClip(dl *Downloader) error {
 
 	var writtenBytes int64
 	if mu.Quality == "audio_only" {
-		writtenBytes, err = extractAudio(usherURL, mu.Writer)
+		// writtenBytes, err = extractAudio(usherURL, mu.Writer)
 	} else {
 		writtenBytes, err = dl.downloadFromURL(usherURL, mu.Writer)
 	}

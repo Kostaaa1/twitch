@@ -16,10 +16,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	units := prompt.ParseFlags(jsonCfg)
+	dl := twitchdl.New()
+
+	units := prompt.ParseFlags(dl, jsonCfg)
 	m := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
 
-	dl := twitchdl.New()
 	dl.SetProgressChannel(m.ProgChan)
 
 	var wg sync.WaitGroup
