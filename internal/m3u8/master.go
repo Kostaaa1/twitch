@@ -41,7 +41,8 @@ func createServingID() string {
 	return id
 }
 
-func CreateMockMaster(c *http.Client, vodID string, previewURL *url.URL, broadcastType string) *MasterPlaylist {
+// Used for restricted VODs (users need to be subscribed to watch the VOD)
+func CreateFakeMaster(c *http.Client, vodID string, previewURL *url.URL, broadcastType string) *MasterPlaylist {
 	master := MasterPlaylist{
 		Origin:          "s3",
 		B:               false,

@@ -66,7 +66,7 @@ func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
-		return m3u8.CreateMockMaster(api.client, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
+		return m3u8.CreateFakeMaster(api.client, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
 	}
 
 	if err != nil {
@@ -76,8 +76,13 @@ func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error
 	return m3u8.Master(b), code, nil
 }
 
-func GetVodMediaPlaylist() {
-
+func (api *API) GetVODMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
+	mediaPlaylist, err := api.fetch(variant.URL)
+	if err != nil {
+		return nil, err
+	}
+	parsed := m3u8.ParseMediaPlaylist(mediaPlaylist)
+	return &parsed, nil
 }
 
 // Getting the sub VOD playlist

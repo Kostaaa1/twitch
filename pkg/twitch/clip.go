@@ -21,7 +21,7 @@ func (api *API) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (s
 // 	return usherURL, nil
 // }
 
-// func (api *API) DownloadClip(unit MediaUnit) error {
+// func (api *API) DownloadClip(unit DownloadUnit) error {
 // 	clip, err := api.ClipData(unit.Slug)
 // 	if err != nil {
 // 		return err

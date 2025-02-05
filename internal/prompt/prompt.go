@@ -53,13 +53,13 @@ func (p *Prompt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func processFileInput(input string) []twitchdl.MediaUnit {
-	_, err := os.Stat(input)
+func processFileInput(inputPrompt Prompt) []twitchdl.DownloadUnit {
+	_, err := os.Stat(inputPrompt.Input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
 	}
 
-	content, err := os.ReadFile(input)
+	content, err := os.ReadFile(inputPrompt.Input)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -69,43 +69,51 @@ func processFileInput(input string) []twitchdl.MediaUnit {
 		log.Fatal(err)
 	}
 
-	var units []twitchdl.MediaUnit
+	var units []twitchdl.DownloadUnit
 	for _, prompt := range prompts {
-		unit := twitchdl.NewMediaUnit(prompt.Input, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
+		levelPropmts(&prompt, &inputPrompt)
+		unit := twitchdl.NewUnit(prompt.Input, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
 		units = append(units, unit)
 	}
 
 	return units
 }
 
-func processFlagInput(prompt Prompt) []twitchdl.MediaUnit {
+func levelPropmts(main, fallback *Prompt) {
+	if main.Output == "" && fallback.Output != "" {
+		main.Output = fallback.Output
+	}
+	if main.Quality == "" && fallback.Quality != "" {
+		main.Quality = fallback.Quality
+	}
+}
+
+func processFlagInput(prompt Prompt) []twitchdl.DownloadUnit {
 	urls := strings.Split(prompt.Input, ",")
-	var units []twitchdl.MediaUnit
+	var units []twitchdl.DownloadUnit
 	for _, url := range urls {
 		prompt.Input = url
-		unit := twitchdl.NewMediaUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
+		unit := twitchdl.NewUnit(url, prompt.Quality, prompt.Output, prompt.Start, prompt.End)
 		units = append(units, unit)
 	}
 	return units
 }
 
-func process(p Prompt) []twitchdl.MediaUnit {
+func process(p Prompt) []twitchdl.DownloadUnit {
 	if p.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
-
-	var units []twitchdl.MediaUnit
+	var units []twitchdl.DownloadUnit
 	_, err := url.ParseRequestURI(p.Input)
 	if err == nil {
 		units = processFlagInput(p)
 	} else {
-		units = processFileInput(p.Input)
+		units = processFileInput(p)
 	}
-
 	return units
 }
 
-func ParseFlags(jsonCfg *config.Data) []twitchdl.MediaUnit {
+func ParseFlags(jsonCfg *config.Data) []twitchdl.DownloadUnit {
 	var prompt Prompt
 
 	flag.StringVar(&prompt.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them with comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")

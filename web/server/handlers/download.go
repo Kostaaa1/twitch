@@ -32,7 +32,7 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	mediaFormat := c.Query("media_format")
 	mediaType := c.Query("media_type")
 
-	var unit twitch.MediaUnit
+	var unit twitch.DownloadUnit
 	unit.Slug = c.Query("media_slug")
 
 	videoType, err := twitch.GetVideoType(mediaType)

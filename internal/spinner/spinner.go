@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/bytecount"
-	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -209,20 +208,12 @@ func constructErrorMessage(err error) string {
 	return fmt.Sprintf("❌ %s", err.Error())
 }
 
-func initModel(cfg config.Downloader) model {
-	s := spinner.New()
-	s.Spinner = validateSpinnerModel(cfg.SpinnerModel)
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return model{
-		spinner: s,
-	}
-}
-
 func New[T UnitProvider](units []T, spinnerModel string) *model {
 	progChan := make(chan ChannelMessage, len(units))
 	su := make([]unit, len(units))
 
 	doneCount := 0
+
 	for i, u := range units {
 		err := u.GetError()
 		su[i] = unit{

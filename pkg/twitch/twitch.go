@@ -26,7 +26,6 @@ const (
 func New() *API {
 	return &API{
 		client: http.DefaultClient,
-		// progressCh: nil,
 	}
 }
 

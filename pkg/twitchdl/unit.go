@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"os/exec"
-	"path"
 	"strings"
 	"time"
 
@@ -22,9 +20,10 @@ const (
 	TypeLivestream
 )
 
-type MediaUnit struct {
+type DownloadUnit struct {
 	ID      string
 	Type    VideoType
+	URL     string
 	Quality string
 	Start   time.Duration
 	End     time.Duration
@@ -32,11 +31,50 @@ type MediaUnit struct {
 	Error   error
 }
 
-func (mu MediaUnit) GetError() error {
+// DownloadUnit
+// func (du *DownloadUnit) Validate() *ValidatedUnit {
+// 	validated := ValidatedUnit{
+// 		URL:     du.URL,
+// 		Quality: du.Quality,
+// 		Writer:  du.Writer,
+// 		Start:   du.Start,
+// 		End:     du.End,
+// 		Error:   du.Error,
+// 	}
+// 	u, err := url.Parse(du.URL)
+// 	if err != nil {
+// 		validated.Error = fmt.Errorf("failed to parse the URL: %s", err)
+// 	}
+// 	_, id := path.Split(u.Path)
+// 	validated.ID = id
+// 	if !strings.Contains(u.Hostname(), "twitch.tv") {
+// 		validated.Error = errors.New("the hostname of the URL does not contain twitch.tv")
+// 	}
+// 	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
+// 		validated.Type = TypeClip
+// 	} else if strings.Contains(u.Path, "/videos/") {
+// 		if validated.Start == 0 {
+// 			t := u.Query().Get("t")
+// 			if t != "" {
+// 				s, err := time.ParseDuration(t)
+// 				if err != nil {
+// 					validated.Error = errors.New("timestamp not valid format. valid - [1h3m22s]")
+// 				}
+// 				validated.Start = s
+// 			}
+// 		}
+// 		validated.Type = TypeVOD
+// 	} else {
+// 		validated.Type = TypeLivestream
+// 	}
+// 	return &validated
+// }
+
+func (mu DownloadUnit) GetError() error {
 	return mu.Error
 }
 
-func (mu MediaUnit) GetTitle() string {
+func (mu DownloadUnit) GetTitle() string {
 	if f, ok := mu.Writer.(*os.File); ok && f != nil {
 		if mu.Error != nil {
 			os.Remove(f.Name())
@@ -47,122 +85,63 @@ func (mu MediaUnit) GetTitle() string {
 }
 
 // refactor this
-func NewMediaUnit(URL, quality, output string, start, end time.Duration) MediaUnit {
-	var unit MediaUnit
-
-	parsed, err := ParseURL(URL)
-	if err != nil {
-		unit.Error = err
+func NewUnit(URL, quality, output string, start, end time.Duration) DownloadUnit {
+	du := DownloadUnit{
+		Start: start,
+		End:   end,
 	}
 
-	if parsed.Type == TypeVOD {
+	u, err := url.Parse(URL)
+	if err != nil {
+		du.Error = err
+	}
+
+	if !strings.Contains(u.Hostname(), "twitch.tv") {
+		du.Error = errors.New("the hostname of the URL does not contain twitch.tv")
+	}
+
+	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
+		du.Type = TypeClip
+	} else if strings.Contains(u.Path, "/videos/") {
+		if du.Start == 0 {
+			t := u.Query().Get("t")
+			if t != "" {
+				s, err := time.ParseDuration(t)
+				if err != nil {
+					du.Error = errors.New("timestamp not valid format. valid - [1h3m22s]")
+				}
+				du.Start = s
+			}
+		}
+		du.Type = TypeVOD
+	} else {
+		du.Type = TypeLivestream
+	}
+
+	if du.Type == TypeVOD {
 		if start > 0 && end > 0 && start >= end {
-			unit.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", start, end, URL)
+			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", start, end, URL)
 		}
 	}
 
-	quality, err = GetQuality(quality, parsed.Type)
+	quality, err = GetQuality(quality, du.Type)
 	if err != nil {
-		unit.Error = err
+		du.Error = err
 	}
 
-	mediaName := fmt.Sprintf("%s_%s", parsed.ID, quality)
+	fileName := fmt.Sprintf("%s_%s", du.ID, quality)
 	ext := "mp4"
 	if quality == "audio_only" {
 		ext = "mp3"
 	}
 
-	// can i avoid creating if error occurs? also, should i close the file?
-	var f *os.File
-	if unit.Error == nil {
-		f, err = fileutil.CreateFile(output, mediaName, ext)
+	if du.Error == nil {
+		f, err := fileutil.CreateFile(output, fileName, ext)
 		if err != nil {
-			unit.Error = err
+			du.Error = err
 		}
+		du.Writer = f
 	}
 
-	unit.ID = parsed.ID
-	unit.Type = parsed.Type
-	unit.Quality = quality
-	if start > 0 {
-		unit.Start = start
-	} else {
-		unit.Start = parsed.TrimStart
-	}
-	unit.End = end
-	unit.Writer = f
-
-	return unit
-}
-
-type ParsedURL struct {
-	ID        string
-	Type      VideoType
-	TrimStart time.Duration
-}
-
-func ParseURL(URL string) (*ParsedURL, error) {
-	u, err := url.Parse(URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse the URL: %s", err)
-	}
-
-	if !strings.Contains(u.Hostname(), "twitch.tv") {
-		return nil, fmt.Errorf("the hostname of the URL does not contain twitch.tv")
-	}
-
-	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
-		_, id := path.Split(u.Path)
-		return &ParsedURL{
-			ID:   id,
-			Type: TypeClip,
-		}, nil
-	}
-
-	if strings.Contains(u.Path, "/videos/") {
-		t := u.Query().Get("t")
-		var start time.Duration
-		if t != "" {
-			start, err = time.ParseDuration(t)
-			if err != nil {
-				return nil, errors.New("timestamp not valid format. valid - [1h3m22s]")
-			}
-		}
-
-		_, id := path.Split(u.Path)
-		return &ParsedURL{
-			ID:        id,
-			Type:      TypeVOD,
-			TrimStart: start,
-		}, nil
-	}
-
-	s := strings.Split(u.Path, "/")
-	return &ParsedURL{ID: s[1], Type: TypeLivestream}, nil
-}
-
-func extractAudio(segmentURL string, w io.Writer) (int64, error) {
-	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
-	}
-
-	n, err := io.Copy(w, stdout)
-	if err != nil {
-		return 0, fmt.Errorf("failed to copy audio data: %w", err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
-	}
-
-	return n, nil
+	return du
 }

@@ -1,7 +1,10 @@
 package twitchdl
 
 import (
+	"fmt"
+	"io"
 	"os"
+	"os/exec"
 
 	"github.com/Kostaaa1/twitch/internal/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -16,7 +19,7 @@ func (dl *Downloader) GetClipVideoURL(clip twitch.Clip, quality string) (string,
 	return usherURL, nil
 }
 
-func (mu MediaUnit) downloadClip(dl *Downloader) error {
+func (mu DownloadUnit) downloadClip(dl *Downloader) error {
 	clip, err := dl.api.ClipData(mu.ID)
 	if err != nil {
 		return err
@@ -31,7 +34,7 @@ func (mu MediaUnit) downloadClip(dl *Downloader) error {
 	if mu.Quality == "audio_only" {
 		writtenBytes, err = extractAudio(usherURL, mu.Writer)
 	} else {
-		writtenBytes, err = dl.downloadAndWriteSegment(usherURL, mu.Writer)
+		writtenBytes, err = dl.downloadFromURL(usherURL, mu.Writer)
 	}
 
 	if err != nil {
@@ -46,4 +49,29 @@ func (mu MediaUnit) downloadClip(dl *Downloader) error {
 	}
 
 	return nil
+}
+
+func extractAudio(segmentURL string, w io.Writer) (int64, error) {
+	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
+	}
+
+	n, err := io.Copy(w, stdout)
+	if err != nil {
+		return 0, fmt.Errorf("failed to copy audio data: %w", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
+	}
+	return n, nil
 }

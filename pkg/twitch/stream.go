@@ -2,7 +2,6 @@ package twitch
 
 import (
 	"fmt"
-	"io"
 	"os/exec"
 	"strings"
 
@@ -44,90 +43,13 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 
 	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
-	resp, err := api.client.Get(u)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if s := resp.StatusCode; s < 200 || s >= 300 {
-		return nil, fmt.Errorf("unsupported status code (%v) for url: %s", s, u)
-	}
-
-	b, err := io.ReadAll(resp.Body)
+	b, err := api.fetch(u)
 	if err != nil {
 		return nil, err
 	}
 
 	return m3u8.Master(b), nil
 }
-
-// can be improved with intercepting requests?
-
-// func (api *API) RecordStream(unit MediaUnit) error {
-// 	isLive, err := api.IsChannelLive(unit.Slug)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	if !isLive {
-// 		return fmt.Errorf("%s is offline", unit.Slug)
-// 	}
-
-// 	master, err := api.GetStreamMasterPlaylist(unit.Slug)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	mediaList, err := master.GetVariantPlaylistByQuality(unit.Quality)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	ticker := time.NewTicker(time.Second)
-// 	defer ticker.Stop()
-
-// 	tickCount := 0
-// 	var halfBytes *bytes.Reader
-
-// 	for {
-// 		select {
-// 		case <-ticker.C:
-// 			tickCount++
-// 			var n int64
-
-// 			if tickCount%2 != 0 {
-// 				b, err := api.fetch(mediaList.URL)
-// 				if err != nil {
-// 					fmt.Println("Stream ended: ", err)
-// 					return nil
-// 				}
-
-// 				segments := strings.Split(string(b), "\n")
-// 				tsURL := segments[len(segments)-2]
-
-// 				bodyBytes, _ := api.fetch(tsURL)
-
-// 				half := len(bodyBytes) / 2
-// 				halfBytes = bytes.NewReader(bodyBytes[half:])
-
-// 				n, _ = io.Copy(unit.W, bytes.NewReader(bodyBytes[:half]))
-// 			}
-
-// 			if tickCount%2 == 0 && halfBytes.Len() > 0 {
-// 				n, _ = io.Copy(unit.W, halfBytes)
-// 				halfBytes.Reset([]byte{})
-// 			}
-
-// 			if file, ok := unit.W.(*os.File); ok && file != nil {
-// 				api.progressCh <- spinner.ChannelMessage{
-// 					Text:  file.Name(),
-// 					Bytes: n,
-// 				}
-// 			}
-// 		}
-// 	}
-// }
 
 func (api *API) OpenStreamInMediaPlayer(channel string) error {
 	master, err := api.GetStreamMasterPlaylist(channel)

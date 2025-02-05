@@ -37,9 +37,9 @@ func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) error {
 	return nil
 }
 
-func ParseMediaPlaylist(list string) MediaPlaylist {
+func ParseMediaPlaylist(list []byte) MediaPlaylist {
 	var mediaList MediaPlaylist
-	lines := strings.Split(list, "\n")
+	lines := strings.Split(string(list), "\n")
 
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]

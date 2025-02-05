@@ -12,19 +12,31 @@ type Quality struct {
 	FPS int32
 }
 
-var (
-	Qualities = []string{
-		"best",
-		"1080p60",
-		"720p60",
-		"720p30",
-		"480p30",
-		"audio_only",
-		"360p30",
-		"160p30",
-		"worst",
-	}
+type QualityType int
+
+const (
+	Best QualityType = iota
+	Quality1080p60
+	Quality720p60
+	Quality720p30
+	Quality480p30
+	AudioOnly
+	Quality360p30
+	Quality160p30
+	Worst
 )
+
+var Qualities = []string{
+	"best",
+	"1080p60",
+	"720p60",
+	"720p30",
+	"480p30",
+	"audio_only",
+	"360p30",
+	"160p30",
+	"worst",
+}
 
 func GetQuality(quality string, vtype VideoType) (string, error) {
 	for _, q := range Qualities {
