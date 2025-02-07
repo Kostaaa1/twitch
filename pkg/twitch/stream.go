@@ -24,7 +24,7 @@ type StreamMetadata struct {
 	} `json:"stream"`
 }
 
-func (api *API) StreamMetadata(channelName string) (*StreamMetadata, error) {
+func (tw *TWClient) StreamMetadata(channelName string) (*StreamMetadata, error) {
 	gqlPl := `{
 		"operationName": "NielsenContentMetadata",
 		"variables": {
@@ -51,14 +51,14 @@ func (api *API) StreamMetadata(channelName string) (*StreamMetadata, error) {
 	var resp payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
-	if err := api.sendGqlLoadAndDecode(body, &resp); err != nil {
+	if err := tw.sendGqlLoadAndDecode(body, &resp); err != nil {
 		return nil, err
 	}
 
 	return &resp.Data.Stream, nil
 }
 
-func (api *API) GetLivestreamCreds(id string) (string, string, error) {
+func (tw *TWClient) GetLivestreamCreds(id string) (string, string, error) {
 	gqlPl := `{
 		"operationName": "PlaybackAccessToken_Template",
 		"query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -79,22 +79,22 @@ func (api *API) GetLivestreamCreds(id string) (string, string, error) {
 	var data payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, id))
-	if err := api.sendGqlLoadAndDecode(body, &data); err != nil {
+	if err := tw.sendGqlLoadAndDecode(body, &data); err != nil {
 		return "", "", err
 	}
 
 	return data.Data.VideoPlaybackAccessToken.Value, data.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
-	tok, sig, err := api.GetLivestreamCreds(channel)
+func (tw *TWClient) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
+	tok, sig, err := tw.GetLivestreamCreds(channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
-	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
+	u := fmt.Sprintf("%s/TWClient/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
-	b, err := api.fetch(u)
+	b, err := tw.fetch(u)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +102,8 @@ func (api *API) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, e
 	return m3u8.Master(b), nil
 }
 
-// func (api *API) OpenStreamInMediaPlayer(channel string) error {
-// 	master, err := api.GetStreamMasterPlaylist(channel)
+// func (TWClient *TWClient) OpenStreamInMediaPlayer(channel string) error {
+// 	master, err := TWClient.GetStreamMasterPlaylist(channel)
 // 	if err != nil {
 // 		return err
 // 	}

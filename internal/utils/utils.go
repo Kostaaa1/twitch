@@ -27,7 +27,7 @@ func ParseTimestamp(v string) string {
 	return formatted
 }
 
-func Capitalize(v string) string {
+func CTWClienttalize(v string) string {
 	return strings.ToUpper(v[:1]) + v[1:]
 }
 

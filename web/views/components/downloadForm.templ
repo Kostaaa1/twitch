@@ -3,6 +3,7 @@ package components
 import "time"
 import "github.com/Kostaaa1/twitch/pkg/twitch"
 import "fmt"
+import "github.com/Kostaaa1/twitch/pkg/twitchdl"
 
 type Quality struct {
 	Resolution string	
@@ -18,15 +19,15 @@ type FormData struct {
 	ViewCount 			string
 	CreatedAt 			time.Time
 	Qualities 			[]Quality
-	Duration 		string
-	Type 				twitch.VideoType
+	Duration 			string
+	Type 				twitchdl.VideoType
 	Curator 			twitch.Curator
 }
 
 templ DownloadForm(media FormData) {
 	<div>
 	switch media.Type {
-		case twitch.TypeClip:
+		case twitchdl.TypeClip:
 			if media.VideoURL != "" {
 				<video controls class="block object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50">
 					<source src={media.VideoURL} type="video/mp4">
@@ -39,7 +40,7 @@ templ DownloadForm(media FormData) {
 			} else {
 				<img class="block w-full w-full max-w-[660px] object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50" src={media.PreviewThumbnailURL} />
 			}
-		case twitch.TypeVOD:
+		case twitchdl.TypeVOD:
 			<img class="block w-full w-full max-w-[660px] object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50" src={media.PreviewThumbnailURL} />
 	}
 		<div>
@@ -73,7 +74,7 @@ templ DownloadForm(media FormData) {
 			</div>
 		</div>
 		switch media.Type {
-			case twitch.TypeVOD:
+			case twitchdl.TypeVOD:
 			<div class="flex justify-between flex-wrap">
 				<div>
 					<label class="block mb-2 text-slate-600">

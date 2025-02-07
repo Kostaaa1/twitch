@@ -11,6 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import "time"
 import "github.com/Kostaaa1/twitch/pkg/twitch"
 import "fmt"
+import "github.com/Kostaaa1/twitch/pkg/twitchdl"
 
 type Quality struct {
 	Resolution string
@@ -27,7 +28,7 @@ type FormData struct {
 	CreatedAt           time.Time
 	Qualities           []Quality
 	Duration            string
-	Type                twitch.VideoType
+	Type                twitchdl.VideoType
 	Curator             twitch.Curator
 }
 
@@ -57,7 +58,7 @@ func DownloadForm(media FormData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		switch media.Type {
-		case twitch.TypeClip:
+		case twitchdl.TypeClip:
 			if media.VideoURL != "" {
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<video controls class=\"block object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50\"><source src=\"")
 				if templ_7745c5c3_Err != nil {
@@ -66,7 +67,7 @@ func DownloadForm(media FormData) templ.Component {
 				var templ_7745c5c3_Var2 string
 				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(media.VideoURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 32, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 33, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 				if templ_7745c5c3_Err != nil {
@@ -88,7 +89,7 @@ func DownloadForm(media FormData) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(media.Curator.DisplayName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 36, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 37, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -106,7 +107,7 @@ func DownloadForm(media FormData) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(media.PreviewThumbnailURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 40, Col: 153}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 41, Col: 153}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -117,7 +118,7 @@ func DownloadForm(media FormData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-		case twitch.TypeVOD:
+		case twitchdl.TypeVOD:
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<img class=\"block w-full w-full max-w-[660px] object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50\" src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -125,7 +126,7 @@ func DownloadForm(media FormData) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(media.PreviewThumbnailURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 43, Col: 152}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 44, Col: 152}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -143,7 +144,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(media.ViewCount)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 46, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 47, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -156,7 +157,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(media.Duration)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 47, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 48, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -178,7 +179,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(media.Owner)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 56, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 57, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -191,7 +192,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(media.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 58, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 59, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -209,7 +210,7 @@ func DownloadForm(media FormData) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(list.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 67, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 68, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -222,7 +223,7 @@ func DownloadForm(media FormData) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(list.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 67, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 68, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -235,7 +236,7 @@ func DownloadForm(media FormData) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(list.Resolution)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 67, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 68, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -251,7 +252,7 @@ func DownloadForm(media FormData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		switch media.Type {
-		case twitch.TypeVOD:
+		case twitchdl.TypeVOD:
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex justify-between flex-wrap\"><div><label class=\"block mb-2 text-slate-600\">Start</label><div class=\"flex items-center justify-center gap-2\"><input id=\"start_h\" name=\"start_h\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0h\" min=\"0\"> <input id=\"start_m\" name=\"start_m\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0m\" min=\"0\"> <input id=\"start_s\" name=\"start_s\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0s\" min=\"0\"></div></div><div><label class=\"block mb-2 text-slate-600\">End</label><div class=\"flex items-center justify-center w-full gap-2\"><input id=\"end_h\" name=\"end_h\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0h\" min=\"0\"> <input id=\"end_m\" name=\"end_m\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0m\" min=\"0\"> <input id=\"end_s\" name=\"end_s\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0s\" min=\"0\"></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -264,7 +265,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(media.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 142, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 143, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -277,7 +278,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(media.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 143, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 144, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -290,7 +291,7 @@ func DownloadForm(media FormData) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(media.Type.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 144, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components/downloadForm.templ`, Line: 145, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {

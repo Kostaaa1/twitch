@@ -16,14 +16,14 @@ import (
 )
 
 type Downloader struct {
-	api        *twitch.API
+	TWApi      *twitch.TWClient
 	progressCh chan spinner.ChannelMessage
 	client     *http.Client
 }
 
 func New() *Downloader {
 	return &Downloader{
-		api:    twitch.New(),
+		TWApi:  twitch.New(),
 		client: http.DefaultClient,
 	}
 }
@@ -80,7 +80,7 @@ func (dl *Downloader) BatchDownload(units []DownloadUnit) {
 }
 
 func (mu *DownloadUnit) recordStream(dl *Downloader) error {
-	isLive, err := dl.api.IsChannelLive(mu.ID)
+	isLive, err := dl.TWApi.IsChannelLive(mu.ID)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (mu *DownloadUnit) recordStream(dl *Downloader) error {
 		return fmt.Errorf("%s is offline", mu.ID)
 	}
 
-	master, err := dl.api.GetStreamMasterPlaylist(mu.ID)
+	master, err := dl.TWApi.GetStreamMasterPlaylist(mu.ID)
 	if err != nil {
 		return err
 	}

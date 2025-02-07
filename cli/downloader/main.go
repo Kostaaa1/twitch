@@ -20,7 +20,6 @@ func main() {
 
 	units := prompt.ParseFlags(dl, jsonCfg)
 	m := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
-
 	dl.SetProgressChannel(m.ProgChan)
 
 	var wg sync.WaitGroup

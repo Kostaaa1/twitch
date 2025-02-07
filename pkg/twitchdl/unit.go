@@ -33,6 +33,32 @@ type DownloadUnit struct {
 	Error   error
 }
 
+func (v VideoType) String() string {
+	switch v {
+	case TypeClip:
+		return "clip"
+	case TypeVOD:
+		return "video"
+	case TypeLivestream:
+		return "stream"
+	default:
+		return fmt.Sprintf("Unknown(%d)", v)
+	}
+}
+
+func MapStringToVideoType(s string) VideoType {
+	switch s {
+	case "clip":
+		return TypeClip
+	case "video":
+		return TypeVOD
+	case "stream":
+		return TypeLivestream
+	default:
+		return -1
+	}
+}
+
 func (mu DownloadUnit) GetError() error {
 	return mu.Error
 }
@@ -116,7 +142,7 @@ func assignTimestampFromURL(du *DownloadUnit, u *url.URL) {
 }
 
 func (dl *Downloader) getVODTitle(id string) (string, error) {
-	d, err := dl.api.VideoMetadata(id)
+	d, err := dl.TWApi.VideoMetadata(id)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +150,7 @@ func (dl *Downloader) getVODTitle(id string) (string, error) {
 }
 
 func (dl *Downloader) getStreamTitle(id string) (string, error) {
-	d, err := dl.api.StreamMetadata(id)
+	d, err := dl.TWApi.StreamMetadata(id)
 	if err != nil {
 		return "", err
 	}
@@ -132,7 +158,7 @@ func (dl *Downloader) getStreamTitle(id string) (string, error) {
 }
 
 func (dl *Downloader) getClipTitle(id string) (string, error) {
-	d, err := dl.api.ClipMetadata(id)
+	d, err := dl.TWApi.ClipMetadata(id)
 	if err != nil {
 		return "", err
 	}

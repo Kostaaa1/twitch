@@ -16,7 +16,7 @@ type VideoCredResponse struct {
 	Value     string `json:"value"`
 }
 
-func (api *API) getVideoCredentials(id string) (string, string, error) {
+func (tw *TWClient) getVideoCredentials(id string) (string, string, error) {
 	gqlPayload := `{
 	    "operationName": "PlaybackAccessToken_Template",
 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -37,7 +37,7 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 	}
 	var p payload
 
-	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
 		return "", "", err
 	}
 
@@ -48,17 +48,17 @@ func (api *API) getVideoCredentials(id string) (string, string, error) {
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error) {
-	token, sig, err := api.getVideoCredentials(vodID)
+func (tw *TWClient) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error) {
+	token, sig, err := tw.getVideoCredentials(vodID)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, token, sig)
 
-	b, code, err := api.fetchWithCode(m3u8Url)
+	b, code, err := tw.fetchWithCode(m3u8Url)
 	if code == http.StatusForbidden {
 		// this means that you need to be subscribed to access the m3u8 master. In that case, creating fake playlist.
-		subVOD, err := api.SubVODData(vodID)
+		subVOD, err := tw.SubVODData(vodID)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -66,7 +66,7 @@ func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
-		return m3u8.CreateFakeMaster(api.client, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
+		return m3u8.CreateFakeMaster(tw.client, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
 	}
 
 	if err != nil {
@@ -76,8 +76,8 @@ func (api *API) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error
 	return m3u8.Master(b), code, nil
 }
 
-func (api *API) GetVODMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
-	mediaPlaylist, err := api.fetch(variant.URL)
+func (tw *TWClient) GetVODMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
+	mediaPlaylist, err := tw.fetch(variant.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ type VideoMetadata struct {
 	Video       Video `json:"video"`
 }
 
-func (api *API) VideoMetadata(id string) (VideoMetadata, error) {
+func (tw *TWClient) VideoMetadata(id string) (VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
 		"variables": {
@@ -129,7 +129,7 @@ func (api *API) VideoMetadata(id string) (VideoMetadata, error) {
 	var p payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
-	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
 		return VideoMetadata{}, err
 	}
 
@@ -178,7 +178,7 @@ type Video struct {
 	Typename string `json:"__typename"`
 }
 
-func (api *API) GetVideosByUsername(username string) ([]Video, error) {
+func (tw *TWClient) GetVideosByUsername(username string) ([]Video, error) {
 	gqlPl := `{
 		"operationName": "HomeShelfVideos",
 		"variables": {
@@ -215,7 +215,7 @@ func (api *API) GetVideosByUsername(username string) ([]Video, error) {
 	}
 	var p payload
 
-	if err := api.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
 		return nil, err
 	}
 

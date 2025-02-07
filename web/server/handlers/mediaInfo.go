@@ -3,10 +3,13 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"regexp"
+	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 	"github.com/Kostaaa1/twitch/web/server"
 	"github.com/Kostaaa1/twitch/web/views/components"
 	"github.com/dustin/go-humanize"
@@ -26,19 +29,35 @@ func replaceImageDimension(imgURL string, w, h int) string {
 func (s *Static) mediaInfo(c *gin.Context) {
 	twitchUrl := c.PostForm("twitchUrl")
 
-	parsed, err := s.tw.ParseURL(twitchUrl)
+	// parsed, err := s.tw.ParseURL(twitchUrl)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 	return
+	// }
+
+	u, err := url.Parse(twitchUrl)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	_, id := path.Split(u.Path)
+
 	var formData components.FormData
-	if parsed.Type == twitch.TypeClip {
-		formData, err = s.getClipData(parsed.ID)
-	} else if parsed.Type == twitch.TypeVOD {
-		formData, err = s.getVODData(parsed.ID)
+	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
+		formData.Type = twitchdl.TypeClip
+		formData, err = s.getClipData(id)
+	} else if strings.Contains(u.Path, "/videos/") {
+		formData.Type = twitchdl.TypeVOD
+		formData, err = s.getVODData(id)
 	}
-	formData.Type = parsed.Type
+
+	// if parsed.Type == twitchdl.TypeClip {
+	// 	formData, err = s.getClipData(parsed.ID)
+	// } else if parsed.Type == twitchdl.TypeVOD {
+	// 	formData, err = s.getVODData(parsed.ID)
+	// }
+	// formData.Type = parsed.Type
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -48,12 +67,12 @@ func (s *Static) mediaInfo(c *gin.Context) {
 }
 
 func (s *Static) getVODData(slug string) (components.FormData, error) {
-	metadata, err := s.tw.VideoMetadata(slug)
+	metadata, err := s.dl.TWApi.VideoMetadata(slug)
 	if err != nil {
 		return components.FormData{}, err
 	}
 
-	master, _, err := s.tw.GetVODMasterM3u8(slug)
+	master, _, err := s.dl.TWApi.GetVODMasterM3u8(slug)
 
 	var qualities []components.Quality
 	if err != nil {
@@ -78,19 +97,19 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		ViewCount:           humanize.Comma(metadata.Video.ViewCount),
 		Qualities:           qualities,
 		Duration:            duration.String(),
-		Type:                twitch.TypeVOD,
+		Type:                twitchdl.TypeVOD,
 	}
 
 	return formData, nil
 }
 
 func (s *Static) getClipData(slug string) (components.FormData, error) {
-	clip, err := s.tw.ClipData(slug)
+	clip, err := s.dl.TWApi.ClipMetadata(slug)
 	if err != nil {
 		return components.FormData{}, err
 	}
 
-	videoSrc, err := s.tw.GetClipVideoURL(clip, "best")
+	videoSrc, err := s.dl.GetClipVideoURL(clip, "best")
 	if err != nil {
 		return components.FormData{}, err
 	}
@@ -121,7 +140,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		Qualities:           qualities,
 		Duration:            duration.String(),
 		Curator:             clip.Curator,
-		Type:                twitch.TypeClip,
+		Type:                twitchdl.TypeClip,
 	}
 
 	return formData, nil

@@ -97,7 +97,7 @@ type Chat struct {
 }
 
 type Model struct {
-	twitch              *twitch.API
+	twitch              *twitch.TWClient
 	ws                  *WebSocketClient
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
@@ -119,7 +119,7 @@ func (e errMsg) Error() string {
 	return e.err.Error()
 }
 
-func Open(twitch *twitch.API, cfg *config.Data) {
+func Open(twitch *twitch.TWClient, cfg *config.Data) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()

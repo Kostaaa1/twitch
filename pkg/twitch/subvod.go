@@ -17,7 +17,7 @@ type SubVODResponse struct {
 	} `json:"video"`
 }
 
-func (api *API) SubVODData(vodID string) (SubVODResponse, error) {
+func (tw *TWClient) SubVODData(vodID string) (SubVODResponse, error) {
 	gqlPayload := `{
  	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
 	}`
@@ -26,7 +26,7 @@ func (api *API) SubVODData(vodID string) (SubVODResponse, error) {
 	var subVodResponse struct {
 		Data SubVODResponse `json:"data"`
 	}
-	if err := api.sendGqlLoadAndDecode(body, &subVodResponse); err != nil {
+	if err := tw.sendGqlLoadAndDecode(body, &subVodResponse); err != nil {
 		return SubVODResponse{}, err
 	}
 	return subVodResponse.Data, nil

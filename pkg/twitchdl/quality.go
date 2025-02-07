@@ -3,8 +3,6 @@ package twitchdl
 import (
 	"fmt"
 	"strings"
-
-	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 type Quality struct {
@@ -38,6 +36,9 @@ var Qualities = []string{
 	"worst",
 }
 
+// func MapStringToVideoType(s string) VideoType {
+// }
+
 func ValidateQuality(quality string, vtype VideoType) (string, error) {
 	for _, q := range Qualities {
 		if q == quality || strings.HasPrefix(quality, q) || strings.HasPrefix(q, quality) {
@@ -55,29 +56,4 @@ func ValidateQuality(quality string, vtype VideoType) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("invalid quality was provided: %s. these are valid: %s", quality, strings.Join(Qualities, ", "))
-}
-
-func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) string {
-	if quality == "best" {
-		return videoQualities[0].SourceURL
-	}
-	if quality == "worst" {
-		return videoQualities[len(videoQualities)-1].SourceURL
-	}
-	for _, q := range videoQualities {
-		if strings.HasPrefix(quality, q.Quality) || strings.HasPrefix(q.Quality, quality) {
-			return q.SourceURL
-		}
-	}
-	id := -1
-	for i, val := range Qualities {
-		if val == quality {
-			id = i
-		}
-	}
-	if id > 0 {
-		return extractClipSourceURL(videoQualities, Qualities[id-1])
-	} else {
-		return extractClipSourceURL(videoQualities, Qualities[id+1])
-	}
 }

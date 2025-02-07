@@ -15,12 +15,10 @@ func main() {
 	}
 
 	go func() {
-		if err := ws.Connect("0q5aotb6xvbdvltyz74t2ysjhbwgy3", "8lu60q33jxsrwjs3m19ktewx8y1ohs", msgChan, []string{"mizkif"}); err != nil {
+		if err := ws.Connect("rgtyj73qol873r67tcb7u6jade5cao", "slorpglorpski	", msgChan, []string{"mizkif", "asmongold"}); err != nil {
 			fmt.Println("Connection error: ", err)
 		}
 	}()
-
-	ws.SendMessage([]byte("https://www.amazon.com/hz/wishlist/ls/1YW7EDGP4QKJB/ref=nav_wishlist_lists_1 Test12334"))
 
 	for {
 		select {

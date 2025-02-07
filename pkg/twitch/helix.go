@@ -61,7 +61,7 @@ type User struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func (api *API) GetUserInfo(loginName string) (*User, error) {
+func (tw *TWClient) GetUserInfo(loginName string) (*User, error) {
 	u := fmt.Sprintf("%s/users?login=%s", helixURL, loginName)
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -69,10 +69,10 @@ func (api *API) GetUserInfo(loginName string) (*User, error) {
 		return nil, err
 	}
 
-	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
-	req.Header.Set("Authorization", api.GetToken())
+	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Authorization", tw.GetToken())
 
-	resp, err := api.do(req)
+	resp, err := tw.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -99,17 +99,17 @@ func (api *API) GetUserInfo(loginName string) (*User, error) {
 	return &user.Data[0], nil
 }
 
-func (api *API) GetChannelInfo(broadcasterID string) (*Channel, error) {
+func (tw *TWClient) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
-	req.Header.Set("Authorization", api.GetToken())
+	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Authorization", tw.GetToken())
 
-	resp, err := api.do(req)
+	resp, err := tw.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -132,17 +132,17 @@ func (api *API) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	return &channel.Data[0], nil
 }
 
-func (api *API) GetFollowedStreams(id string) (*Streams, error) {
+func (tw *TWClient) GetFollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
-	req.Header.Set("Authorization", api.GetToken())
+	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Authorization", tw.GetToken())
 
-	resp, err := api.do(req)
+	resp, err := tw.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -161,17 +161,17 @@ func (api *API) GetFollowedStreams(id string) (*Streams, error) {
 	return &streams, nil
 }
 
-func (api *API) GetStream(userId string) (*Streams, error) {
+func (tw *TWClient) GetStream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Client-Id", api.config.User.Creds.ClientID)
-	req.Header.Set("Authorization", api.GetToken())
+	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Authorization", tw.GetToken())
 
-	resp, err := api.do(req)
+	resp, err := tw.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +190,8 @@ func (api *API) GetStream(userId string) (*Streams, error) {
 	return &streams, nil
 }
 
-func (tw *API) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
+func (tw *TWClient) IsChannelLive(channelName string) (bool, error) {
+	u := fmt.Sprintf("%s/%s", "https://decTWClient.me/twitch/uptime", channelName)
 
 	resp, err := http.Get(u)
 	if err != nil {
@@ -208,8 +208,8 @@ func (tw *API) IsChannelLive(channelName string) (bool, error) {
 		return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
 	}
 
-	if strings.HasPrefix(string(b), "[Error from Twitch API]") {
-		return false, fmt.Errorf("[Error from Twitch API]")
+	if strings.HasPrefix(string(b), "[Error from Twitch TWClient]") {
+		return false, fmt.Errorf("[Error from Twitch TWClient]")
 	}
 
 	return !strings.Contains(string(b), "offline"), nil

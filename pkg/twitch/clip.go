@@ -7,19 +7,9 @@ import (
 	"time"
 )
 
-func (api *API) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
-	URL := fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value))
-	return URL, nil
+func (twc *TWClient) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
-
-// func (api *API) GetClipVideoURL(clip Clip, quality string) (string, error) {
-// 	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, quality)
-// 	usherURL, err := api.constructUsherURL(clip.PlaybackAccessToken, sourceURL)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	return usherURL, nil
-// }
 
 type VideoQuality struct {
 	FrameRate float64 `json:"frameRate"`
@@ -133,7 +123,7 @@ type Clip struct {
 	Typename               string `json:"__typename"`
 }
 
-func (api *API) ClipMetadata(slug string) (Clip, error) {
+func (twc *TWClient) ClipMetadata(slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {
@@ -154,7 +144,7 @@ func (api *API) ClipMetadata(slug string) (Clip, error) {
 	}
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-	if err := api.sendGqlLoadAndDecode(body, &result); err != nil {
+	if err := twc.sendGqlLoadAndDecode(body, &result); err != nil {
 		return Clip{}, err
 	}
 

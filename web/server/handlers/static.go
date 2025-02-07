@@ -3,19 +3,20 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 	"github.com/Kostaaa1/twitch/web/server"
 	"github.com/Kostaaa1/twitch/web/views/home"
 	"github.com/gin-gonic/gin"
 )
 
 type Static struct {
-	tw *twitch.API
+	// tw *twitch.TWClient
+	dl *twitchdl.Downloader
 }
 
 func NewStatic() *Static {
 	return &Static{
-		tw: twitch.New(),
+		dl: twitchdl.New(),
 	}
 }
 

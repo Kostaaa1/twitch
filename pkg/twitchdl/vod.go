@@ -19,7 +19,7 @@ type segmentJob struct {
 }
 
 func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
-	master, status, err := dl.api.GetVODMasterM3u8(mu.ID)
+	master, status, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
 	if err != nil && status != http.StatusForbidden {
 		return err
 	}
@@ -27,7 +27,7 @@ func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.api.GetVODMediaPlaylist(variant)
+	playlist, err := dl.TWApi.GetVODMediaPlaylist(variant)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
 }
 
 func (mu DownloadUnit) StreamVOD(dl *Downloader) error {
-	master, status, err := dl.api.GetVODMasterM3u8(mu.ID)
+	master, status, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
 	if err != nil && status != http.StatusForbidden {
 		return err
 	}
@@ -119,7 +119,7 @@ func (mu DownloadUnit) StreamVOD(dl *Downloader) error {
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.api.GetVODMediaPlaylist(variant)
+	playlist, err := dl.TWApi.GetVODMediaPlaylist(variant)
 	if err != nil {
 		return err
 	}

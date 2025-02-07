@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,17 +33,12 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	mediaFormat := c.Query("media_format")
 	mediaType := c.Query("media_type")
 
-	var unit twitch.DownloadUnit
-	unit.Slug = c.Query("media_slug")
+	var unit twitchdl.DownloadUnit
+	unit.ID = c.Query("media_slug")
 
-	videoType, err := twitch.GetVideoType(mediaType)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	unit.Type = videoType
+	unit.Type = twitchdl.MapStringToVideoType(mediaType)
 	unit.Quality = mediaFormat
-	unit.W = c.Writer
+	unit.Writer = c.Writer
 
 	ext := "mp4"
 	if mediaFormat == "audio_only" {
@@ -51,18 +47,18 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	} else {
 		c.Header("Content-Type", "video/mp4")
 	}
+
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.%s"`, mediaTitle, ext))
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Flush()
 
 	switch unit.Type {
-	case twitch.TypeClip:
-		if err := s.tw.DownloadClip(unit); err != nil {
+	case twitchdl.TypeClip:
+		if err := s.dl.Download(unit); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
-
-	case twitch.TypeVOD:
+	case twitchdl.TypeVOD:
 		startH := c.Query("start_h")
 		startM := c.Query("start_m")
 		startS := c.Query("start_s")
@@ -83,7 +79,10 @@ func (s *Static) downloadHandler(c *gin.Context) {
 		}
 		unit.End = end
 
-		if err := s.tw.StreamVOD(unit); err != nil {
+		b, _ := json.MarshalIndent(unit, "", " ")
+		fmt.Println("Downloading unit :", string(b))
+
+		if err := unit.StreamVOD(s.dl); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
