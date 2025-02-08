@@ -38,7 +38,7 @@ func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
 	jobsChan := make(chan segmentJob)
 	resultsChan := make(chan segmentJob)
 
-	const maxWorkers = 4
+	const maxWorkers = 16
 	var wg sync.WaitGroup
 
 	for i := 0; i < maxWorkers; i++ {

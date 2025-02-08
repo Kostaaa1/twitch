@@ -191,7 +191,7 @@ func (tw *TWClient) GetStream(userId string) (*Streams, error) {
 }
 
 func (tw *TWClient) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", "https://decTWClient.me/twitch/uptime", channelName)
+	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
 
 	resp, err := http.Get(u)
 	if err != nil {

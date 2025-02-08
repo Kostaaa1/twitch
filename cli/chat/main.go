@@ -1,29 +1,33 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/Kostaaa1/twitch/cli/chat/view/chat"
+	"github.com/Kostaaa1/twitch/internal/config"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 func main() {
-	msgChan := make(chan interface{})
-
-	ws, err := chat.CreateWSClient()
+	jsonCfg, err := config.Get()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+	tw := twitch.New()
 
-	go func() {
-		if err := ws.Connect("rgtyj73qol873r67tcb7u6jade5cao", "slorpglorpski	", msgChan, []string{"mizkif", "asmongold"}); err != nil {
-			fmt.Println("Connection error: ", err)
-		}
-	}()
+	chat.Open(tw, jsonCfg)
 
-	for {
-		select {
-		case msg := <-msgChan:
-			fmt.Println(msg)
-		}
-	}
+	// msgChan := make(chan interface{})
+	// ws, err := chat.CreateWSClient()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// go func() {
+	// 	if err := ws.Connect(jsonCfg.User.Creds.AccessToken, jsonCfg.User.DisplayName, msgChan, []string{"ohnepixel", "tyler1"}); err != nil {
+	// 		fmt.Println("Connection error: ", err)
+	// 	}
+	// }()
+	// for msg := range msgChan {
+	// 	fmt.Println("received msg: ", msg)
+	// }
 }

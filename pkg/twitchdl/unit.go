@@ -90,7 +90,8 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 		return du
 	}
 
-	_, du.ID = path.Split(u.Path)
+	_, id := path.Split(u.Path)
+	du.ID = id
 
 	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
 		du.Type = TypeClip
@@ -102,7 +103,7 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 		if du.Start > 0 && du.End > 0 && du.Start >= du.End {
 			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", du.Start, du.End, URL)
 		}
-	} else {
+	} else { // add stronger checks, check lenght of path parts
 		du.Type = TypeLivestream
 		du.Title, err = dl.getStreamTitle(du.ID)
 	}
@@ -142,6 +143,7 @@ func assignTimestampFromURL(du *DownloadUnit, u *url.URL) {
 }
 
 func (dl *Downloader) getVODTitle(id string) (string, error) {
+	fmt.Println("getting vod title", id)
 	d, err := dl.TWApi.VideoMetadata(id)
 	if err != nil {
 		return "", err

@@ -299,18 +299,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case Notice:
-
-			// if chanMsg.Err != nil {
-			// 	 go func() {
-			// 	// m.msgChan <- errMsg{err: fmt.Errorf(chanMsg.SystemMsg)}
-			// 	// 	m.msgChan <- errMsg{chanMsg.Err}
-			// 	// }()
-			// }
-
-			// if chanMsg.Err != nil {
-			// 	m.ws.Conn.Close()
-			// 	panic(chanMsg.Err)
-			// }
+			if chanMsg.Err != nil {
+				go func() {
+					m.msgChan <- errMsg{err: fmt.Errorf(chanMsg.SystemMsg)}
+					m.msgChan <- errMsg{chanMsg.Err}
+				}()
+			}
+			if chanMsg.Err != nil {
+				m.ws.Conn.Close()
+				panic(chanMsg.Err)
+			}
 
 			chat := m.getChat(chanMsg.DisplayName)
 			if chat != nil {

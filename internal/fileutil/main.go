@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 )
 
 func newWalkPath(dstpath, filename, ext string) string {
@@ -20,7 +21,7 @@ func newWalkPath(dstpath, filename, ext string) string {
 	return filepath.Join(dstpath, fname)
 }
 
-func constructPathname(dstPath, fileName, ext string) (string, error) {
+func constructPathname(dstPath, filename, ext string) (string, error) {
 	if dstPath == "" {
 		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via twitch_config.json (outputPath)")
 	}
@@ -41,20 +42,26 @@ func constructPathname(dstPath, fileName, ext string) (string, error) {
 	}
 
 	if info.IsDir() {
-		return newWalkPath(dstPath, fileName, ext), nil
+		return newWalkPath(dstPath, filename, ext), nil
 	}
 
 	return "", fmt.Errorf("this path already exists %s: ", dstPath)
 }
 
+func sanitizeFilename(filename string) string {
+	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
+	return re.ReplaceAllString(filename, "_")
+}
+
 func CreateFile(dir, filename, ext string) (*os.File, error) {
-	path, err := constructPathname(dir, filename, ext)
+	path, err := constructPathname(dir, sanitizeFilename(filename), ext)
 	if err != nil {
 		return nil, err
 	}
 
 	f, err := os.Create(path)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 	return f, nil

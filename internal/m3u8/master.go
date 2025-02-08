@@ -93,12 +93,18 @@ func CreateFakeMaster(c *http.Client, vodID string, previewURL *url.URL, broadca
 		// }
 		// resolution := getResolution(quality, v)
 
-		// var URL string
-		// if bt == "highlight" {
-		// 	URL = fmt.Sprintf(`https://%s/%s/%s/highlight-%s.m3u8`, previewURL.Host, vodId, key, vodID)
-		// } else if bt != "upload" {
-		URL := fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, previewURL.Host, vodId, key)
-		// }
+		fmt.Println("broadcastType", broadcastType)
+
+		var URL string
+		if strings.ToLower(broadcastType) == "highlight" {
+			// https://${domain}/${vodSpecialID}/${resKey}/highlight-${vodId}.m3u8
+			URL = fmt.Sprintf(`https://%s/%s/%s/highlight-%s.m3u8`, previewURL.Host, vodId, key, vodID)
+			// } else if broadcastType != "upload" {
+			// `https://${domain}/${channelData.login}/${vodId}/${vodSpecialID}/${resKey}/index-dvr.m3u8`
+			// }
+		} else {
+			URL = fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, previewURL.Host, vodId, key)
+		}
 		// if URL == "" {
 		// 	continue
 		// }
