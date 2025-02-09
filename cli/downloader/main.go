@@ -19,19 +19,19 @@ func main() {
 	dl := twitchdl.New()
 
 	units := prompt.ParseFlags(dl, jsonCfg)
-	m := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
-	dl.SetProgressChannel(m.ProgChan)
+	spin := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
+	dl.SetProgressChannel(spin.ProgChan)
 
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		m.Run()
+		spin.Run()
 	}()
 
 	dl.BatchDownload(units)
 
 	wg.Wait()
-	close(m.ProgChan)
+	close(spin.ProgChan)
 }

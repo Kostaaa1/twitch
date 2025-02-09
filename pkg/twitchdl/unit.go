@@ -119,7 +119,7 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 	}
 
 	ext := "mp4"
-	if quality == "audio_only" {
+	if strings.HasPrefix(quality, "audio") {
 		ext = "mp3"
 	}
 
@@ -143,7 +143,6 @@ func assignTimestampFromURL(du *DownloadUnit, u *url.URL) {
 }
 
 func (dl *Downloader) getVODTitle(id string) (string, error) {
-	fmt.Println("getting vod title", id)
 	d, err := dl.TWApi.VideoMetadata(id)
 	if err != nil {
 		return "", err

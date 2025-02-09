@@ -189,14 +189,12 @@ func (m model) constructStateMessage(s unit) string {
 	}
 
 	var str strings.Builder
-
 	message := m.getProgressMsg(s.TotalBytes, s.ElapsedTime)
 	if s.IsDone {
 		str.WriteString(constructSuccessMessage(s.Title, message))
 	} else {
 		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.Title, message))
 	}
-
 	return str.String()
 }
 

@@ -91,11 +91,11 @@ func InitData() Data {
 			BroadcasterType: "",
 			CreatedAt:       defaultCreatedAt,
 			Description:     "",
-			DisplayName:     "slorpglorpski",
-			ID:              "972597583",
-			Login:           "slorpglorpski",
+			DisplayName:     "",
+			ID:              "",
+			Login:           "",
 			OfflineImageUrl: "",
-			ProfileImageUrl: "https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png",
+			ProfileImageUrl: "",
 			ShowTimestamps:  true,
 			Type:            "",
 			Creds: struct {
@@ -103,9 +103,9 @@ func InitData() Data {
 				ClientID     string `json:"clientId"`
 				ClientSecret string `json:"clientSecret"`
 			}{
-				AccessToken:  "rgtyj73qol873r67tcb7u6jade5cao",
-				ClientID:     "8lu60q33jxsrwjs3m19ktewx8y1ohs",
-				ClientSecret: "bvjgex1acc8wx0c1g4qnumtxnwhdgl",
+				AccessToken:  "",
+				ClientID:     "",
+				ClientSecret: "",
 			},
 		},
 		Downloader: Downloader{
@@ -159,7 +159,6 @@ func getConfigPath() (string, error) {
 
 	if configPath == "" {
 		execPath, err := os.Executable()
-
 		if err != nil || strings.HasPrefix(execPath, "/tmp") {
 			wd, err := os.Getwd()
 			if err != nil {
@@ -167,7 +166,6 @@ func getConfigPath() (string, error) {
 			}
 			return filepath.Join(wd, "twitch_config.json"), err
 		}
-
 		execDir := filepath.Dir(execPath)
 		configPath = filepath.Join(execDir, "twitch_config.json")
 	}
@@ -209,6 +207,7 @@ func Get() (*Data, error) {
 	viper.SetConfigName("twitch_config")
 	viper.SetConfigType("json")
 	viper.AddConfigPath(filepath.Dir(configPath))
+
 	err = viper.ReadInConfig()
 	if err != nil {
 		return nil, err
@@ -218,7 +217,7 @@ func Get() (*Data, error) {
 	return &data, nil
 }
 
-func ValidateCreds() error {
+func ValidateUserCreds() error {
 	cfg, err := Get()
 	if err != nil {
 		return err

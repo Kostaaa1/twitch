@@ -36,9 +36,6 @@ var Qualities = []string{
 	"worst",
 }
 
-// func MapStringToVideoType(s string) VideoType {
-// }
-
 func ValidateQuality(quality string, vtype VideoType) (string, error) {
 	for _, q := range Qualities {
 		if q == quality || strings.HasPrefix(quality, q) || strings.HasPrefix(q, quality) {

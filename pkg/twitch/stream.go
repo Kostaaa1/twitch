@@ -92,7 +92,7 @@ func (tw *TWClient) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylis
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
-	u := fmt.Sprintf("%s/TWClient/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
+	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
 	b, err := tw.fetch(u)
 	if err != nil {
@@ -101,19 +101,3 @@ func (tw *TWClient) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylis
 
 	return m3u8.Master(b), nil
 }
-
-// func (TWClient *TWClient) OpenStreamInMediaPlayer(channel string) error {
-// 	master, err := TWClient.GetStreamMasterPlaylist(channel)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	list, err := master.GetVariantPlaylistByQuality("best")
-// 	if err != nil {
-// 		return err
-// 	}
-// 	cmd := exec.Command("vlc", list.URL)
-// 	if err := cmd.Run(); err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }

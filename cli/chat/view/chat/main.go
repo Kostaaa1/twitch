@@ -96,7 +96,7 @@ type Chat struct {
 	Room     Room
 }
 
-type Model struct {
+type model struct {
 	twitch              *twitch.TWClient
 	ws                  *WebSocketClient
 	viewport            viewport.Model
@@ -140,12 +140,17 @@ func Open(twitch *twitch.TWClient, cfg *config.Data) {
 		}
 	}()
 
-	chats := []Chat{}
+	var chats []Chat
 	for i, channel := range cfg.Chat.OpenedChats {
 		chats = append(chats, createNewChat(channel, i == 0))
 	}
 
-	m := Model{
+	// chats := make([]Chat, len(cfg.Chat.OpenedChats))
+	// for i, channel := range cfg.Chat.OpenedChats {
+	// 	chats[i] = createNewChat(channel, i == 0)
+	// }
+
+	m := model{
 		twitch:              twitch,
 		ws:                  ws,
 		chats:               chats,
@@ -177,7 +182,7 @@ func createNewChat(channel string, isActive bool) Chat {
 	}
 }
 
-func (m Model) Init() tea.Cmd {
+func (m model) Init() tea.Cmd {
 	return m.waitForMsg()
 }
 
@@ -187,7 +192,7 @@ type NewChannelMessage struct {
 	Data interface{}
 }
 
-func (m Model) waitForMsg() tea.Cmd {
+func (m model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
 		newMsg := <-m.msgChan
 		switch newMsg.(type) {
@@ -205,7 +210,7 @@ func (m Model) waitForMsg() tea.Cmd {
 	}
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		tiCmd tea.Cmd
 	)
@@ -225,7 +230,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Width(m.viewport.Width).
 			Height(m.viewport.Height)
 
-		if m.chats[0].IsActive {
+		if len(m.chats) > 0 && m.chats[0].IsActive {
 			m.updateChatViewport(&m.chats[0])
 		}
 
@@ -251,21 +256,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlO:
 			go func() { // check if safe
 				chat := m.getActiveChat()
+				if chat != nil {
+					master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
+					if err != nil {
+						m.msgChan <- errMsg{err: err}
+						return
+					}
 
-				master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
-				if err != nil {
-					m.msgChan <- errMsg{err: err}
-					return
-				}
-				list, err := master.GetVariantPlaylistByQuality("best")
-				if err != nil {
-					m.msgChan <- errMsg{err: err}
-					return
-				}
-				cmd := exec.Command("vlc", list.URL)
-				if err := cmd.Run(); err != nil {
-					m.msgChan <- errMsg{err: err}
-					return
+					list, err := master.GetVariantPlaylistByQuality("best")
+					if err != nil {
+						m.msgChan <- errMsg{err: err}
+						return
+					}
+
+					cmd := exec.Command("vlc", list.URL)
+					if err := cmd.Run(); err != nil {
+						m.msgChan <- errMsg{err: err}
+						return
+					}
+
+					cmd.Wait()
+					m.msgChan <- errMsg{err: fmt.Errorf("VLC closed")}
 				}
 			}()
 		case tea.KeyTab:
@@ -320,7 +331,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(tiCmd)
 }
 
-func (m Model) View() string {
+func (m model) View() string {
 	var b strings.Builder
 	main := m.labelBox.
 		SetWidth(m.viewport.Width).
@@ -336,7 +347,7 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m *Model) createNewMessage(chat *Chat) ChatMessage {
+func (m *model) createNewMessage(chat *Chat) ChatMessage {
 	newMessage := ChatMessage{
 		Message: m.textinput.Value(),
 		Metadata: ChatMessageMetadata{
@@ -354,34 +365,36 @@ func (m *Model) createNewMessage(chat *Chat) ChatMessage {
 	return newMessage
 }
 
-func (m *Model) renderError() string {
+func (m *model) renderError() string {
 	var b strings.Builder
 	if m.err != nil {
-		b.WriteString(lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("\n\n[NOTIFY] - %s", m.err)))
+		b.WriteString(fmt.Sprintf("\n\n[ERROR] - %s", m.err))
 	} else {
 		b.WriteString("")
 	}
 	return b.String()
 }
 
-func (m *Model) sendMessage() {
+func (m *model) sendMessage() {
 	if m.textinput.Value() == "" {
 		return
 	}
 	input := m.textinput.Value()
 	if !strings.HasPrefix(input, "/") {
 		chat := m.getActiveChat()
-		newMessage := m.createNewMessage(chat)
-		m.ws.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
-		chat.Messages = append(chat.Messages, FormatChatMessage(newMessage, m.width))
-		m.updateChatViewport(chat)
+		if chat != nil {
+			newMessage := m.createNewMessage(chat)
+			m.ws.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
+			chat.Messages = append(chat.Messages, FormatChatMessage(newMessage, m.width))
+			m.updateChatViewport(chat)
+		}
 	} else {
 		m.handleInputCommand(input)
 	}
 	m.textinput.Reset()
 }
 
-func (m *Model) handleInputCommand(cmd string) {
+func (m *model) handleInputCommand(cmd string) {
 	parts := strings.Split(cmd, " ")
 	if len(parts) > 2 {
 		return
@@ -396,7 +409,7 @@ func (m *Model) handleInputCommand(cmd string) {
 	}
 }
 
-func (m *Model) addChat(channelName string) {
+func (m *model) addChat(channelName string) {
 	newChat := createNewChat(channelName, false)
 	m.chats = append(m.chats, newChat)
 	m.ws.ConnectToChannel(newChat.Channel)
@@ -404,10 +417,10 @@ func (m *Model) addChat(channelName string) {
 	for _, c := range m.chats {
 		newChannels = append(newChannels, c.Channel)
 	}
-	viper.Set("openedChats", newChannels)
+	viper.Set("chat.openedchats", newChannels)
 }
 
-func (m *Model) addRoomToChat(chanMsg Room) {
+func (m *model) addRoomToChat(chanMsg Room) {
 	for i := range m.chats {
 		c := &(m.chats)[i]
 		if c.Channel == chanMsg.Metadata.Channel {
@@ -417,17 +430,17 @@ func (m *Model) addRoomToChat(chanMsg Room) {
 	}
 }
 
-func (m *Model) removeActiveChat() {
-	var activeChan string
-	chats := []Chat{}
-	newActiveId := 0
+func (m *model) removeActiveChat() {
+	openedChats := viper.GetStringSlice("chat.openedchats")
+	var chats []Chat
+	var newActiveId int
 
-	for i, c := range m.chats {
-		if !c.IsActive {
-			chats = append(chats, c)
+	for i, chat := range m.chats {
+		if !chat.IsActive {
+			chats = append(chats, chat)
 		} else {
-			activeChan = c.Channel
-			m.ws.LeaveChannel(c.Channel)
+			openedChats = append(openedChats[:i], openedChats[i+1:]...)
+			m.ws.LeaveChannel(chat.Channel)
 			newActiveId = i
 			if i == len(m.chats)-1 {
 				newActiveId--
@@ -436,22 +449,14 @@ func (m *Model) removeActiveChat() {
 	}
 
 	chats[newActiveId].IsActive = true
-	newActiveC := chats[newActiveId]
-	m.updateChatViewport(&newActiveC)
+	chat := chats[newActiveId]
+	m.updateChatViewport(&chat)
 
-	// remove from config...
-	activeChans := viper.GetStringSlice("openedChats")
-	newOpenedChats := []string{}
-	for _, ch := range activeChans {
-		if ch != activeChan {
-			newOpenedChats = append(newOpenedChats, ch)
-		}
-	}
-	viper.Set("openedChats", newOpenedChats)
+	viper.Set("chat.openedchats", openedChats)
 	m.chats = chats
 }
 
-func (m *Model) appendMessage(chat *Chat, message string) {
+func (m *model) appendMessage(chat *Chat, message string) {
 	if len(chat.Messages) > 100 {
 		chat.Messages = chat.Messages[1:]
 	}
@@ -461,12 +466,12 @@ func (m *Model) appendMessage(chat *Chat, message string) {
 	}
 }
 
-func (m *Model) updateChatViewport(chat *Chat) {
+func (m *model) updateChatViewport(chat *Chat) {
 	m.viewport.SetContent(strings.Join(chat.Messages, "\n"))
 	m.viewport.GotoBottom()
 }
 
-func (m *Model) moveTabForward() {
+func (m *model) moveTabForward() {
 	openedChats := make([]string, len(m.chats))
 	for i := len(m.chats) - 1; i >= 0; i-- {
 		if i > 0 && m.chats[i-1].IsActive {
@@ -474,10 +479,10 @@ func (m *Model) moveTabForward() {
 		}
 		openedChats[i] = m.chats[i].Channel
 	}
-	viper.Set("openedChats", openedChats)
+	viper.Set("chat.openedchats", openedChats)
 }
 
-func (m *Model) moveTabBack() {
+func (m *model) moveTabBack() {
 	openedChats := make([]string, len(m.chats))
 	for i := range m.chats {
 		if i < len(m.chats)-1 && m.chats[i+1].IsActive {
@@ -485,10 +490,10 @@ func (m *Model) moveTabBack() {
 		}
 		openedChats[i] = m.chats[i].Channel
 	}
-	viper.Set("openedChats", openedChats)
+	viper.Set("chat.openedchats", openedChats)
 }
 
-func (m *Model) nextTab() {
+func (m *model) nextTab() {
 	var activeIndex int
 	for i, chat := range m.chats {
 		if chat.IsActive {
@@ -502,7 +507,7 @@ func (m *Model) nextTab() {
 	m.updateChatViewport(&(m.chats)[nextIndex])
 }
 
-func (m *Model) prevTab() {
+func (m *model) prevTab() {
 	var activeIndex int
 	for i, c := range m.chats {
 		if c.IsActive {
@@ -516,7 +521,7 @@ func (m *Model) prevTab() {
 	m.updateChatViewport(&(m.chats)[prevIndex])
 }
 
-func (m Model) getActiveChat() *Chat {
+func (m model) getActiveChat() *Chat {
 	for i := range m.chats {
 		if (m.chats)[i].IsActive {
 			return &(m.chats[i])
@@ -525,7 +530,7 @@ func (m Model) getActiveChat() *Chat {
 	return nil
 }
 
-func (m Model) getChat(roomID string) *Chat {
+func (m model) getChat(roomID string) *Chat {
 	for i := range m.chats {
 		if (m.chats)[i].Room.RoomID == roomID || (m.chats)[i].Channel == roomID {
 			return &(m.chats[i])
@@ -533,9 +538,12 @@ func (m Model) getChat(roomID string) *Chat {
 	}
 	return nil
 }
-
-func (m Model) renderRoomState() string {
+func (m model) renderRoomState() string {
 	chat := m.getActiveChat()
+	if chat == nil {
+		return ""
+	}
+
 	style := lipgloss.NewStyle().Faint(true)
 	switch {
 	case chat.Room.FollowersOnly != "-1":

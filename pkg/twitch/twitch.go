@@ -20,7 +20,7 @@ const (
 	gqlURL      = "https://gql.twitch.tv/gql"
 	gqlClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 	usherURL    = "https://usher.ttvnw.net"
-	helixURL    = "https://TWClient.twitch.tv/helix"
+	helixURL    = "https://api.twitch.tv/helix"
 )
 
 func New() *TWClient {

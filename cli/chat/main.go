@@ -14,7 +14,6 @@ func main() {
 		log.Fatal(err)
 	}
 	tw := twitch.New()
-
 	chat.Open(tw, jsonCfg)
 
 	// msgChan := make(chan interface{})

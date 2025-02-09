@@ -22,16 +22,9 @@ type Downloader struct {
 }
 
 func New() *Downloader {
-	var httpClient = &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     90 * time.Second,
-		},
-	}
 	return &Downloader{
 		TWApi:  twitch.New(),
-		client: httpClient,
+		client: http.DefaultClient,
 	}
 }
 
@@ -44,7 +37,6 @@ func (dl *Downloader) Download(u DownloadUnit) error {
 		switch u.Type {
 		case TypeVOD:
 			u.Error = u.downloadVOD(dl)
-			// u.Error = u.StreamVOD(dl)
 		case TypeClip:
 			u.Error = u.downloadClip(dl)
 		case TypeLivestream:

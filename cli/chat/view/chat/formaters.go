@@ -71,7 +71,7 @@ func FormatSubMessage(message SubNotice, width int) string {
 	box := NewBoxWithLabel(subColor)
 	msg = wordwrap.String(msg, width-50)
 	color := lipgloss.Color(subColor)
-	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", utils.CTWClienttalize(message.SubPlan)))
+	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", utils.Capitalize(message.SubPlan)))
 	return box.RenderBox(label, msg)
 }
 

@@ -93,8 +93,6 @@ func CreateFakeMaster(c *http.Client, vodID string, previewURL *url.URL, broadca
 		// }
 		// resolution := getResolution(quality, v)
 
-		fmt.Println("broadcastType", broadcastType)
-
 		var URL string
 		if strings.ToLower(broadcastType) == "highlight" {
 			// https://${domain}/${vodSpecialID}/${resKey}/highlight-${vodId}.m3u8
