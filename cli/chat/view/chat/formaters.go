@@ -19,7 +19,6 @@ func GenerateIcon(userType string) string {
 	case "broadcaster":
 		return colorStyle("#d20f39").Render(" [] ")
 	case "mod":
-		// return colorStyle("#40a02b").Render(" [⛨] ")
 		return " ✅"
 	case "vip":
 		return colorStyle("#ea76cb").Render(" [★] ")
@@ -55,7 +54,7 @@ func FormatChatMessage(message ChatMessage, width int) string {
 		timestamp := lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("[%s]", message.Metadata.Timestamp))
 		return fmt.Sprintf("%s%s", timestamp, msg)
 	} else {
-		firstMsgColor := viper.GetString("colors.messages.first")
+		firstMsgColor := viper.GetString("chat.colors.messages.first")
 		box := NewBoxWithLabel(firstMsgColor)
 		return box.RenderBox(lipgloss.NewStyle().Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
 	}
@@ -67,7 +66,7 @@ func FormatSubMessage(message SubNotice, width int) string {
 	}
 	msg := fmt.Sprintf(" ✯ %s", message.Metadata.SystemMsg)
 
-	subColor := viper.GetString("colors.messages.sub")
+	subColor := viper.GetString("chat.colors.messages.sub")
 	box := NewBoxWithLabel(subColor)
 	msg = wordwrap.String(msg, width-50)
 	color := lipgloss.Color(subColor)
@@ -87,7 +86,7 @@ func FormatRaidMessage(message RaidNotice, width int) string {
 		message.Metadata.SystemMsg,
 	)
 
-	raidColor := viper.GetString("colors.messages.raid")
+	raidColor := viper.GetString("chat.colors.messages.raid")
 	box := NewBoxWithLabel(raidColor)
 	msg = wordwrap.String(msg, width-50)
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color(raidColor)).Render("Raid")

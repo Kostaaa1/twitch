@@ -20,7 +20,6 @@ type UserConfig struct {
 	Login           string    `json:"login"`
 	OfflineImageUrl string    `json:"offlineImageUrl"`
 	ProfileImageUrl string    `json:"profileImageUrl"`
-	ShowTimestamps  bool      `json:"showTimestamps"`
 	Type            string    `json:"type"`
 	Creds           struct {
 		AccessToken  string `json:"accessToken"`
@@ -30,8 +29,9 @@ type UserConfig struct {
 }
 
 type Config struct {
-	OpenedChats []string `json:"openedChats"`
-	Colors      Colors   `json:"colors"`
+	OpenedChats    []string `json:"openedChats"`
+	ShowTimestamps bool     `json:"showTimestamps"`
+	Colors         Colors   `json:"colors"`
 }
 
 type Downloader struct {
@@ -80,7 +80,6 @@ func InitData() Data {
 			Login           string    `json:"login"`
 			OfflineImageUrl string    `json:"offlineImageUrl"`
 			ProfileImageUrl string    `json:"profileImageUrl"`
-			ShowTimestamps  bool      `json:"showTimestamps"`
 			Type            string    `json:"type"`
 			Creds           struct {
 				AccessToken  string `json:"accessToken"`
@@ -96,7 +95,6 @@ func InitData() Data {
 			Login:           "",
 			OfflineImageUrl: "",
 			ProfileImageUrl: "",
-			ShowTimestamps:  true,
 			Type:            "",
 			Creds: struct {
 				AccessToken  string `json:"accessToken"`
@@ -115,10 +113,12 @@ func InitData() Data {
 			SpinnerModel:    "dot",
 		},
 		Chat: struct {
-			OpenedChats []string `json:"openedChats"`
-			Colors      Colors   `json:"colors"`
+			OpenedChats    []string `json:"openedChats"`
+			ShowTimestamps bool     `json:"showTimestamps"`
+			Colors         Colors   `json:"colors"`
 		}{
-			OpenedChats: []string{},
+			OpenedChats:    []string{},
+			ShowTimestamps: true,
 			Colors: Colors{
 				Primary:   "#8839ef",
 				Secondary: "",

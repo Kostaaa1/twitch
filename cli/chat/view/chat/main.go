@@ -108,16 +108,18 @@ type model struct {
 	chats               []Chat
 	displayCommands     bool
 	commandsWindowWidth int
-	err                 error
+	notifyMsg           string
 }
 
-type errMsg struct {
-	err error
-}
+// type errMsg struct {
+// 	err error
+// }
 
-func (e errMsg) Error() string {
-	return e.err.Error()
-}
+// func (e errMsg) Error() string {
+// 	return e.err.Error()
+// }
+
+type notifyMsg string
 
 func Open(twitch *twitch.TWClient, cfg *config.Data) {
 	vp := viewport.New(0, 0)
@@ -145,16 +147,10 @@ func Open(twitch *twitch.TWClient, cfg *config.Data) {
 		chats = append(chats, createNewChat(channel, i == 0))
 	}
 
-	// chats := make([]Chat, len(cfg.Chat.OpenedChats))
-	// for i, channel := range cfg.Chat.OpenedChats {
-	// 	chats[i] = createNewChat(channel, i == 0)
-	// }
-
 	m := model{
 		twitch:              twitch,
 		ws:                  ws,
 		chats:               chats,
-		err:                 nil,
 		width:               0,
 		height:              0,
 		msgChan:             msgChan,
@@ -196,12 +192,12 @@ func (m model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
 		newMsg := <-m.msgChan
 		switch newMsg.(type) {
-		case errMsg:
+		case notifyMsg:
 			if errTimer != nil {
 				errTimer.Stop()
 			}
 			errTimer = time.AfterFunc(time.Second*2, func() {
-				m.msgChan <- errMsg{err: nil}
+				m.msgChan <- newMsg
 			})
 			return newMsg
 		default:
@@ -232,6 +228,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if len(m.chats) > 0 && m.chats[0].IsActive {
 			m.updateChatViewport(&m.chats[0])
+		} else if len(m.chats) == 0 {
+			msg := "No active chats. Use '/add <channel_name>' to join channel."
+			m.viewport.SetContent(lipgloss.NewStyle().Faint(true).Render(msg))
 		}
 
 	case tea.KeyMsg:
@@ -259,24 +258,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if chat != nil {
 					master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
 					if err != nil {
-						m.msgChan <- errMsg{err: err}
+						m.msgChan <- notifyMsg(err.Error())
 						return
 					}
 
 					list, err := master.GetVariantPlaylistByQuality("best")
 					if err != nil {
-						m.msgChan <- errMsg{err: err}
+						m.msgChan <- notifyMsg(err.Error())
 						return
 					}
 
 					cmd := exec.Command("vlc", list.URL)
 					if err := cmd.Run(); err != nil {
-						m.msgChan <- errMsg{err: err}
+						m.msgChan <- notifyMsg(err.Error())
 						return
 					}
 
 					cmd.Wait()
-					m.msgChan <- errMsg{err: fmt.Errorf("VLC closed")}
+					m.msgChan <- notifyMsg("VLC closed")
 				}
 			}()
 		case tea.KeyTab:
@@ -288,8 +287,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case errMsg:
-		m.err = msg.err
+	case notifyMsg:
 		return m, m.waitForMsg()
 
 	case NewChannelMessage:
@@ -312,8 +310,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case Notice:
 			if chanMsg.Err != nil {
 				go func() {
-					m.msgChan <- errMsg{err: fmt.Errorf(chanMsg.SystemMsg)}
-					m.msgChan <- errMsg{chanMsg.Err}
+					m.msgChan <- notifyMsg(chanMsg.SystemMsg)
+					m.msgChan <- notifyMsg(chanMsg.Err.Error())
 				}()
 			}
 			if chanMsg.Err != nil {
@@ -333,14 +331,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var b strings.Builder
-	main := m.labelBox.
-		SetWidth(m.viewport.Width).
-		RenderBoxWithTabs(m.chats, m.viewport.View())
+	main := m.labelBox.SetWidth(m.viewport.Width).RenderBoxWithTabs(m.chats, m.viewport.View())
 	if !m.displayCommands {
 		b.WriteString(main)
 	} else {
-		b.WriteString(lipgloss.
-			JoinHorizontal(lipgloss.Position(0.5), main, components.RenderCommands(m.commandsWindowWidth, m.height)))
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0.5), main, components.RenderCommands(m.commandsWindowWidth, m.height)))
 	}
 	b.WriteString("\n" + lipgloss.JoinHorizontal(lipgloss.Position(0), m.renderRoomState(), m.textinput.View()))
 	b.WriteString(m.renderError())
@@ -367,8 +362,8 @@ func (m *model) createNewMessage(chat *Chat) ChatMessage {
 
 func (m *model) renderError() string {
 	var b strings.Builder
-	if m.err != nil {
-		b.WriteString(fmt.Sprintf("\n\n[ERROR] - %s", m.err))
+	if m.notifyMsg != "" {
+		b.WriteString(fmt.Sprintf("\n\n[ERROR] - %s", m.notifyMsg))
 	} else {
 		b.WriteString("")
 	}
@@ -405,12 +400,12 @@ func (m *model) handleInputCommand(cmd string) {
 	case "/info":
 		fmt.Println(parts[1])
 	default:
-		m.msgChan <- errMsg{err: fmt.Errorf("invalid command: %s", cmd)}
+		m.msgChan <- notifyMsg(fmt.Sprintf("invalid command: %s", cmd))
 	}
 }
 
 func (m *model) addChat(channelName string) {
-	newChat := createNewChat(channelName, false)
+	newChat := createNewChat(channelName, len(m.chats) == 0)
 	m.chats = append(m.chats, newChat)
 	m.ws.ConnectToChannel(newChat.Channel)
 	newChannels := []string{}
