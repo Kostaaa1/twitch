@@ -16,14 +16,16 @@ type errMsg error
 type quitMsg struct{}
 
 type ChannelMessage struct {
-	Text   string
-	Bytes  int64
-	Error  error
-	IsDone bool
+	Text    string
+	Message string
+	Bytes   int64
+	Error   error
+	IsDone  bool
 }
 
 type unit struct {
 	Title       string
+	Message     string
 	TotalBytes  float64
 	StartTime   time.Time
 	ElapsedTime time.Duration
@@ -117,6 +119,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.units[i].Err = msg.Error
 				}
 
+				m.units[i].Message = msg.Message
+
 				if m.units[i].StartTime.IsZero() {
 					m.units[i].StartTime = time.Now()
 				}
@@ -173,7 +177,7 @@ func (m model) View() string {
 	}
 	var str strings.Builder
 	for i := 0; i < len(m.units); i++ {
-		str.WriteString(m.wrapText(m.constructStateMessage(m.units[i])))
+		str.WriteString(m.wrapText(m.formatMessage(m.units[i])))
 		str.WriteString("\n")
 	}
 	return str.String()
@@ -183,17 +187,17 @@ func (m model) wrapText(text string) string {
 	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
 }
 
-func (m model) constructStateMessage(s unit) string {
-	if s.Err != nil {
-		return constructErrorMessage(s.Err)
+func (m model) formatMessage(u unit) string {
+	if u.Err != nil {
+		return constructErrorMessage(u.Err)
 	}
 
 	var str strings.Builder
-	message := m.getProgressMsg(s.TotalBytes, s.ElapsedTime)
-	if s.IsDone {
-		str.WriteString(constructSuccessMessage(s.Title, message))
+	progMsg := m.getProgressMsg(u.TotalBytes, u.ElapsedTime)
+	if u.IsDone {
+		str.WriteString(constructSuccessMessage(u.Title, progMsg))
 	} else {
-		str.WriteString(fmt.Sprintf(" %s %s %s", m.spinner.View(), s.Title, message))
+		str.WriteString(fmt.Sprintf(" %s %s %s %s", m.spinner.View(), u.Title, progMsg, u.Message))
 	}
 	return str.String()
 }

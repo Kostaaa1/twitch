@@ -22,9 +22,17 @@ type Downloader struct {
 }
 
 func New() *Downloader {
+	// httpClient := &http.Client{
+	// 	Transport: &http.Transport{
+	// 		MaxIdleConns:       10,
+	// 		IdleConnTimeout:    30 * time.Second,
+	// 		DisableCompression: true,
+	// 	},
+	// }
+	httpClient := http.DefaultClient
 	return &Downloader{
 		TWApi:  twitch.New(),
-		client: http.DefaultClient,
+		client: httpClient,
 	}
 }
 
@@ -104,24 +112,32 @@ func (mu *DownloadUnit) recordStream(dl *Downloader) error {
 	var halfBytes *bytes.Reader
 
 	for range ticker.C {
+		b, err := dl.fetch(mediaList.URL)
+		if err != nil {
+			fmt.Println("Stream ended!")
+			return nil
+		}
+		segments := strings.Split(string(b), "\n")
+		tsURL := segments[len(segments)-2]
+
+		if strings.Contains(segments[len(segments)-3], "Amazon") {
+			if file, ok := mu.Writer.(*os.File); ok && file != nil {
+				dl.progressCh <- spinner.ChannelMessage{
+					Message: "Ad is currently running...",
+					Text:    file.Name(),
+					Bytes:   0,
+				}
+			}
+			continue
+		}
+
 		tickCount++
 		var n int64
 
 		if tickCount%2 != 0 {
-			b, err := dl.fetch(mediaList.URL)
-			if err != nil {
-				fmt.Println("Stream ended: ", err)
-				return nil
-			}
-
-			segments := strings.Split(string(b), "\n")
-			tsURL := segments[len(segments)-2]
-
 			bodyBytes, _ := dl.fetch(tsURL)
-
 			half := len(bodyBytes) / 2
 			halfBytes = bytes.NewReader(bodyBytes[half:])
-
 			n, _ = io.Copy(mu.Writer, bytes.NewReader(bodyBytes[:half]))
 		}
 

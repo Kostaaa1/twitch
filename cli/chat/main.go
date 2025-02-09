@@ -15,18 +15,4 @@ func main() {
 	}
 	tw := twitch.New()
 	chat.Open(tw, jsonCfg)
-
-	// msgChan := make(chan interface{})
-	// ws, err := chat.CreateWSClient()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// go func() {
-	// 	if err := ws.Connect(jsonCfg.User.Creds.AccessToken, jsonCfg.User.DisplayName, msgChan, []string{"ohnepixel", "tyler1"}); err != nil {
-	// 		fmt.Println("Connection error: ", err)
-	// 	}
-	// }()
-	// for msg := range msgChan {
-	// 	fmt.Println("received msg: ", msg)
-	// }
 }
