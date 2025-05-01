@@ -16,7 +16,7 @@ import (
 )
 
 type Downloader struct {
-	TWApi      *twitch.TWClient
+	TWApi      *twitch.Client
 	progressCh chan spinner.ChannelMessage
 	client     *http.Client
 }
@@ -65,6 +65,7 @@ func (dl *Downloader) BatchDownload(units []DownloadUnit) {
 
 		go func(u DownloadUnit) {
 			defer wg.Done()
+
 			sem <- struct{}{}
 			defer func() { <-sem }()
 

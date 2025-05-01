@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,39 +11,43 @@ import (
 )
 
 type UserConfig struct {
-	BroadcasterType string    `json:"broadcasterType"`
-	CreatedAt       time.Time `json:"createdAt"`
+	BroadcasterType string    `json:"broadcaster_type"`
+	CreatedAt       time.Time `json:"created_at"`
 	Description     string    `json:"description"`
-	DisplayName     string    `json:"displayName"`
+	DisplayName     string    `json:"display_name"`
 	ID              string    `json:"id"`
 	Login           string    `json:"login"`
-	OfflineImageUrl string    `json:"offlineImageUrl"`
-	ProfileImageUrl string    `json:"profileImageUrl"`
+	OfflineImageUrl string    `json:"offline_image_url"`
+	ProfileImageUrl string    `json:"profile_image_url"`
 	Type            string    `json:"type"`
-	Creds           struct {
-		AccessToken  string `json:"accessToken"`
-		ClientID     string `json:"clientId"`
-		ClientSecret string `json:"clientSecret"`
-	} `json:"creds"`
+	Creds           Creds     `json:"creds"`
 }
 
-type Config struct {
-	OpenedChats    []string `json:"openedChats"`
-	ShowTimestamps bool     `json:"showTimestamps"`
+type Creds struct {
+	RefreshToken string `json:"refresh_token"`
+	AccessToken  string `json:"access_token"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectURL  string `json:"redirect_url"`
+}
+
+type ChatConfig struct {
+	OpenedChats    []string `json:"opened_chats"`
+	ShowTimestamps bool     `json:"show_timestamps"`
 	Colors         Colors   `json:"colors"`
 }
 
 type Downloader struct {
-	IsFFmpegEnabled bool   `json:"isFFmpegEnabled"`
-	ShowSpinner     bool   `json:"showSpinner"`
+	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
+	ShowSpinner     bool   `json:"show_spinner"`
 	Output          string `json:"output"`
-	SpinnerModel    string `json:"spinnerModel"`
+	SpinnerModel    string `json:"spinner_model"`
 }
 
 type Data struct {
 	User       UserConfig `json:"user"`
 	Downloader Downloader `json:"downloader"`
-	Chat       Config     `json:"chat"`
+	Chat       ChatConfig `json:"chat"`
 }
 
 type Colors struct {
@@ -68,25 +71,10 @@ type Colors struct {
 	Timestamp string `json:"timestamp"`
 }
 
-func InitData() Data {
+func InitConfigData() Data {
 	defaultCreatedAt, _ := time.Parse(time.RFC3339, "2023-10-18T21:12:53Z")
 	return Data{
-		User: struct {
-			BroadcasterType string    `json:"broadcasterType"`
-			CreatedAt       time.Time `json:"createdAt"`
-			Description     string    `json:"description"`
-			DisplayName     string    `json:"displayName"`
-			ID              string    `json:"id"`
-			Login           string    `json:"login"`
-			OfflineImageUrl string    `json:"offlineImageUrl"`
-			ProfileImageUrl string    `json:"profileImageUrl"`
-			Type            string    `json:"type"`
-			Creds           struct {
-				AccessToken  string `json:"accessToken"`
-				ClientID     string `json:"clientId"`
-				ClientSecret string `json:"clientSecret"`
-			} `json:"creds"`
-		}{
+		User: UserConfig{
 			BroadcasterType: "",
 			CreatedAt:       defaultCreatedAt,
 			Description:     "",
@@ -96,14 +84,12 @@ func InitData() Data {
 			OfflineImageUrl: "",
 			ProfileImageUrl: "",
 			Type:            "",
-			Creds: struct {
-				AccessToken  string `json:"accessToken"`
-				ClientID     string `json:"clientId"`
-				ClientSecret string `json:"clientSecret"`
-			}{
+			Creds: Creds{
 				AccessToken:  "",
 				ClientID:     "",
 				ClientSecret: "",
+				RefreshToken: "",
+				RedirectURL:  "",
 			},
 		},
 		Downloader: Downloader{
@@ -112,11 +98,7 @@ func InitData() Data {
 			Output:          "",
 			SpinnerModel:    "dot",
 		},
-		Chat: struct {
-			OpenedChats    []string `json:"openedChats"`
-			ShowTimestamps bool     `json:"showTimestamps"`
-			Colors         Colors   `json:"colors"`
-		}{
+		Chat: ChatConfig{
 			OpenedChats:    []string{},
 			ShowTimestamps: true,
 			Colors: Colors{
@@ -183,7 +165,7 @@ func Get() (*Data, error) {
 
 	if _, err := os.Stat(configPath); err != nil {
 		if os.IsNotExist(err) {
-			data = InitData()
+			data = InitConfigData()
 
 			b, err := json.MarshalIndent(data, "", " ")
 			if err != nil {
@@ -217,30 +199,26 @@ func Get() (*Data, error) {
 	return &data, nil
 }
 
-func ValidateUserCreds() error {
-	cfg, err := Get()
-	if err != nil {
-		return err
-	}
-
-	errors := []string{}
-
-	if cfg.User.Creds.AccessToken == "" {
-		errors = append(errors, "AccessToken")
-	}
-	if cfg.User.Creds.ClientSecret == "" {
-		errors = append(errors, "ClientSecret")
-	}
-	if cfg.User.Creds.ClientID == "" {
-		errors = append(errors, "ClientID")
-	}
-
-	if len(errors) > 0 {
-		for _, err := range errors {
-			msg := fmt.Sprintf("missing %s from twith_config.json", err)
-			return fmt.Errorf(msg)
-		}
-	}
-
-	return nil
-}
+// func ValidateUserCreds() error {
+// 	cfg, err := Get()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	errors := []string{}
+// 	if cfg.User.Creds.AccessToken == "" {
+// 		errors = append(errors, "AccessToken")
+// 	}
+// 	if cfg.User.Creds.ClientSecret == "" {
+// 		errors = append(errors, "ClientSecret")
+// 	}
+// 	if cfg.User.Creds.ClientID == "" {
+// 		errors = append(errors, "ClientID")
+// 	}
+// 	if len(errors) > 0 {
+// 		for _, err := range errors {
+// 			msg := fmt.Sprintf("missing %s from twith_config.json", err)
+// 			return fmt.Errorf(msg)
+// 		}
+// 	}
+// 	return nil
+// }

@@ -97,7 +97,7 @@ type Chat struct {
 }
 
 type model struct {
-	twitch              *twitch.TWClient
+	twitch              *twitch.Client
 	ws                  *WebSocketClient
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
@@ -121,7 +121,7 @@ type model struct {
 
 type notifyMsg string
 
-func Open(twitch *twitch.TWClient, cfg *config.Data) {
+func Open(twitch *twitch.Client, cfg *config.Data) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()
@@ -131,13 +131,14 @@ func Open(twitch *twitch.TWClient, cfg *config.Data) {
 	t.Focus()
 
 	msgChan := make(chan interface{})
+
 	ws, err := CreateWSClient()
 	if err != nil {
 		panic(err)
 	}
 
 	go func() {
-		if err := ws.Connect(cfg.User.Creds.AccessToken, cfg.User.Creds.ClientID, msgChan, cfg.Chat.OpenedChats); err != nil {
+		if err := ws.ConnectToIRC(cfg.User.Creds.AccessToken, cfg.User.Login, msgChan, cfg.Chat.OpenedChats); err != nil {
 			fmt.Println("Connection error: ", err)
 		}
 	}()

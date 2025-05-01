@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (twc *TWClient) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
@@ -123,7 +123,7 @@ type Clip struct {
 	Typename               string `json:"__typename"`
 }
 
-func (twc *TWClient) ClipMetadata(slug string) (Clip, error) {
+func (c *Client) ClipMetadata(slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {
@@ -144,7 +144,7 @@ func (twc *TWClient) ClipMetadata(slug string) (Clip, error) {
 	}
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-	if err := twc.sendGqlLoadAndDecode(body, &result); err != nil {
+	if err := c.sendGqlLoadAndDecode(body, &result); err != nil {
 		return Clip{}, err
 	}
 

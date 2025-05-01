@@ -24,7 +24,7 @@ type StreamMetadata struct {
 	} `json:"stream"`
 }
 
-func (tw *TWClient) StreamMetadata(channelName string) (*StreamMetadata, error) {
+func (tw *Client) StreamMetadata(channelName string) (*StreamMetadata, error) {
 	gqlPl := `{
 		"operationName": "NielsenContentMetadata",
 		"variables": {
@@ -58,7 +58,7 @@ func (tw *TWClient) StreamMetadata(channelName string) (*StreamMetadata, error) 
 	return &resp.Data.Stream, nil
 }
 
-func (tw *TWClient) GetLivestreamCreds(id string) (string, string, error) {
+func (tw *Client) GetLivestreamCreds(id string) (string, string, error) {
 	gqlPl := `{
 		"operationName": "PlaybackAccessToken_Template",
 		"query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -86,7 +86,7 @@ func (tw *TWClient) GetLivestreamCreds(id string) (string, string, error) {
 	return data.Data.VideoPlaybackAccessToken.Value, data.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (tw *TWClient) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
+func (tw *Client) GetStreamMasterPlaylist(channel string) (*m3u8.MasterPlaylist, error) {
 	tok, sig, err := tw.GetLivestreamCreds(channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)

@@ -10,10 +10,9 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 )
 
-type TWClient struct {
-	client *http.Client
-	config config.Data
-	// progressCh chan spinner.ChannelMessage
+type Client struct {
+	httpClient *http.Client
+	config     config.Data
 }
 
 const (
@@ -21,20 +20,21 @@ const (
 	gqlClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 	usherURL    = "https://usher.ttvnw.net"
 	helixURL    = "https://api.twitch.tv/helix"
+	oauthURL    = "https://id.twitch.tv/oauth2"
 )
 
-func New() *TWClient {
-	return &TWClient{
-		client: http.DefaultClient,
+func New() *Client {
+	return &Client{
+		httpClient: http.DefaultClient,
 	}
 }
 
-func (tw *TWClient) SetConfig(cfg config.Data) {
+func (tw *Client) SetConfig(cfg config.Data) {
 	tw.config = cfg
 }
 
-func (tw *TWClient) do(req *http.Request) (*http.Response, error) {
-	resp, err := tw.client.Do(req)
+func (tw *Client) do(req *http.Request) (*http.Response, error) {
+	resp, err := tw.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request: %s", err)
 	}
@@ -46,8 +46,8 @@ func (tw *TWClient) do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (tw *TWClient) fetchWithCode(url string) ([]byte, int, error) {
-	resp, err := tw.client.Get(url)
+func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
+	resp, err := tw.httpClient.Get(url)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -65,8 +65,8 @@ func (tw *TWClient) fetchWithCode(url string) ([]byte, int, error) {
 	return bytes, resp.StatusCode, nil
 }
 
-func (tw *TWClient) fetch(url string) ([]byte, error) {
-	resp, err := tw.client.Get(url)
+func (tw *Client) fetch(url string) ([]byte, error) {
+	resp, err := tw.httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -83,7 +83,7 @@ func (tw *TWClient) fetch(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (tw *TWClient) decodeJSONResponse(resp *http.Response, p interface{}) error {
+func (tw *Client) decodeJSONResponse(resp *http.Response, p interface{}) error {
 	defer resp.Body.Close()
 	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
 		return err
@@ -91,7 +91,7 @@ func (tw *TWClient) decodeJSONResponse(resp *http.Response, p interface{}) error
 	return nil
 }
 
-func (tw *TWClient) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
+func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	req, err := http.NewRequest(http.MethodPost, gqlURL, body)
 	if err != nil {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
@@ -111,6 +111,6 @@ func (tw *TWClient) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	return nil
 }
 
-func (tw *TWClient) GetToken() string {
+func (tw *Client) GetToken() string {
 	return fmt.Sprintf("Bearer %s", tw.config.User.Creds.AccessToken)
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type Static struct {
-	// tw *twitch.TWClient
+	// tw *twitch.Client
 	dl *twitchdl.Downloader
 }
 

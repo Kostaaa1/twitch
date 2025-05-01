@@ -61,7 +61,7 @@ type User struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func (tw *TWClient) GetUserInfo(loginName string) (*User, error) {
+func (tw *Client) GetUserInfo(loginName string) (*User, error) {
 	u := fmt.Sprintf("%s/users?login=%s", helixURL, loginName)
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -99,13 +99,12 @@ func (tw *TWClient) GetUserInfo(loginName string) (*User, error) {
 	return &user.Data[0], nil
 }
 
-func (tw *TWClient) GetChannelInfo(broadcasterID string) (*Channel, error) {
+func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
 	req.Header.Set("Authorization", tw.GetToken())
 
@@ -132,7 +131,7 @@ func (tw *TWClient) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	return &channel.Data[0], nil
 }
 
-func (tw *TWClient) GetFollowedStreams(id string) (*Streams, error) {
+func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
@@ -161,13 +160,13 @@ func (tw *TWClient) GetFollowedStreams(id string) (*Streams, error) {
 	return &streams, nil
 }
 
-func (tw *TWClient) GetStream(userId string) (*Streams, error) {
+func (tw *Client) GetStream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
+
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
 	req.Header.Set("Authorization", tw.GetToken())
 
@@ -190,7 +189,7 @@ func (tw *TWClient) GetStream(userId string) (*Streams, error) {
 	return &streams, nil
 }
 
-func (tw *TWClient) IsChannelLive(channelName string) (bool, error) {
+func (tw *Client) IsChannelLive(channelName string) (bool, error) {
 	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
 
 	resp, err := http.Get(u)
@@ -208,8 +207,8 @@ func (tw *TWClient) IsChannelLive(channelName string) (bool, error) {
 		return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
 	}
 
-	if strings.HasPrefix(string(b), "[Error from Twitch TWClient]") {
-		return false, fmt.Errorf("[Error from Twitch TWClient]")
+	if strings.HasPrefix(string(b), "[Error from Twitch Client]") {
+		return false, fmt.Errorf("[Error from Twitch Client]")
 	}
 
 	return !strings.Contains(string(b), "offline"), nil

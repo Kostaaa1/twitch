@@ -16,7 +16,7 @@ type VideoCredResponse struct {
 	Value     string `json:"value"`
 }
 
-func (tw *TWClient) getVideoCredentials(id string) (string, string, error) {
+func (tw *Client) getVideoCredentials(id string) (string, string, error) {
 	gqlPayload := `{
 	    "operationName": "PlaybackAccessToken_Template",
 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -48,7 +48,7 @@ func (tw *TWClient) getVideoCredentials(id string) (string, string, error) {
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (tw *TWClient) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error) {
+func (tw *Client) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error) {
 	token, sig, err := tw.getVideoCredentials(vodID)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
@@ -66,7 +66,7 @@ func (tw *TWClient) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, e
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
-		return m3u8.CreateFakeMaster(tw.client, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
+		return m3u8.CreateFakeMaster(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
 	}
 
 	if err != nil {
@@ -76,7 +76,7 @@ func (tw *TWClient) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, e
 	return m3u8.Master(b), code, nil
 }
 
-func (tw *TWClient) GetVODMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
+func (tw *Client) GetVODMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
 	mediaPlaylist, err := tw.fetch(variant.URL)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ type VideoMetadata struct {
 	Video       Video `json:"video"`
 }
 
-func (tw *TWClient) VideoMetadata(id string) (VideoMetadata, error) {
+func (tw *Client) VideoMetadata(id string) (VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
 		"variables": {
@@ -141,23 +141,23 @@ func (tw *TWClient) VideoMetadata(id string) (VideoMetadata, error) {
 }
 
 type Video struct {
-	ID                  string        `json:"id"`
-	Title               string        `json:"title"`
-	PreviewThumbnailURL string        `json:"previewThumbnailURL"`
-	PublishedAt         time.Time     `json:"publishedAt"`
-	ViewCount           int64         `json:"viewCount"`
-	LengthSeconds       int64         `json:"lengthSeconds"`
-	AnimatedPreviewURL  string        `json:"animatedPreviewURL"`
-	ResourceRestriction interface{}   `json:"resourceRestriction"`
-	ContentTags         []interface{} `json:"contentTags"`
-	CreatedAt           time.Time     `json:"created_at"`
-	Self                struct {
+	ID                  string    `json:"id"`
+	Title               string    `json:"title"`
+	PreviewThumbnailURL string    `json:"previewThumbnailURL"`
+	PublishedAt         time.Time `json:"publishedAt"`
+	ViewCount           int64     `json:"viewCount"`
+	LengthSeconds       int64     `json:"lengthSeconds"`
+	AnimatedPreviewURL  string    `json:"animatedPreviewURL"`
+	// ResourceRestriction interface{}   `json:"resourceRestriction"`
+	ContentTags []interface{} `json:"contentTags"`
+	CreatedAt   time.Time     `json:"created_at"`
+	Self        struct {
 		IsRestricted   bool `json:"isRestricted"`
 		ViewingHistory struct {
 			Position int    `json:"position"`
 			Typename string `json:"__typename"`
 		} `json:"viewingHistory"`
-		Typename string `json:"__typename"`
+		// Typename string `json:"__typename"`
 	} `json:"self"`
 	Game struct {
 		ID          string `json:"id"`
@@ -165,7 +165,7 @@ type Video struct {
 		BoxArtURL   string `json:"boxArtURL"`
 		DisplayName string `json:"displayName"`
 		Name        string `json:"name"`
-		Typename    string `json:"__typename"`
+		// Typename    string `json:"__typename"`
 	} `json:"game"`
 	Owner struct {
 		ID              string `json:"id"`
@@ -173,51 +173,106 @@ type Video struct {
 		Login           string `json:"login"`
 		ProfileImageURL string `json:"profileImageURL"`
 		PrimaryColorHex string `json:"primaryColorHex"`
-		Typename        string `json:"__typename"`
+		// Typename        string `json:"__typename"`
 	} `json:"owner"`
-	Typename string `json:"__typename"`
+	// Typename string `json:"__typename"`
 }
 
-func (tw *TWClient) GetVideosByUsername(username string) ([]Video, error) {
+type FilterableVideoTower_Videos struct {
+	Data struct {
+		User struct {
+			ID     string `json:"id"`
+			Videos struct {
+				Edges []struct {
+					Cursor   interface{} `json:"cursor"`
+					Node     Video       `json:"node"`
+					Typename string      `json:"__typename"`
+				} `json:"edges"`
+				PageInfo struct {
+					HasNextPage bool   `json:"hasNextPage"`
+					Typename    string `json:"__typename"`
+				} `json:"pageInfo"`
+				Typename string `json:"__typename"`
+			} `json:"videos"`
+			Typename string `json:"__typename"`
+		} `json:"user"`
+	} `json:"data"`
+}
+
+func (tw *Client) GetVideosByChannelName(channelName string, limit int) ([]Video, error) {
 	gqlPl := `{
-		"operationName": "HomeShelfVideos",
+		"operationName": "FilterableVideoTower_Videos",
 		"variables": {
-			"channelLogin": "%s",
-			"first": 1
+			"limit": %d,
+			"channelOwnerLogin": "%s",
+			"broadcastType": "ARCHIVE",
+			"videoSort": "TIME"
 		},
 		"extensions": {
 			"persistedQuery": {
 				"version": 1,
-				"sha256Hash": "951c268434dc36a482c6f854215df953cf180fc2757f1e0e47aa9821258debf7"
+				"sha256Hash": "acea7539a293dfd30f0b0b81a263134bb5d9a7175592e14ac3f7c77b192de416"
 			}
 		}
 	}`
+	body := strings.NewReader(fmt.Sprintf(gqlPl, limit, channelName))
 
-	body := strings.NewReader(fmt.Sprintf(gqlPl, username))
-
-	type payload struct {
+	type data struct {
 		Data struct {
 			User struct {
-				ID           string `json:"id"`
-				VideoShelves struct {
+				ID     string `json:"id"`
+				Videos struct {
 					Edges []struct {
-						Node struct {
-							Items    []Video `json:"items"`
-							Typename string  `json:"__typename"`
-						} `json:"node"`
-						Typename string `json:"__typename"`
+						Cursor   interface{} `json:"cursor"`
+						Node     Video       `json:"node"`
+						Typename string      `json:"__typename"`
 					} `json:"edges"`
-					Typename string `json:"__typename"`
-				} `json:"videoShelves"`
-				Typename string `json:"__typename"`
+					PageInfo struct {
+						HasNextPage bool `json:"hasNextPage"`
+						// Typename    string `json:"__typename"`
+					} `json:"pageInfo"`
+					// Typename string `json:"__typename"`
+				} `json:"videos"`
+				// Typename string `json:"__typename"`
 			} `json:"user"`
 		} `json:"data"`
 	}
-	var p payload
 
+	var p data
 	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
 		return nil, err
 	}
 
-	return p.Data.User.VideoShelves.Edges[0].Node.Items, nil
+	videos := make([]Video, len(p.Data.User.Videos.Edges))
+	for i, video := range p.Data.User.Videos.Edges {
+		videos[i] = video.Node
+	}
+
+	return videos, nil
+}
+
+type SubVODResponse struct {
+	Video struct {
+		BroadcastType string    `json:"broadcastType"`
+		CreatedAt     time.Time `json:"createdAt"`
+		Owner         struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+		SeekPreviewsURL string `json:"seekPreviewsURL"`
+	} `json:"video"`
+}
+
+func (tw *Client) SubVODData(vodID string) (SubVODResponse, error) {
+	gqlPayload := `{
+ 	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
+	}`
+	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
+
+	var subVodResponse struct {
+		Data SubVODResponse `json:"data"`
+	}
+	if err := tw.sendGqlLoadAndDecode(body, &subVodResponse); err != nil {
+		return SubVODResponse{}, err
+	}
+	return subVodResponse.Data, nil
 }

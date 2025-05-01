@@ -41,7 +41,7 @@ func (c *WebSocketClient) ConnectToChannel(channel string) {
 	c.SendMessage([]byte(join))
 }
 
-func (c *WebSocketClient) Connect(accessToken, username string, msgChan chan interface{}, channels []string) error {
+func (c *WebSocketClient) ConnectToIRC(accessToken, username string, msgChan chan interface{}, channels []string) error {
 	c.SendMessage([]byte("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands"))
 
 	pass := fmt.Sprintf("PASS oauth:%s", accessToken)
@@ -83,10 +83,18 @@ func (c *WebSocketClient) Connect(accessToken, username string, msgChan chan int
 					c.SendMessage([]byte("PONG :tmi.twitch.tv"))
 				case "NOTICE":
 					parsed := parseNOTICE(rawIRCMessage)
-					if parsed.MsgID == "msg_banned" {
+					fmt.Println(parsed)
+
+					switch {
+					case parsed.SystemMsg == "Login authentication failed":
+						fmt.Println("Authentication failed")
+					case parsed.SystemMsg == "Login unsuccessful":
+						fmt.Println("login unsuccessful")
+					case parsed.MsgID == "msg_banned":
 						c.LeaveChannel(parsed.DisplayName)
+					default:
+						msgChan <- parsed
 					}
-					msgChan <- parsed
 				}
 			}
 		}

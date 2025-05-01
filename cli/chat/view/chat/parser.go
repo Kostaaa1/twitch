@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -247,11 +246,12 @@ func parseNOTICE(rawMsg string) Notice {
 	var notice Notice
 	parts := strings.Split(rawMsg[1:], " :")
 
-	if len(parts) < 3 {
-		notice.Err = fmt.Errorf(parts[1])
-		return notice
-	}
+	// if len(parts) < 3 {
+	// 	notice.Err = fmt.Errorf("parsing error: %s", parts[1])
+	// 	return notice
+	// }
 
+	notice.SystemMsg = parts[1]
 	notice.MsgID = strings.Split(parts[0], "=")[1]
 	notice.DisplayName = strings.Split(parts[1], "#")[1]
 	return notice

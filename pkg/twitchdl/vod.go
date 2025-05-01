@@ -18,6 +18,7 @@ type segmentJob struct {
 	bytesRead int64
 }
 
+// concurrent ordered download. Segments needs to be in order so it can be written to file. Instead of doing this sequentally (one-by-one), this is downloading them concurrently.
 func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
 	master, status, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
 	if err != nil && status != http.StatusForbidden {
