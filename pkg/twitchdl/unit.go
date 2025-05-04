@@ -21,12 +21,12 @@ const (
 	TypeLivestream
 )
 
-type DownloadUnit struct {
+type Unit struct {
+	// unique identifier. vod ID or clip Slug
 	ID      string
-	Title   string
-	Type    VideoType
 	URL     string
-	Quality string
+	Type    VideoType
+	Quality QualityType
 	Start   time.Duration
 	End     time.Duration
 	Writer  io.Writer
@@ -46,7 +46,7 @@ func (v VideoType) String() string {
 	}
 }
 
-func MapStringToVideoType(s string) VideoType {
+func GetVideoType(s string) VideoType {
 	switch s {
 	case "clip":
 		return TypeClip
@@ -59,11 +59,11 @@ func MapStringToVideoType(s string) VideoType {
 	}
 }
 
-func (mu DownloadUnit) GetError() error {
+func (mu Unit) GetError() error {
 	return mu.Error
 }
 
-func (mu DownloadUnit) GetTitle() string {
+func (mu Unit) GetTitle() string {
 	if f, ok := mu.Writer.(*os.File); ok && f != nil {
 		if mu.Error != nil { // ??
 			os.Remove(f.Name())
@@ -73,39 +73,49 @@ func (mu DownloadUnit) GetTitle() string {
 	return mu.ID
 }
 
-func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Duration) DownloadUnit {
-	du := DownloadUnit{
+func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Duration) Unit {
+	du := Unit{
 		Start: start,
 		End:   end,
 	}
 
-	u, err := url.Parse(URL)
+	parsedURL, err := url.Parse(URL)
 	if err != nil {
 		du.Error = err
 		return du
 	}
 
-	if !strings.Contains(u.Hostname(), "twitch.tv") {
+	if !strings.Contains(parsedURL.Hostname(), "twitch.tv") {
 		du.Error = errors.New("the hostname of the URL does not contain twitch.tv")
 		return du
 	}
 
-	_, id := path.Split(u.Path)
+	_, id := path.Split(parsedURL.Path)
 	du.ID = id
 
-	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
+	var fileName string
+
+	if strings.Contains(parsedURL.Host, "clips.twitch.tv") || strings.Contains(parsedURL.Path, "/clip/") {
 		du.Type = TypeClip
-		du.Title, err = dl.getClipTitle(du.ID)
-	} else if strings.Contains(u.Path, "/videos/") {
+		fileName, err = dl.getClipTitle(du.ID)
+	} else if strings.Contains(parsedURL.Path, "/videos/") {
 		du.Type = TypeVOD
-		du.Title, err = dl.getVODTitle(du.ID)
-		assignTimestampFromURL(&du, u)
+		fileName, err = dl.getVODTitle(du.ID)
+
+		if du.Start == 0 {
+			t := parsedURL.Query().Get("t")
+			if t != "" {
+				du.Start, _ = time.ParseDuration(t)
+			}
+		}
+
 		if du.Start > 0 && du.End > 0 && du.Start >= du.End {
 			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", du.Start, du.End, URL)
 		}
-	} else { // add stronger checks, check lenght of path parts
+	} else {
+		// add stronger checks, check lenght of path parts
 		du.Type = TypeLivestream
-		du.Title, err = dl.getStreamTitle(du.ID)
+		fileName, err = dl.getStreamTitle(du.ID)
 	}
 
 	if err != nil {
@@ -113,7 +123,11 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 		return du
 	}
 
-	du.Quality, du.Error = ValidateQuality(quality, du.Type)
+	if quality == "" {
+		quality = "best"
+	}
+
+	du.Quality, du.Error = QualityFromString(quality)
 	if du.Error != nil {
 		return du
 	}
@@ -123,7 +137,7 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 		ext = "mp3"
 	}
 
-	f, err := fileutil.CreateFile(output, du.Title, ext)
+	f, err := fileutil.CreateFile(output, fileName, ext)
 	if err != nil {
 		du.Error = err
 		return du
@@ -131,15 +145,6 @@ func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Durat
 	du.Writer = f
 
 	return du
-}
-
-func assignTimestampFromURL(du *DownloadUnit, u *url.URL) {
-	if du.Start == 0 {
-		t := u.Query().Get("t")
-		if t != "" {
-			du.Start, _ = time.ParseDuration(t)
-		}
-	}
 }
 
 func (dl *Downloader) getVODTitle(id string) (string, error) {

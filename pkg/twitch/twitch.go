@@ -47,7 +47,7 @@ func (tw *Client) do(req *http.Request) (*http.Response, error) {
 }
 
 func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
-	resp, err := tw.httpClient.Get(url)
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -66,21 +66,13 @@ func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
 }
 
 func (tw *Client) fetch(url string) ([]byte, error) {
-	resp, err := tw.httpClient.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("fetching failed: %w", err)
-	}
-	defer resp.Body.Close()
+	b, _, err := tw.fetchWithCode(url)
+	return b, err
+}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body failed: %w", err)
-	}
-	return bytes, nil
+func (tw *Client) Fetch(url string) ([]byte, error) {
+	bytes, _, err := tw.fetchWithCode(url)
+	return bytes, err
 }
 
 func (tw *Client) decodeJSONResponse(resp *http.Response, p interface{}) error {

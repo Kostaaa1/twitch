@@ -2,12 +2,11 @@ package m3u8
 
 import (
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-
-	"golang.org/x/exp/rand"
 )
 
 type MasterPlaylist struct {
@@ -177,35 +176,44 @@ func (m *MasterPlaylist) Parse() {
 	}
 }
 
-func (playlist *MasterPlaylist) findVariantByVideo(quality string) (VariantPlaylist, bool) {
+func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
 	for _, list := range playlist.Lists {
 		if strings.HasPrefix(list.Video, quality) {
-			return list, true
+			return list, nil
 		}
 	}
-	return VariantPlaylist{}, false
+	return VariantPlaylist{}, fmt.Errorf("quality not found in master m3u8 playlist: %s", quality)
 }
 
-func (master *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
-	if quality == "" {
-		return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
-	}
+// func (playlist *MasterPlaylist) findVariantByVideo(quality string) (VariantPlaylist, bool) {
+// 	for _, list := range playlist.Lists {
+// 		fmt.Println(list)
+// 		if strings.HasPrefix(list.Video, quality) {
+// 			return list, true
+// 		}
+// 	}
+// 	return VariantPlaylist{}, false
+// }
 
-	switch quality {
-	case "chunked", "best":
-		list, ok := master.findVariantByVideo("1080")
-		if ok {
-			return list, nil
-		}
-	case "worst":
-		if list, ok := master.findVariantByVideo("160"); ok {
-			return list, nil
-		}
-	default:
-		if list, ok := master.findVariantByVideo(quality); ok {
-			return list, nil
-		}
-	}
+// func (master *MasterPlaylist) GetVariantPlaylistByQuality(q twitchdl.QualityType) (VariantPlaylist, error) {
+// if q == "" {
+// 	return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", q.String())
+// }
 
-	return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
-}
+// switch quality {
+// case "chunked", "best":
+// 	list, ok := master.findVariantByVideo("1080")
+// 	if ok {
+// 		return list, nil
+// 	}
+// case "worst":
+// 	if list, ok := master.findVariantByVideo("160"); ok {
+// 		return list, nil
+// 	}
+// default:
+// 	if list, ok := master.findVariantByVideo(quality); ok {
+// 		return list, nil
+// 	}
+// }
+// return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", quality)
+// }

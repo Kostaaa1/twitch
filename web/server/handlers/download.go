@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -33,10 +32,10 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	mediaFormat := c.Query("media_format")
 	mediaType := c.Query("media_type")
 
-	var unit twitchdl.DownloadUnit
+	var unit twitchdl.Unit
 	unit.ID = c.Query("media_slug")
 
-	unit.Type = twitchdl.MapStringToVideoType(mediaType)
+	unit.Type = twitchdl.GetVideoType(mediaType)
 	unit.Quality = mediaFormat
 	unit.Writer = c.Writer
 
@@ -78,9 +77,6 @@ func (s *Static) downloadHandler(c *gin.Context) {
 			return
 		}
 		unit.End = end
-
-		b, _ := json.MarshalIndent(unit, "", " ")
-		fmt.Println("Downloading unit :", string(b))
 
 		if err := unit.StreamVOD(s.dl); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

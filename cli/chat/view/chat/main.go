@@ -2,7 +2,6 @@ package chat
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -102,6 +101,7 @@ type model struct {
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
 	textinput           textinput.Model
+	conf                config.Data
 	width               int
 	height              int
 	msgChan             chan interface{}
@@ -121,7 +121,7 @@ type model struct {
 
 type notifyMsg string
 
-func Open(twitch *twitch.Client, cfg *config.Data) {
+func Open(twitch *twitch.Client, cfg config.Data) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()
@@ -149,6 +149,7 @@ func Open(twitch *twitch.Client, cfg *config.Data) {
 	}
 
 	m := model{
+		conf:                cfg,
 		twitch:              twitch,
 		ws:                  ws,
 		chats:               chats,
@@ -257,25 +258,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			go func() { // check if safe
 				chat := m.getActiveChat()
 				if chat != nil {
-					master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
-					if err != nil {
-						m.msgChan <- notifyMsg(err.Error())
-						return
-					}
-
-					list, err := master.GetVariantPlaylistByQuality("best")
-					if err != nil {
-						m.msgChan <- notifyMsg(err.Error())
-						return
-					}
-
-					cmd := exec.Command("vlc", list.URL)
-					if err := cmd.Run(); err != nil {
-						m.msgChan <- notifyMsg(err.Error())
-						return
-					}
-
-					cmd.Wait()
+					// master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
+					// if err != nil {
+					// 	m.msgChan <- notifyMsg(err.Error())
+					// 	return
+					// }
+					// list, err := master.GetVariantPlaylistByQuality("best")
+					// if err != nil {
+					// 	m.msgChan <- notifyMsg(err.Error())
+					// 	return
+					// }
+					// cmd := exec.Command("vlc", list.URL)
+					// if err := cmd.Run(); err != nil {
+					// 	m.msgChan <- notifyMsg(err.Error())
+					// 	return
+					// }
+					// cmd.Wait()
 					m.msgChan <- notifyMsg("VLC closed")
 				}
 			}()
@@ -310,14 +308,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case Notice:
 			if chanMsg.Err != nil {
-				go func() {
-					m.msgChan <- notifyMsg(chanMsg.SystemMsg)
-					m.msgChan <- notifyMsg(chanMsg.Err.Error())
-				}()
+				// go func() {}()
+				m.msgChan <- notifyMsg(chanMsg.SystemMsg)
+				m.msgChan <- notifyMsg(chanMsg.Err.Error())
 			}
+
 			if chanMsg.Err != nil {
 				m.ws.Conn.Close()
-				panic(chanMsg.Err)
 			}
 
 			chat := m.getChat(chanMsg.DisplayName)

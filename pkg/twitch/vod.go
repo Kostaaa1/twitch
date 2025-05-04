@@ -42,16 +42,16 @@ func (tw *Client) getVideoCredentials(id string) (string, string, error) {
 	}
 
 	if p.Data.VideoPlaybackAccessToken.Value == "" && p.Data.VideoPlaybackAccessToken.Signature == "" {
-		return "", "", fmt.Errorf("sorry. Unless you've got a time machine, that content is unavailable")
+		return "", "", fmt.Errorf("[VOD expired] sorry. Unless you've got a time machine, that content is unavailable")
 	}
 
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (tw *Client) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, error) {
+func (tw *Client) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, error) {
 	token, sig, err := tw.getVideoCredentials(vodID)
 	if err != nil {
-		return nil, http.StatusInternalServerError, err
+		return nil, err
 	}
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, token, sig)
 
@@ -60,28 +60,28 @@ func (tw *Client) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, int, err
 		// this means that you need to be subscribed to access the m3u8 master. In that case, creating fake playlist.
 		subVOD, err := tw.SubVODData(vodID)
 		if err != nil {
-			return nil, http.StatusInternalServerError, err
+			return nil, err
 		}
 		previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
 		if err != nil {
-			return nil, http.StatusInternalServerError, err
+			return nil, err
 		}
-		return m3u8.CreateFakeMaster(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), http.StatusOK, nil
+		return m3u8.CreateFakeMaster(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), nil
 	}
 
-	if err != nil {
-		return nil, code, err
-	}
-
-	return m3u8.Master(b), code, nil
-}
-
-func (tw *Client) GetVODMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
-	mediaPlaylist, err := tw.fetch(variant.URL)
 	if err != nil {
 		return nil, err
 	}
-	parsed := m3u8.ParseMediaPlaylist(mediaPlaylist)
+
+	return m3u8.Master(b), nil
+}
+
+func (tw *Client) FetchAndParseMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
+	b, err := tw.fetch(variant.URL)
+	if err != nil {
+		return nil, err
+	}
+	parsed := m3u8.ParseMediaPlaylist(b)
 	return &parsed, nil
 }
 

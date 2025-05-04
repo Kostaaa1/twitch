@@ -8,17 +8,18 @@ import (
 )
 
 type MediaPlaylist struct {
-	Version        int64
-	TargetDuration float64
-	Timestamp      string
-	PlaylistType   string
-	ElapsedSecs    float64
-	TotalSecs      float64
-	Segments       []string
+	Version         int64
+	TargetDuration  float64
+	Timestamp       string
+	PlaylistType    string
+	ElapsedSecs     float64
+	TotalSecs       float64
+	SegmentDuration time.Duration
+	Segments        []string
 }
 
 func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) error {
-	segmentDuration := 10 // this is hardcoded value, maybe some segments are longer
+	segmentDuration := 10 // this is hardcoded value for VOD segments, maybe some segments are longer
 	s := int(start.Seconds() / float64(segmentDuration))
 	e := int(end.Seconds() / float64(segmentDuration))
 
@@ -43,32 +44,33 @@ func ParseMediaPlaylist(list []byte) MediaPlaylist {
 
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]
+
 		parts := strings.Split(line, ":")
 		if len(parts) < 2 {
 			continue
 		}
 
-		k := parts[0]
+		key := parts[0]
 		v := parts[1]
 
-		switch {
-		case k == "#EXT-X-VERSION":
-			i, _ := strconv.ParseInt(v, 10, 64)
-			mediaList.Version = i
-		case k == "#EXT-X-TARGETDURATION":
-			i, _ := strconv.ParseFloat(v, 64)
-			mediaList.TargetDuration = i
-		case k == "#EXT-X-PLAYLIST-TYPE":
+		switch key {
+		case "#EXT-X-VERSION":
+			value, _ := strconv.ParseInt(v, 10, 64)
+			mediaList.Version = value
+		case "#EXT-X-TARGETDURATION":
+			value, _ := strconv.ParseFloat(v, 64)
+			mediaList.TargetDuration = value
+		case "#EXT-X-PLAYLIST-TYPE":
 			mediaList.PlaylistType = v
-		case k == "#EXT-X-TWITCH-ELAPSED-SECS":
-			i, _ := strconv.ParseFloat(v, 64)
-			mediaList.ElapsedSecs = i
-		case k == "#EXT-X-TWITCH-TOTAL-SECS":
-			i, _ := strconv.ParseFloat(v, 64)
-			mediaList.TotalSecs = i
-		case strings.HasPrefix(k, "#ID3-EQUIV-TDTG"):
+		case "#EXT-X-TWITCH-ELAPSED-SECS":
+			value, _ := strconv.ParseFloat(v, 64)
+			mediaList.ElapsedSecs = value
+		case "#EXT-X-TWITCH-TOTAL-SECS":
+			value, _ := strconv.ParseFloat(v, 64)
+			mediaList.TotalSecs = value
+		case "#ID3-EQUIV-TDTG":
 			mediaList.Timestamp = v
-		case strings.HasPrefix(k, "#EXTINF"):
+		case "#EXTINF":
 			mediaList.Segments = append(mediaList.Segments, lines[i+1])
 			i++
 		}

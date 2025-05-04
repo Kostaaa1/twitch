@@ -66,7 +66,7 @@ func level(main, fallback *Flag) {
 	}
 }
 
-func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.DownloadUnit {
+func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.Unit {
 	_, err := os.Stat(flagOpts.Input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
@@ -82,7 +82,7 @@ func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.Downloa
 		log.Fatal(err)
 	}
 
-	var units []twitchdl.DownloadUnit
+	var units []twitchdl.Unit
 	for _, opt := range opts {
 		level(&opt, &flagOpts)
 		unit := dl.NewUnit(opt.Input, opt.Quality, opt.Output, opt.Start, opt.End)
@@ -92,9 +92,9 @@ func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.Downloa
 	return units
 }
 
-func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.DownloadUnit {
+func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.Unit {
 	urls := strings.Split(opt.Input, ",")
-	var units []twitchdl.DownloadUnit
+	var units []twitchdl.Unit
 	for _, url := range urls {
 		opt.Input = url
 		unit := dl.NewUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
@@ -103,11 +103,11 @@ func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.DownloadUnit
 	return units
 }
 
-func GetUnits(dl *twitchdl.Downloader, p Flag) []twitchdl.DownloadUnit {
+func GetUnits(dl *twitchdl.Downloader, p Flag) []twitchdl.Unit {
 	if p.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
-	var units []twitchdl.DownloadUnit
+	var units []twitchdl.Unit
 	_, err := url.ParseRequestURI(p.Input)
 	if err == nil {
 		units = processFlagInput(dl, p)

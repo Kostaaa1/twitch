@@ -14,13 +14,11 @@ import (
 	"github.com/Kostaaa1/twitch/web/server/handlers"
 )
 
-var (
-	flagLogLevel = flag.String("log-level", slog.LevelDebug.String(), "log level")
-	flagAddress  = flag.String("address", ":8080", "server address")
-)
-
 func main() {
+	flagLogLevel := flag.String("log-level", slog.LevelDebug.String(), "log level")
+	flagAddress := flag.String("address", ":8080", "server address")
 	flag.Parse()
+
 	if flagLogLevel == nil || *flagLogLevel == "" {
 		slog.Error("log-level is required")
 		os.Exit(1)

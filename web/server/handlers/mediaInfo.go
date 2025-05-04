@@ -72,7 +72,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		return components.FormData{}, err
 	}
 
-	master, _, err := s.dl.TWApi.GetVODMasterM3u8(slug)
+	master, err := s.dl.TWApi.GetVODMasterM3u8(slug)
 
 	var qualities []components.Quality
 	if err != nil {

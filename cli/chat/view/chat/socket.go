@@ -83,18 +83,7 @@ func (c *WebSocketClient) ConnectToIRC(accessToken, username string, msgChan cha
 					c.SendMessage([]byte("PONG :tmi.twitch.tv"))
 				case "NOTICE":
 					parsed := parseNOTICE(rawIRCMessage)
-					fmt.Println(parsed)
-
-					switch {
-					case parsed.SystemMsg == "Login authentication failed":
-						fmt.Println("Authentication failed")
-					case parsed.SystemMsg == "Login unsuccessful":
-						fmt.Println("login unsuccessful")
-					case parsed.MsgID == "msg_banned":
-						c.LeaveChannel(parsed.DisplayName)
-					default:
-						msgChan <- parsed
-					}
+					msgChan <- parsed
 				}
 			}
 		}

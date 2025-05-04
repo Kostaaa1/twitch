@@ -2,12 +2,10 @@ package twitchdl
 
 import (
 	"fmt"
-	"net/http"
-	"os"
 	"strings"
 	"sync"
 
-	"github.com/Kostaaa1/twitch/internal/spinner"
+	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type segmentJob struct {
@@ -18,20 +16,23 @@ type segmentJob struct {
 	bytesRead int64
 }
 
-// concurrent ordered download. Segments needs to be in order so it can be written to file. Instead of doing this sequentally (one-by-one), this is downloading them concurrently.
-func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
-	master, status, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
-	if err != nil && status != http.StatusForbidden {
-		return err
-	}
-	variant, err := master.GetVariantPlaylistByQuality(mu.Quality)
+// Concurrent ordered download. Segments needs to be in order so it can be written to file. Instead of doing this sequentally (one-by-one), this is downloading them concurrently.
+func (mu Unit) downloadVOD(dl *Downloader) error {
+	master, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.TWApi.GetVODMediaPlaylist(variant)
+
+	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
 	if err != nil {
 		return err
 	}
+
+	playlist, err := dl.TWApi.FetchAndParseMediaPlaylist(variant)
+	if err != nil {
+		return err
+	}
+
 	if err := playlist.TruncateSegments(mu.Start, mu.End); err != nil {
 		return err
 	}
@@ -53,13 +54,10 @@ func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
 
 				if err == nil {
 					job.bytesRead = int64(len(data))
-					if file, ok := mu.Writer.(*os.File); ok && file != nil {
-						dl.progressCh <- spinner.ChannelMessage{
-							Text:  file.Name(),
-							Bytes: job.bytesRead,
-						}
-					}
+					msg := spinner.ChannelMessage{Bytes: job.bytesRead}
+					mu.NotifyProgressChannel(msg, dl.progressCh)
 				}
+
 				resultsChan <- job
 			}
 		}()
@@ -111,16 +109,18 @@ func (mu DownloadUnit) downloadVOD(dl *Downloader) error {
 	return nil
 }
 
-func (mu DownloadUnit) StreamVOD(dl *Downloader) error {
-	master, status, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
-	if err != nil && status != http.StatusForbidden {
-		return err
-	}
-	variant, err := master.GetVariantPlaylistByQuality(mu.Quality)
+func (mu Unit) StreamVOD(dl *Downloader) error {
+	master, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.TWApi.GetVODMediaPlaylist(variant)
+
+	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
+	if err != nil {
+		return err
+	}
+
+	playlist, err := dl.TWApi.FetchAndParseMediaPlaylist(variant)
 	if err != nil {
 		return err
 	}
@@ -133,19 +133,13 @@ func (mu DownloadUnit) StreamVOD(dl *Downloader) error {
 		if strings.HasSuffix(segment, ".ts") {
 			lastIndex := strings.LastIndex(variant.URL, "/")
 			segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
-
 			n, err := dl.downloadFromURL(segmentURL, mu.Writer)
 			if err != nil {
 				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
 				return err
 			}
-
-			if file, ok := mu.Writer.(*os.File); ok && file != nil {
-				dl.progressCh <- spinner.ChannelMessage{
-					Text:  file.Name(),
-					Bytes: n,
-				}
-			}
+			msg := spinner.ChannelMessage{Bytes: n}
+			mu.NotifyProgressChannel(msg, dl.progressCh)
 		}
 	}
 

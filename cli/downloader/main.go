@@ -2,14 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/options"
-	"github.com/Kostaaa1/twitch/internal/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
 
@@ -42,45 +39,36 @@ func init() {
 	flag.Parse()
 }
 
-func handleChannelCmd(dl *twitchdl.Downloader) {
-	if option.Channel != "" {
-		videos, err := dl.TWApi.GetVideosByChannelName(option.Channel, option.Limit)
-		if err != nil {
-			log.Fatal("failed to get the videos by username: %w", err)
-			return
-		}
-
-		if option.Print != "" {
-			for _, video := range videos {
-				u := fmt.Sprintf("[%s | %s] - %s", video.Game.Name, video.ID, video.Title)
-				fmt.Println(u)
-			}
-		}
-
-		return
-	}
-
-}
-
 func main() {
-	dl := twitchdl.New()
-	handleChannelCmd(dl)
-	return
+	// if option.Channel != "" {
+	// 	videos, err := dl.TWApi.GetVideosByChannelName(option.Channel, option.Limit)
+	// 	if err != nil {
+	// 		log.Fatal("failed to get the videos by username: %w", err)
+	// 		return
+	// 	}
+	// 	if option.Print != "" {
+	// 		for _, video := range videos {
+	// 			u := fmt.Sprintf("[%s | %s] - %s", video.Game.Name, video.ID, video.Title)
+	// 			fmt.Println(u)
+	// 		}
+	// 	}
+	// 	return
+	// }
 
+	dl := twitchdl.New()
 	units := options.GetUnits(dl, option)
 
-	spin := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
-	dl.SetProgressChannel(spin.ProgChan)
+	// spin := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
+	// dl.SetProgressChannel(spin.ProgChan)
+	// var wg sync.WaitGroup
+	// wg.Add(1)
+	// go func() {
+	// 	defer wg.Done()
+	// 	spin.Run()
+	// }()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		spin.Run()
-	}()
 	dl.BatchDownload(units)
 
-	wg.Wait()
-
-	close(spin.ProgChan)
+	// wg.Wait()
+	// close(spin.ProgChan)
 }

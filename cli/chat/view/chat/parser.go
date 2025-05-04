@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -244,6 +245,8 @@ func isNoticeValid(notice Notice) {
 // Did not handle the error cases properly, where login failed, unauthenticated (due to not having permissions for IRC), maybe more...
 func parseNOTICE(rawMsg string) Notice {
 	var notice Notice
+	fmt.Println("Raw irc message", rawMsg)
+
 	parts := strings.Split(rawMsg[1:], " :")
 
 	// if len(parts) < 3 {
@@ -251,8 +254,14 @@ func parseNOTICE(rawMsg string) Notice {
 	// 	return notice
 	// }
 
-	notice.SystemMsg = parts[1]
-	notice.MsgID = strings.Split(parts[0], "=")[1]
-	notice.DisplayName = strings.Split(parts[1], "#")[1]
+	if len(parts) == 2 {
+		notice.SystemMsg = parts[1]
+	}
+
+	if len(parts) >= 3 {
+		notice.MsgID = strings.Split(parts[0], "=")[1]
+		notice.DisplayName = strings.Split(parts[1], "#")[1]
+	}
+
 	return notice
 }
