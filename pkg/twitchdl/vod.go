@@ -133,7 +133,7 @@ func (mu Unit) StreamVOD(dl *Downloader) error {
 		if strings.HasSuffix(segment, ".ts") {
 			lastIndex := strings.LastIndex(variant.URL, "/")
 			segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
-			n, err := dl.downloadFromURL(segmentURL, mu.Writer)
+			n, err := dl.downloadAndWrite(segmentURL, mu.Writer)
 			if err != nil {
 				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
 				return err

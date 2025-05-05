@@ -31,6 +31,7 @@ type Unit struct {
 	End     time.Duration
 	Writer  io.Writer
 	Error   error
+	skipAd  bool
 }
 
 func (v VideoType) String() string {

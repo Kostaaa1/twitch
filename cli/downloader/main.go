@@ -13,19 +13,19 @@ import (
 )
 
 var (
-	option  options.Flag
-	jsonCfg config.Data
+	option options.Flag
+	conf   config.Data
 )
 
 func init() {
 	var err error
-	jsonCfg, err = config.Get()
+	conf, err = config.Get()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	flag.StringVar(&option.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them by comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
-	flag.StringVar(&option.Output, "output", jsonCfg.Downloader.Output, "Downloaded media path.")
+	flag.StringVar(&option.Output, "output", conf.Downloader.Output, "Downloaded media path.")
 	flag.StringVar(&option.Quality, "quality", "", "[best|1080|720|480|360|160|worst|audio]")
 	flag.DurationVar(&option.Start, "start", time.Duration(0), "The start of the VOD subset. It only works with VODs and it needs to be in this format: '1h30m0s' (optional)")
 	flag.DurationVar(&option.End, "end", time.Duration(0), "The end of the VOD subset. It only works with VODs and it needs to be in format: '1h33m0s' (optional)")
@@ -58,9 +58,11 @@ func main() {
 	// }
 
 	dl := twitchdl.New()
+	dl.SetConfig(conf.Downloader)
+
 	units := options.GetUnits(dl, option)
 
-	spin := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
+	spin := spinner.New(units, conf.Downloader.SpinnerModel)
 	dl.SetProgressChannel(spin.ProgChan)
 
 	var wg sync.WaitGroup

@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,11 +25,14 @@ type UserConfig struct {
 }
 
 type Creds struct {
-	RefreshToken string `json:"refresh_token"`
-	AccessToken  string `json:"access_token"`
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	RedirectURL  string `json:"redirect_url"`
+	RefreshToken string   `json:"refresh_token"`
+	AccessToken  string   `json:"access_token"`
+	ClientID     string   `json:"client_id"`
+	ExpiresIn    int      `json:"expires_in"`
+	ClientSecret string   `json:"client_secret"`
+	RedirectURL  string   `json:"redirect_url"`
+	TokenType    string   `json:"token_type"`
+	Scope        []string `json:"scope"`
 }
 
 type ChatConfig struct {
@@ -42,6 +46,7 @@ type Downloader struct {
 	ShowSpinner     bool   `json:"show_spinner"`
 	Output          string `json:"output"`
 	SpinnerModel    string `json:"spinner_model"`
+	SkipAds         bool   `json:"skip_ads"`
 }
 
 type Data struct {
@@ -72,11 +77,10 @@ type Colors struct {
 }
 
 func InitConfigData() Data {
-	defaultCreatedAt, _ := time.Parse(time.RFC3339, "2023-10-18T21:12:53Z")
 	return Data{
 		User: UserConfig{
 			BroadcasterType: "",
-			CreatedAt:       defaultCreatedAt,
+			CreatedAt:       time.Time{},
 			Description:     "",
 			DisplayName:     "",
 			ID:              "",
@@ -90,6 +94,9 @@ func InitConfigData() Data {
 				RefreshToken: "",
 				RedirectURL:  "",
 				ClientSecret: "",
+				ExpiresIn:    0,
+				TokenType:    "",
+				Scope:        []string{},
 			},
 		},
 		Downloader: Downloader{
@@ -97,6 +104,7 @@ func InitConfigData() Data {
 			ShowSpinner:     true,
 			Output:          "",
 			SpinnerModel:    "dot",
+			SkipAds:         true,
 		},
 		Chat: ChatConfig{
 			OpenedChats:    []string{},
@@ -152,6 +160,7 @@ func getConfigPath() (string, error) {
 		configPath = filepath.Join(execDir, "twitch_config.json")
 	}
 
+	fmt.Println("configPathJJaJJJ", configPath)
 	return configPath, nil
 }
 
@@ -163,8 +172,16 @@ func Get() (Data, error) {
 		return Data{}, err
 	}
 
-	if _, err := os.Stat(configPath); err != nil {
-		if os.IsNotExist(err) {
+	configDir := filepath.Dir(configPath)
+	configName := filepath.Base(configPath)
+	configFileName := configName[:len(configName)-len(filepath.Ext(configName))] // strip .json
+
+	viper.SetConfigName(configFileName)
+	viper.SetConfigType("json")
+	viper.AddConfigPath(configDir)
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			data = InitConfigData()
 
 			b, err := json.MarshalIndent(data, "", " ")
@@ -172,29 +189,28 @@ func Get() (Data, error) {
 				return Data{}, err
 			}
 
-			f, err := os.Create(configPath)
-			if err != nil {
+			if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
 				return Data{}, err
 			}
-			defer f.Close()
 
-			if _, err := f.Write(b); err != nil {
+			if err := os.WriteFile(configPath, b, 0644); err != nil {
 				return Data{}, err
 			}
+
+			return data, nil
 		} else {
 			return Data{}, err
 		}
 	}
 
-	viper.SetConfigName("twitch_config")
-	viper.SetConfigType("json")
-	viper.AddConfigPath(filepath.Dir(configPath))
-
-	err = viper.ReadInConfig()
+	b, err := os.ReadFile(configPath)
 	if err != nil {
 		return Data{}, err
 	}
-	viper.Unmarshal(&data)
+
+	if err := json.Unmarshal(b, &data); err != nil {
+		return Data{}, err
+	}
 
 	return data, nil
 }
