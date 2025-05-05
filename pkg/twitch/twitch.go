@@ -70,11 +70,6 @@ func (tw *Client) fetch(url string) ([]byte, error) {
 	return b, err
 }
 
-func (tw *Client) Fetch(url string) ([]byte, error) {
-	bytes, _, err := tw.fetchWithCode(url)
-	return bytes, err
-}
-
 func (tw *Client) decodeJSONResponse(resp *http.Response, p interface{}) error {
 	defer resp.Body.Close()
 	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {

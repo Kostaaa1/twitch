@@ -87,9 +87,9 @@ func InitConfigData() Data {
 			Creds: Creds{
 				AccessToken:  "",
 				ClientID:     "",
-				ClientSecret: "",
 				RefreshToken: "",
 				RedirectURL:  "",
+				ClientSecret: "",
 			},
 		},
 		Downloader: Downloader{
@@ -155,12 +155,12 @@ func getConfigPath() (string, error) {
 	return configPath, nil
 }
 
-func Get() (*Data, error) {
+func Get() (Data, error) {
 	var data Data
 
 	configPath, err := getConfigPath()
 	if err != nil {
-		return nil, err
+		return Data{}, err
 	}
 
 	if _, err := os.Stat(configPath); err != nil {
@@ -169,20 +169,20 @@ func Get() (*Data, error) {
 
 			b, err := json.MarshalIndent(data, "", " ")
 			if err != nil {
-				return nil, err
+				return Data{}, err
 			}
 
 			f, err := os.Create(configPath)
 			if err != nil {
-				return nil, err
+				return Data{}, err
 			}
 			defer f.Close()
 
 			if _, err := f.Write(b); err != nil {
-				return nil, err
+				return Data{}, err
 			}
 		} else {
-			return nil, err
+			return Data{}, err
 		}
 	}
 
@@ -192,11 +192,11 @@ func Get() (*Data, error) {
 
 	err = viper.ReadInConfig()
 	if err != nil {
-		return nil, err
+		return Data{}, err
 	}
 	viper.Unmarshal(&data)
 
-	return &data, nil
+	return data, nil
 }
 
 // func ValidateUserCreds() error {

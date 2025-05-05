@@ -114,7 +114,6 @@ type model struct {
 // type errMsg struct {
 // 	err error
 // }
-
 // func (e errMsg) Error() string {
 // 	return e.err.Error()
 // }
@@ -132,7 +131,7 @@ func Open(twitch *twitch.Client, cfg config.Data) {
 
 	msgChan := make(chan interface{})
 
-	ws, err := CreateWSClient()
+	ws, err := createWSClient()
 	if err != nil {
 		panic(err)
 	}

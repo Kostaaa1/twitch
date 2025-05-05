@@ -3,16 +3,18 @@ package main
 import (
 	"flag"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/options"
+	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
 
 var (
 	option  options.Flag
-	jsonCfg *config.Data
+	jsonCfg config.Data
 )
 
 func init() {
@@ -58,17 +60,19 @@ func main() {
 	dl := twitchdl.New()
 	units := options.GetUnits(dl, option)
 
-	// spin := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
-	// dl.SetProgressChannel(spin.ProgChan)
-	// var wg sync.WaitGroup
-	// wg.Add(1)
-	// go func() {
-	// 	defer wg.Done()
-	// 	spin.Run()
-	// }()
+	spin := spinner.New(units, jsonCfg.Downloader.SpinnerModel)
+	dl.SetProgressChannel(spin.ProgChan)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		spin.Run()
+	}()
 
 	dl.BatchDownload(units)
 
-	// wg.Wait()
-	// close(spin.ProgChan)
+	wg.Wait()
+	close(spin.ProgChan)
 }

@@ -13,7 +13,7 @@ type WebSocketClient struct {
 	Conn *websocket.Conn
 }
 
-func CreateWSClient() (*WebSocketClient, error) {
+func createWSClient() (*WebSocketClient, error) {
 	socketURL := "ws://irc-ws.chat.twitch.tv:80"
 	conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
 	if err != nil {
