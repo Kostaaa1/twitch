@@ -11,5 +11,4 @@ func AssetsCache(c *gin.Context) {
 		c.Header("Cache-Control", "private, max-age=86400")
 	}
 	c.Next()
-
 }

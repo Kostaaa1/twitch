@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 type UserConfig struct {
@@ -49,7 +47,7 @@ type Downloader struct {
 	SkipAds         bool   `json:"skip_ads"`
 }
 
-type Data struct {
+type Config struct {
 	User       UserConfig `json:"user"`
 	Downloader Downloader `json:"downloader"`
 	Chat       ChatConfig `json:"chat"`
@@ -76,8 +74,8 @@ type Colors struct {
 	Timestamp string `json:"timestamp"`
 }
 
-func InitConfigData() Data {
-	return Data{
+func initConfigData() Config {
+	return Config{
 		User: UserConfig{
 			BroadcasterType: "",
 			CreatedAt:       time.Time{},
@@ -144,7 +142,8 @@ func InitConfigData() Data {
 	}
 }
 
-func getConfigPath() (string, error) {
+// TODO: improve this
+func GetConfigPath() (string, error) {
 	configPath := os.Getenv("TWITCH_CONFIG_PATH")
 
 	if configPath == "" {
@@ -160,56 +159,55 @@ func getConfigPath() (string, error) {
 		configPath = filepath.Join(execDir, "twitch_config.json")
 	}
 
-	fmt.Println("configPathJJaJJJ", configPath)
 	return configPath, nil
 }
 
-func Get() (Data, error) {
-	var data Data
-
-	configPath, err := getConfigPath()
+func Save(fpath string, conf Config) error {
+	if _, err := os.Stat(fpath); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
-		return Data{}, err
+		return fmt.Errorf("failed to marshal config bytes: %v\n", err)
+	}
+	return os.WriteFile(fpath, b, 0644)
+}
+
+func Get() (Config, error) {
+	var data Config
+
+	configPath, err := GetConfigPath()
+	if err != nil {
+		return Config{}, err
 	}
 
 	configDir := filepath.Dir(configPath)
-	configName := filepath.Base(configPath)
-	configFileName := configName[:len(configName)-len(filepath.Ext(configName))] // strip .json
-
-	viper.SetConfigName(configFileName)
-	viper.SetConfigType("json")
-	viper.AddConfigPath(configDir)
-
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			data = InitConfigData()
-
-			b, err := json.MarshalIndent(data, "", " ")
-			if err != nil {
-				return Data{}, err
-			}
-
-			if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
-				return Data{}, err
-			}
-
-			if err := os.WriteFile(configPath, b, 0644); err != nil {
-				return Data{}, err
-			}
-
-			return data, nil
-		} else {
-			return Data{}, err
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		data = initConfigData()
+		b, err := json.MarshalIndent(data, "", " ")
+		if err != nil {
+			return Config{}, err
 		}
+
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			return Config{}, err
+		}
+
+		if err := os.WriteFile(configPath, b, 0644); err != nil {
+			return Config{}, err
+		}
+
+		return data, nil
+	} else if err != nil {
+		return Config{}, err
 	}
 
 	b, err := os.ReadFile(configPath)
 	if err != nil {
-		return Data{}, err
+		return Config{}, err
 	}
-
 	if err := json.Unmarshal(b, &data); err != nil {
-		return Data{}, err
+		return Config{}, err
 	}
 
 	return data, nil

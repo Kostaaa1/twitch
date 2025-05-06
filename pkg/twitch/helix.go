@@ -61,10 +61,21 @@ type User struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-func (tw *Client) GetUserInfo(loginName string) (*User, error) {
-	u := fmt.Sprintf("%s/users?login=%s", helixURL, loginName)
+func (tw *Client) GetUserInfo(id, loginName *string) (*User, error) {
+	queryParams := []string{}
+	if id != nil {
+		queryParams = append(queryParams, fmt.Sprintf("id=%s", *id))
+	}
+	if loginName != nil {
+		queryParams = append(queryParams, fmt.Sprintf("login=%s", *loginName))
+	}
 
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	url := fmt.Sprintf("%s/users", helixURL)
+	if len(queryParams) > 0 {
+		url += "?" + strings.Join(queryParams, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ import (
 
 var (
 	option options.Flag
-	conf   config.Data
+	conf   config.Config
 )
 
 func init() {

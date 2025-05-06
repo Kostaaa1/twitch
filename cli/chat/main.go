@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 // func openBrowser(uri string) {
@@ -43,19 +44,19 @@ import (
 // 	}
 // }
 
-func authorize(creds config.Creds) error {
-	if creds.ClientID == "" {
+func authorize(tw *twitch.Client, conf *config.Config) error {
+	if conf.User.Creds.ClientID == "" {
 		return errors.New("Error: Client-ID is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Client-ID in config.")
 	}
 
-	if creds.RedirectURL == "" {
+	if conf.User.Creds.RedirectURL == "" {
 		return errors.New("Error: Redirect URL is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Redirect URL in config.")
 	}
 
-	if creds.RefreshToken == "" {
-		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read", creds.ClientID, creds.RedirectURL)
+	if conf.User.Creds.RefreshToken == "" {
+		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read", conf.User.Creds.ClientID, conf.User.Creds.RedirectURL)
 
-		u, err := url.Parse(creds.RedirectURL)
+		u, err := url.Parse(conf.User.Creds.RedirectURL)
 		if err != nil {
 			return err
 		}
@@ -68,10 +69,10 @@ func authorize(creds config.Creds) error {
 			if code != "" {
 				values := url.Values{}
 				values.Add("code", code)
-				values.Add("client_id", creds.ClientID)
-				values.Add("client_secret", creds.ClientSecret)
+				values.Add("client_id", conf.User.Creds.ClientID)
+				values.Add("client_secret", conf.User.Creds.ClientSecret)
 				values.Add("grant_type", "authorization_code")
-				values.Add("redirect_uri", creds.RedirectURL)
+				values.Add("redirect_uri", conf.User.Creds.RedirectURL)
 
 				resp, err := http.PostForm("https://id.twitch.tv/oauth2/token", values)
 				if err != nil {
@@ -79,19 +80,27 @@ func authorize(creds config.Creds) error {
 				}
 				defer resp.Body.Close()
 
-				var body struct {
-					AccessToken  string   `json:"access_token"`
-					ExpiresIn    int      `json:"expires_in"`
-					RefreshToken string   `json:"refresh_token"`
-					Scopes       []string `json:"scope"`
-					TokenType    string   `json:"token_type"`
-				}
-
-				if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				if err := json.NewDecoder(resp.Body).Decode(&conf.User.Creds); err != nil {
 					log.Fatalf("failed to decode the exchange response: %v", err)
 				}
 
-				fmt.Println(body)
+				path, err := config.GetConfigPath()
+				if err != nil {
+					log.Fatalf("failed to get the config path: %v\n", err)
+				}
+
+				user, err := tw.GetUserInfo(nil, nil)
+				if err != nil {
+					log.Fatal("failed to get the user info: %v\n", err)
+				}
+
+				conf.User
+
+				if err := config.Save(path, *conf); err != nil {
+					log.Fatal(err)
+				}
+
+				fmt.Println("Successful authorization! 🚀")
 			}
 
 			// why in separate goroutine?
@@ -116,12 +125,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(jsonCfg.User.Creds)
-
-	if err := authorize(jsonCfg.User.Creds); err != nil {
+	tw := twitch.New()
+	tw.SetConfig(jsonCfg)
+	if err := authorize(tw, &jsonCfg); err != nil {
 		log.Fatal(err)
 	}
-	// tw := twitch.New()
 	// chat.Open(tw, jsonCfg)
 }

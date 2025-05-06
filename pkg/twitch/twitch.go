@@ -12,7 +12,7 @@ import (
 
 type Client struct {
 	httpClient *http.Client
-	config     config.Data
+	config     config.Config
 }
 
 const (
@@ -29,7 +29,7 @@ func New() *Client {
 	}
 }
 
-func (tw *Client) SetConfig(cfg config.Data) {
+func (tw *Client) SetConfig(cfg config.Config) {
 	tw.config = cfg
 }
 

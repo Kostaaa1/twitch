@@ -101,7 +101,7 @@ type model struct {
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
 	textinput           textinput.Model
-	conf                config.Data
+	conf                config.Config
 	width               int
 	height              int
 	msgChan             chan interface{}
@@ -120,7 +120,7 @@ type model struct {
 
 type notifyMsg string
 
-func Open(twitch *twitch.Client, cfg config.Data) {
+func Open(twitch *twitch.Client, cfg config.Config) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()
