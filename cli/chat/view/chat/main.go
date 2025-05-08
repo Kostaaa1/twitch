@@ -98,10 +98,10 @@ type Chat struct {
 type model struct {
 	twitch              *twitch.Client
 	ws                  *WebSocketClient
+	conf                *config.Config
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
 	textinput           textinput.Model
-	conf                config.Config
 	width               int
 	height              int
 	msgChan             chan interface{}
@@ -111,16 +111,9 @@ type model struct {
 	notifyMsg           string
 }
 
-// type errMsg struct {
-// 	err error
-// }
-// func (e errMsg) Error() string {
-// 	return e.err.Error()
-// }
-
 type notifyMsg string
 
-func Open(twitch *twitch.Client, cfg config.Config) {
+func Open(twitch *twitch.Client, cfg *config.Config) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()
@@ -137,7 +130,7 @@ func Open(twitch *twitch.Client, cfg config.Config) {
 	}
 
 	go func() {
-		if err := ws.ConnectToIRC(cfg.User.Creds.AccessToken, cfg.User.Login, msgChan, cfg.Chat.OpenedChats); err != nil {
+		if err := ws.ConnectToIRC(cfg.Creds.AccessToken, cfg.User.Login, msgChan, cfg.Chat.OpenedChats); err != nil {
 			fmt.Println("Connection error: ", err)
 		}
 	}()

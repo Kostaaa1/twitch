@@ -12,7 +12,7 @@ import (
 
 type Client struct {
 	httpClient *http.Client
-	config     config.Config
+	config     *config.Config
 }
 
 const (
@@ -29,7 +29,7 @@ func New() *Client {
 	}
 }
 
-func (tw *Client) SetConfig(cfg config.Config) {
+func (tw *Client) SetConfig(cfg *config.Config) {
 	tw.config = cfg
 }
 
@@ -99,5 +99,5 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 }
 
 func (tw *Client) GetToken() string {
-	return fmt.Sprintf("Bearer %s", tw.config.User.Creds.AccessToken)
+	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
 }

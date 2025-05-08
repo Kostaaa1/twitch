@@ -6,34 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
-type UserConfig struct {
-	BroadcasterType string    `json:"broadcaster_type"`
-	CreatedAt       time.Time `json:"created_at"`
-	Description     string    `json:"description"`
-	DisplayName     string    `json:"display_name"`
-	ID              string    `json:"id"`
-	Login           string    `json:"login"`
-	OfflineImageUrl string    `json:"offline_image_url"`
-	ProfileImageUrl string    `json:"profile_image_url"`
-	Type            string    `json:"type"`
-	Creds           Creds     `json:"creds"`
+type User struct {
+	ID              string `json:"id"`
+	Login           string `json:"login"`
+	DisplayName     string `json:"display_name"`
+	Type            string `json:"type"`
+	BroadcasterType string `json:"broadcaster_type"`
+	Description     string `json:"description"`
+	ProfileImageURL string `json:"profile_image_url"`
+	OfflineImageURL string `json:"offline_image_url"`
+	ViewCount       int    `json:"view_count"`
+	Email           string `json:"email"`
+	CreatedAt       string `json:"created_at"`
 }
 
-type Creds struct {
-	RefreshToken string   `json:"refresh_token"`
-	AccessToken  string   `json:"access_token"`
-	ClientID     string   `json:"client_id"`
-	ExpiresIn    int      `json:"expires_in"`
-	ClientSecret string   `json:"client_secret"`
-	RedirectURL  string   `json:"redirect_url"`
-	TokenType    string   `json:"token_type"`
-	Scope        []string `json:"scope"`
-}
-
-type ChatConfig struct {
+type Chat struct {
 	OpenedChats    []string `json:"opened_chats"`
 	ShowTimestamps bool     `json:"show_timestamps"`
 	Colors         Colors   `json:"colors"`
@@ -47,10 +36,22 @@ type Downloader struct {
 	SkipAds         bool   `json:"skip_ads"`
 }
 
+type Creds struct {
+	RefreshToken string   `json:"refresh_token"`
+	AccessToken  string   `json:"access_token"`
+	ClientID     string   `json:"client_id"`
+	ExpiresIn    int      `json:"expires_in"`
+	ClientSecret string   `json:"client_secret"`
+	RedirectURL  string   `json:"redirect_url"`
+	TokenType    string   `json:"token_type"`
+	Scope        []string `json:"scope"`
+}
+
 type Config struct {
-	User       UserConfig `json:"user"`
+	User       User       `json:"user"`
 	Downloader Downloader `json:"downloader"`
-	Chat       ChatConfig `json:"chat"`
+	Chat       Chat       `json:"chat"`
+	Creds      Creds      `json:"creds"`
 }
 
 type Colors struct {
@@ -76,26 +77,26 @@ type Colors struct {
 
 func initConfigData() Config {
 	return Config{
-		User: UserConfig{
+		User: User{
 			BroadcasterType: "",
-			CreatedAt:       time.Time{},
+			CreatedAt:       "",
 			Description:     "",
 			DisplayName:     "",
 			ID:              "",
 			Login:           "",
-			OfflineImageUrl: "",
-			ProfileImageUrl: "",
+			ProfileImageURL: "",
+			OfflineImageURL: "",
 			Type:            "",
-			Creds: Creds{
-				AccessToken:  "",
-				ClientID:     "",
-				RefreshToken: "",
-				RedirectURL:  "",
-				ClientSecret: "",
-				ExpiresIn:    0,
-				TokenType:    "",
-				Scope:        []string{},
-			},
+		},
+		Creds: Creds{
+			AccessToken:  "",
+			ClientID:     "",
+			RefreshToken: "",
+			RedirectURL:  "",
+			ClientSecret: "",
+			ExpiresIn:    0,
+			TokenType:    "",
+			Scope:        []string{},
 		},
 		Downloader: Downloader{
 			IsFFmpegEnabled: false,
@@ -104,7 +105,7 @@ func initConfigData() Config {
 			SpinnerModel:    "dot",
 			SkipAds:         true,
 		},
-		Chat: ChatConfig{
+		Chat: Chat{
 			OpenedChats:    []string{},
 			ShowTimestamps: true,
 			Colors: Colors{
@@ -162,7 +163,7 @@ func GetConfigPath() (string, error) {
 	return configPath, nil
 }
 
-func Save(fpath string, conf Config) error {
+func Save(fpath string, conf *Config) error {
 	if _, err := os.Stat(fpath); err != nil {
 		return err
 	}
@@ -173,12 +174,12 @@ func Save(fpath string, conf Config) error {
 	return os.WriteFile(fpath, b, 0644)
 }
 
-func Get() (Config, error) {
+func Get() (*Config, error) {
 	var data Config
 
 	configPath, err := GetConfigPath()
 	if err != nil {
-		return Config{}, err
+		return nil, err
 	}
 
 	configDir := filepath.Dir(configPath)
@@ -186,31 +187,31 @@ func Get() (Config, error) {
 		data = initConfigData()
 		b, err := json.MarshalIndent(data, "", " ")
 		if err != nil {
-			return Config{}, err
+			return nil, err
 		}
 
 		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
-			return Config{}, err
+			return nil, err
 		}
 
 		if err := os.WriteFile(configPath, b, 0644); err != nil {
-			return Config{}, err
+			return nil, err
 		}
 
-		return data, nil
+		return &data, nil
 	} else if err != nil {
-		return Config{}, err
+		return nil, err
 	}
 
 	b, err := os.ReadFile(configPath)
 	if err != nil {
-		return Config{}, err
+		return nil, err
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
-		return Config{}, err
+		return nil, err
 	}
 
-	return data, nil
+	return &data, nil
 }
 
 // func ValidateUserCreds() error {
@@ -219,13 +220,13 @@ func Get() (Config, error) {
 // 		return err
 // 	}
 // 	errors := []string{}
-// 	if cfg.User.Creds.AccessToken == "" {
+// 	if cfg.Creds.AccessToken == "" {
 // 		errors = append(errors, "AccessToken")
 // 	}
-// 	if cfg.User.Creds.ClientSecret == "" {
+// 	if cfg.Creds.ClientSecret == "" {
 // 		errors = append(errors, "ClientSecret")
 // 	}
-// 	if cfg.User.Creds.ClientID == "" {
+// 	if cfg.Creds.ClientID == "" {
 // 		errors = append(errors, "ClientID")
 // 	}
 // 	if len(errors) > 0 {

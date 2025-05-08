@@ -48,20 +48,20 @@ type Channel struct {
 }
 
 type User struct {
-	ID              string    `json:"id"`
-	Login           string    `json:"login"`
-	DisplayName     string    `json:"display_name"`
-	Type            string    `json:"type"`
-	BroadcasterType string    `json:"broadcaster_type"`
-	Description     string    `json:"description"`
-	ProfileImageURL string    `json:"profile_image_url"`
-	OfflineImageURL string    `json:"offline_image_url"`
-	ViewCount       int       `json:"view_count"`
-	Email           string    `json:"email"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string `json:"id"`
+	Login           string `json:"login"`
+	DisplayName     string `json:"display_name"`
+	Type            string `json:"type"`
+	BroadcasterType string `json:"broadcaster_type"`
+	Description     string `json:"description"`
+	ProfileImageURL string `json:"profile_image_url"`
+	OfflineImageURL string `json:"offline_image_url"`
+	ViewCount       int    `json:"view_count"`
+	Email           string `json:"email"`
+	CreatedAt       string `json:"created_at"`
 }
 
-func (tw *Client) GetUserInfo(id, loginName *string) (*User, error) {
+func (tw *Client) User(id, loginName *string) (*User, error) {
 	queryParams := []string{}
 	if id != nil {
 		queryParams = append(queryParams, fmt.Sprintf("id=%s", *id))
@@ -80,7 +80,7 @@ func (tw *Client) GetUserInfo(id, loginName *string) (*User, error) {
 		return nil, err
 	}
 
-	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 	req.Header.Set("Authorization", tw.GetToken())
 
 	resp, err := tw.do(req)
@@ -116,7 +116,7 @@ func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 	req.Header.Set("Authorization", tw.GetToken())
 
 	resp, err := tw.do(req)
@@ -149,7 +149,7 @@ func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 		return nil, err
 	}
 
-	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 	req.Header.Set("Authorization", tw.GetToken())
 
 	resp, err := tw.do(req)
@@ -178,7 +178,7 @@ func (tw *Client) GetStream(userId string) (*Streams, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", tw.config.User.Creds.ClientID)
+	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 	req.Header.Set("Authorization", tw.GetToken())
 
 	resp, err := tw.do(req)
