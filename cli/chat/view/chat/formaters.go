@@ -6,7 +6,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/utils"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
-	"golang.org/x/exp/rand"
 )
 
 func colorStyle(color string) lipgloss.Style {
@@ -38,9 +37,9 @@ func GenerateIcon(userType string) string {
 
 func (m model) FormatChatMessage(message ChatMessage, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType)
-	if message.Metadata.Color == "" {
-		message.Metadata.Color = string(rand.Intn(257))
-	}
+	// if message.Metadata.Color == "" {
+	// 	message.Metadata.Color = string(rand.Intn(257))
+	// }
 	msg := fmt.Sprintf(
 		"%s%s: %s",
 		icon,
@@ -60,9 +59,9 @@ func (m model) FormatChatMessage(message ChatMessage, width int) string {
 }
 
 func (m model) FormatSubMessage(message SubNotice, width int) string {
-	if message.Metadata.Color == "" {
-		message.Metadata.Color = string(rand.Intn(257))
-	}
+	// if message.Metadata.Color == "" {
+	// 	message.Metadata.Color = string(rand.Intn(257))
+	// }
 	msg := fmt.Sprintf(" ✯ %s", message.Metadata.SystemMsg)
 
 	subColor := m.conf.Chat.Colors.Messages.Sub
@@ -75,9 +74,9 @@ func (m model) FormatSubMessage(message SubNotice, width int) string {
 
 func (m model) FormatRaidMessage(message RaidNotice, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType)
-	if message.Metadata.Color == "" {
-		message.Metadata.Color = string(rand.Intn(257))
-	}
+	// if message.Metadata.Color == "" {
+	// 	message.Metadata.Color = string(rand.Intn(257))
+	// }
 	msg := fmt.Sprintf(
 		"%s%s: ✯ %s",
 		icon,

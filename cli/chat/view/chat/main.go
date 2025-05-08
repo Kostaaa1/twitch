@@ -243,6 +243,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.moveTabBack()
 		case tea.KeyCtrlW:
 			if len(m.chats) > 1 {
+				// should disconnect from channel!!!!
 				m.removeActiveChat()
 			}
 		case tea.KeyCtrlO:

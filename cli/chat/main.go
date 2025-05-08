@@ -72,9 +72,9 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 					Type:            user.Type,
 				}
 
-				// if err := config.Save(conf); err != nil {
-				// 	log.Fatal(err)
-				// }
+				if err := config.Save(conf); err != nil {
+					log.Fatal(err)
+				}
 
 				fmt.Println("Successful authorization! 🚀")
 			} else {

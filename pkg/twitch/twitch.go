@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/config"
@@ -100,4 +101,20 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 
 func (tw *Client) GetToken() string {
 	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
+}
+
+func (tw *Client) FetchAccesToken() error {
+	v := url.Values{}
+	v.Add("client_id", tw.config.Creds.ClientID)
+	v.Add("client_secret", tw.config.Creds.ClientSecret)
+	v.Add("refresh_token", tw.config.Creds.RefreshToken)
+	v.Add("grant_type", "refresh_token")
+
+	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", v)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return json.NewDecoder(resp.Body).Decode(&tw.config.Creds)
 }

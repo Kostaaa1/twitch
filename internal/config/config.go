@@ -163,7 +163,7 @@ func getConfigPath() (string, error) {
 	return configPath, nil
 }
 
-func Save(fpath string, conf *Config) error {
+func Save(conf *Config) error {
 	fpath, err := getConfigPath()
 	if err != nil {
 		return err
