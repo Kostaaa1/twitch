@@ -17,11 +17,11 @@ import (
 
 func authorize(tw *twitch.Client, conf *config.Config) error {
 	if conf.Creds.ClientID == "" {
-		return errors.New("Error: Client-ID is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Client-ID in config.")
+		return errors.New("error: Client-ID is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Client-ID in config")
 	}
 
 	if conf.Creds.RedirectURL == "" {
-		return errors.New("Error: Redirect URL is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Redirect URL in config.")
+		return errors.New("error: Redirect URL is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Redirect URL in config")
 	}
 
 	if conf.Creds.RefreshToken == "" {
@@ -55,11 +55,6 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 					log.Fatalf("failed to decode the exchange response: %v", err)
 				}
 
-				path, err := config.GetConfigPath()
-				if err != nil {
-					log.Fatalf("failed to get the config path: %v\n", err)
-				}
-
 				user, err := tw.User(nil, nil)
 				if err != nil {
 					log.Fatalf("failed to get the user info: %v\n", err)
@@ -77,9 +72,9 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 					Type:            user.Type,
 				}
 
-				if err := config.Save(path, conf); err != nil {
-					log.Fatal(err)
-				}
+				// if err := config.Save(conf); err != nil {
+				// 	log.Fatal(err)
+				// }
 
 				fmt.Println("Successful authorization! 🚀")
 			} else {
@@ -104,16 +99,16 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 }
 
 func main() {
-	jsonCfg, err := config.Get()
+	conf, err := config.Get()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	tw := twitch.New()
-	tw.SetConfig(jsonCfg)
+	tw.SetConfig(conf)
 
-	if err := authorize(tw, jsonCfg); err != nil {
+	if err := authorize(tw, conf); err != nil {
 		log.Fatal(err)
 	}
-	chat.Open(tw, jsonCfg)
+	chat.Open(tw, conf)
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/viper"
 )
 
 type Metadata struct {
@@ -230,7 +229,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEsc, tea.KeyCtrlC:
-			viper.WriteConfig()
+			// viper.WriteConfig()
 			return m, tea.Quit
 		case tea.KeyEnter:
 			m.sendMessage()
@@ -289,13 +288,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ChatMessage:
 			chat := m.getChat(chanMsg.Metadata.RoomID)
 			if chat != nil {
-				m.appendMessage(chat, FormatChatMessage(chanMsg, m.width))
+				m.appendMessage(chat, m.FormatChatMessage(chanMsg, m.width))
 			}
 
 		case SubNotice:
 			chat := m.getChat(chanMsg.Metadata.RoomID)
 			if chat != nil {
-				m.appendMessage(chat, FormatSubMessage(chanMsg, m.width))
+				m.appendMessage(chat, m.FormatSubMessage(chanMsg, m.width))
 			}
 
 		case Notice:
@@ -370,7 +369,7 @@ func (m *model) sendMessage() {
 		if chat != nil {
 			newMessage := m.createNewMessage(chat)
 			m.ws.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
-			chat.Messages = append(chat.Messages, FormatChatMessage(newMessage, m.width))
+			chat.Messages = append(chat.Messages, m.FormatChatMessage(newMessage, m.width))
 			m.updateChatViewport(chat)
 		}
 	} else {
@@ -398,11 +397,11 @@ func (m *model) addChat(channelName string) {
 	newChat := createNewChat(channelName, len(m.chats) == 0)
 	m.chats = append(m.chats, newChat)
 	m.ws.ConnectToChannel(newChat.Channel)
-	newChannels := []string{}
+	chats := []string{}
 	for _, c := range m.chats {
-		newChannels = append(newChannels, c.Channel)
+		chats = append(chats, c.Channel)
 	}
-	viper.Set("chat.openedchats", newChannels)
+	m.conf.Chat.OpenedChats = chats
 }
 
 func (m *model) addRoomToChat(chanMsg Room) {
@@ -416,7 +415,8 @@ func (m *model) addRoomToChat(chanMsg Room) {
 }
 
 func (m *model) removeActiveChat() {
-	openedChats := viper.GetStringSlice("chat.openedchats")
+	// openedChats := viper.GetStringSlice("chat.openedchats")
+	openedChats := m.conf.Chat.OpenedChats
 	var chats []Chat
 	var newActiveId int
 
@@ -437,7 +437,7 @@ func (m *model) removeActiveChat() {
 	chat := chats[newActiveId]
 	m.updateChatViewport(&chat)
 
-	viper.Set("chat.openedchats", openedChats)
+	m.conf.Chat.OpenedChats = openedChats
 	m.chats = chats
 }
 
@@ -464,7 +464,7 @@ func (m *model) moveTabForward() {
 		}
 		openedChats[i] = m.chats[i].Channel
 	}
-	viper.Set("chat.openedchats", openedChats)
+	m.conf.Chat.OpenedChats = openedChats
 }
 
 func (m *model) moveTabBack() {
@@ -475,7 +475,7 @@ func (m *model) moveTabBack() {
 		}
 		openedChats[i] = m.chats[i].Channel
 	}
-	viper.Set("chat.openedchats", openedChats)
+	m.conf.Chat.OpenedChats = openedChats
 }
 
 func (m *model) nextTab() {
@@ -523,6 +523,7 @@ func (m model) getChat(roomID string) *Chat {
 	}
 	return nil
 }
+
 func (m model) renderRoomState() string {
 	chat := m.getActiveChat()
 	if chat == nil {

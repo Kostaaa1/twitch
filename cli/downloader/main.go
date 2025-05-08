@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"sync"
 	"time"
 
@@ -18,12 +17,6 @@ var (
 )
 
 func init() {
-	var err error
-	conf, err = config.Get()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	flag.StringVar(&option.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them by comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
 	flag.StringVar(&option.Output, "output", conf.Downloader.Output, "Downloaded media path.")
 	flag.StringVar(&option.Quality, "quality", "", "[best|1080|720|480|360|160|worst|audio]")

@@ -6,7 +6,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/utils"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
-	"github.com/spf13/viper"
 	"golang.org/x/exp/rand"
 )
 
@@ -37,7 +36,7 @@ func GenerateIcon(userType string) string {
 // 	return lipgloss.JoinHorizontal(1, newT, msg)
 // }
 
-func FormatChatMessage(message ChatMessage, width int) string {
+func (m model) FormatChatMessage(message ChatMessage, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType)
 	if message.Metadata.Color == "" {
 		message.Metadata.Color = string(rand.Intn(257))
@@ -54,19 +53,19 @@ func FormatChatMessage(message ChatMessage, width int) string {
 		timestamp := lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("[%s]", message.Metadata.Timestamp))
 		return fmt.Sprintf("%s%s", timestamp, msg)
 	} else {
-		firstMsgColor := viper.GetString("chat.colors.messages.first")
+		firstMsgColor := m.conf.Chat.Colors.Messages.First
 		box := NewBoxWithLabel(firstMsgColor)
 		return box.RenderBox(lipgloss.NewStyle().Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
 	}
 }
 
-func FormatSubMessage(message SubNotice, width int) string {
+func (m model) FormatSubMessage(message SubNotice, width int) string {
 	if message.Metadata.Color == "" {
 		message.Metadata.Color = string(rand.Intn(257))
 	}
 	msg := fmt.Sprintf(" ✯ %s", message.Metadata.SystemMsg)
 
-	subColor := viper.GetString("chat.colors.messages.sub")
+	subColor := m.conf.Chat.Colors.Messages.Sub
 	box := NewBoxWithLabel(subColor)
 	msg = wordwrap.String(msg, width-50)
 	color := lipgloss.Color(subColor)
@@ -74,7 +73,7 @@ func FormatSubMessage(message SubNotice, width int) string {
 	return box.RenderBox(label, msg)
 }
 
-func FormatRaidMessage(message RaidNotice, width int) string {
+func (m model) FormatRaidMessage(message RaidNotice, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType)
 	if message.Metadata.Color == "" {
 		message.Metadata.Color = string(rand.Intn(257))
@@ -86,14 +85,14 @@ func FormatRaidMessage(message RaidNotice, width int) string {
 		message.Metadata.SystemMsg,
 	)
 
-	raidColor := viper.GetString("chat.colors.messages.raid")
+	raidColor := m.conf.Chat.Colors.Messages.Raid
 	box := NewBoxWithLabel(raidColor)
 	msg = wordwrap.String(msg, width-50)
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color(raidColor)).Render("Raid")
 	return box.RenderBox(label, msg)
 }
 
-// func FormatGiftSubMessage(message SubGiftMessage, width int) string {
+// func (m model) FormatGiftSubMessage(message SubGiftMessage, width int) string {
 // 	box := NewBoxWithLabel(subColor)
 // 	msg := fmt.Sprintf(
 // 		"%s gifted a subscription to %s!",
@@ -107,7 +106,7 @@ func FormatRaidMessage(message RaidNotice, width int) string {
 // 	return msg + "\n"
 // }
 
-// func FormatAnnouncementMessage(message AnnouncementMessage, width int) string {
+// func (m model) FormatAnnouncementMessage(message AnnouncementMessage, width int) string {
 // 	box := NewBoxWithLabel(announcementColor)
 // 	msg := fmt.Sprintf(
 // 		"%s: %s",
@@ -118,7 +117,7 @@ func FormatRaidMessage(message RaidNotice, width int) string {
 // 	return box.Render("Announcement", msg)
 // }
 
-// func FormatMysteryGiftSubMessage(message MysterySubGiftMessage, width int) string {
+// func (m model) FormatMysteryGiftSubMessage(message MysterySubGiftMessage, width int) string {
 // 	box := NewBoxWithLabel(subColor)
 // 	msg := fmt.Sprintf(
 // 		"%s is giving %s subs to the channel!",

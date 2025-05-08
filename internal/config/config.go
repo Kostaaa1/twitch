@@ -144,7 +144,7 @@ func initConfigData() Config {
 }
 
 // TODO: improve this
-func GetConfigPath() (string, error) {
+func getConfigPath() (string, error) {
 	configPath := os.Getenv("TWITCH_CONFIG_PATH")
 
 	if configPath == "" {
@@ -164,6 +164,11 @@ func GetConfigPath() (string, error) {
 }
 
 func Save(fpath string, conf *Config) error {
+	fpath, err := getConfigPath()
+	if err != nil {
+		return err
+	}
+
 	if _, err := os.Stat(fpath); err != nil {
 		return err
 	}
@@ -177,7 +182,7 @@ func Save(fpath string, conf *Config) error {
 func Get() (*Config, error) {
 	var data Config
 
-	configPath, err := GetConfigPath()
+	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +190,7 @@ func Get() (*Config, error) {
 	configDir := filepath.Dir(configPath)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		data = initConfigData()
+
 		b, err := json.MarshalIndent(data, "", " ")
 		if err != nil {
 			return nil, err
