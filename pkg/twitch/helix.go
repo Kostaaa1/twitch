@@ -81,7 +81,7 @@ func (tw *Client) User(id, loginName *string) (*User, error) {
 	}
 
 	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetToken())
+	req.Header.Set("Authorization", tw.GetBearerToken())
 
 	resp, err := tw.do(req)
 	if err != nil {
@@ -117,7 +117,7 @@ func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
 		return nil, err
 	}
 	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetToken())
+	req.Header.Set("Authorization", tw.GetBearerToken())
 
 	resp, err := tw.do(req)
 	if err != nil {
@@ -150,7 +150,7 @@ func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 	}
 
 	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetToken())
+	req.Header.Set("Authorization", tw.GetBearerToken())
 
 	resp, err := tw.do(req)
 	if err != nil {
@@ -179,7 +179,7 @@ func (tw *Client) GetStream(userId string) (*Streams, error) {
 		return nil, err
 	}
 	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetToken())
+	req.Header.Set("Authorization", tw.GetBearerToken())
 
 	resp, err := tw.do(req)
 	if err != nil {

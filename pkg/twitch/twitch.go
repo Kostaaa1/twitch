@@ -30,6 +30,10 @@ func New() *Client {
 	}
 }
 
+func (tw *Client) Config() *config.Config {
+	return tw.config
+}
+
 func (tw *Client) SetConfig(cfg *config.Config) {
 	tw.config = cfg
 }
@@ -99,7 +103,7 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	return nil
 }
 
-func (tw *Client) GetToken() string {
+func (tw *Client) GetBearerToken() string {
 	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
 }
 

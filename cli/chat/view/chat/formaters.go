@@ -41,7 +41,7 @@ func (m model) FormatChatMessage(message ChatMessage, width int) string {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }
 	msg := fmt.Sprintf(
-		"%s%s: %s",
+		"%s %s: %s",
 		icon,
 		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName),
 		message.Message,
@@ -78,7 +78,7 @@ func (m model) FormatRaidMessage(message RaidNotice, width int) string {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }
 	msg := fmt.Sprintf(
-		"%s%s: ✯ %s",
+		"%s %s: ✯ %s",
 		icon,
 		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName),
 		message.Metadata.SystemMsg,

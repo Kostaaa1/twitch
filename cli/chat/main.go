@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -51,6 +52,11 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 				}
 				defer resp.Body.Close()
 
+				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+					body, _ := io.ReadAll(resp.Body)
+					log.Fatalf("token exchange failed: status %d\nresponse: %s", resp.StatusCode, body)
+				}
+
 				if err := json.NewDecoder(resp.Body).Decode(&conf.Creds); err != nil {
 					log.Fatalf("failed to decode the exchange response: %v", err)
 				}
@@ -59,7 +65,6 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 				if err != nil {
 					log.Fatalf("failed to get the user info: %v\n", err)
 				}
-
 				conf.User = config.User{
 					BroadcasterType: user.BroadcasterType,
 					CreatedAt:       user.CreatedAt,
@@ -110,5 +115,10 @@ func main() {
 	if err := authorize(tw, conf); err != nil {
 		log.Fatal(err)
 	}
+
+	// old := tw.Config()
+	// fmt.Println("TWITCH CONFIG: ", old)
+	// fmt.Println("AFTER AUTH: ", conf)
+
 	chat.Open(tw, conf)
 }

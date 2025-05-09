@@ -229,7 +229,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEsc, tea.KeyCtrlC:
-			// viper.WriteConfig()
+			config.Save(m.conf)
 			return m, tea.Quit
 		case tea.KeyEnter:
 			m.sendMessage()
@@ -243,8 +243,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.moveTabBack()
 		case tea.KeyCtrlW:
 			if len(m.chats) > 1 {
-				// should disconnect from channel!!!!
-				m.removeActiveChat()
+				m.removeActiveChatAndDisconnect()
 			}
 		case tea.KeyCtrlO:
 			go func() { // check if safe
@@ -300,7 +299,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case Notice:
 			if chanMsg.Err != nil {
-				// go func() {}()
 				m.msgChan <- notifyMsg(chanMsg.SystemMsg)
 				m.msgChan <- notifyMsg(chanMsg.Err.Error())
 			}
@@ -381,9 +379,10 @@ func (m *model) sendMessage() {
 
 func (m *model) handleInputCommand(cmd string) {
 	parts := strings.Split(cmd, " ")
-	if len(parts) > 2 {
+	if len(parts) > 2 || len(parts) < 2 {
 		return
 	}
+
 	switch parts[0] {
 	case "/add":
 		m.addChat(parts[1])
@@ -415,8 +414,7 @@ func (m *model) addRoomToChat(chanMsg Room) {
 	}
 }
 
-func (m *model) removeActiveChat() {
-	// openedChats := viper.GetStringSlice("chat.openedchats")
+func (m *model) removeActiveChatAndDisconnect() {
 	openedChats := m.conf.Chat.OpenedChats
 	var chats []Chat
 	var newActiveId int
