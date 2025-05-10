@@ -107,7 +107,7 @@ func (tw *Client) GetBearerToken() string {
 	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
 }
 
-func (tw *Client) FetchAccesToken() error {
+func (tw *Client) RefetchAccesToken() error {
 	v := url.Values{}
 	v.Add("client_id", tw.config.Creds.ClientID)
 	v.Add("client_secret", tw.config.Creds.ClientSecret)

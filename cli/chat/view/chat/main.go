@@ -1,7 +1,9 @@
 package chat
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -15,88 +17,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type Metadata struct {
-	Color        string
-	DisplayName  string
-	IsMod        bool
-	IsSubscriber bool
-	UserType     string
-}
-
-type ChatMessageMetadata struct {
-	Metadata
-	RoomID         string
-	IsFirstMessage bool
-	Timestamp      string
-}
-
-type ChatMessage struct {
-	Metadata ChatMessageMetadata
-	Message  string
-}
-
-type RoomMetadata struct {
-	Metadata
-	Channel string
-}
-
-type Room struct {
-	Metadata      RoomMetadata
-	RoomID        string
-	IsEmoteOnly   bool
-	FollowersOnly string
-	IsSubsOnly    bool
-}
-
-type NoticeMetadata struct {
-	Metadata
-	MsgID     string
-	RoomID    string
-	SystemMsg string
-	Timestamp string
-	UserID    string
-}
-
-type RaidNotice struct {
-	Metadata         NoticeMetadata
-	ParamDisplayName string
-	ParamLogin       string
-	ViewerCount      int
-}
-
-type SubGiftNotice struct {
-	Metadata             NoticeMetadata
-	Months               int
-	RecipientDisplayName string
-	RecipientID          string
-	RecipientName        string
-	SubPlan              string
-}
-
-type SubNotice struct {
-	Metadata  NoticeMetadata
-	Months    int
-	SubPlan   string
-	WasGifted bool
-}
-
-type Notice struct {
-	MsgID       string
-	DisplayName string
-	SystemMsg   string
-	Err         error
-}
-
 type Chat struct {
 	IsActive bool
 	Channel  string
 	Messages []string
-	Room     Room
+	Room     twitch.Room
 }
 
 type model struct {
 	twitch              *twitch.Client
-	ws                  *WebSocketClient
+	ws                  *twitch.WSClient
 	conf                *config.Config
 	viewport            viewport.Model
 	labelBox            BoxWithLabel
@@ -112,7 +42,27 @@ type model struct {
 
 type notifyMsg string
 
-func Open(twitch *twitch.Client, cfg *config.Config) {
+func ConnectWithRetry(ws *twitch.WSClient, tw *twitch.Client, cfg *config.Config) error {
+	err := ws.Connect()
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, twitch.ErrAuthFailed) {
+		if err := tw.RefetchAccesToken(); err != nil {
+			return fmt.Errorf("failed to refresh token: %w", err)
+		}
+		config.Save(tw.Config())
+		if err := ws.Connect(); err != nil {
+			return fmt.Errorf("retry connect failed: %w", err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("connect failed: %w", err)
+}
+
+func Open(tw *twitch.Client, cfg *config.Config) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 	t := textinput.New()
@@ -123,14 +73,15 @@ func Open(twitch *twitch.Client, cfg *config.Config) {
 
 	msgChan := make(chan interface{})
 
-	ws, err := createWSClient()
+	ws, err := twitch.DialWS(cfg.User.Login, cfg.Creds.AccessToken, cfg.Chat.OpenedChats)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+	ws.SetMessageChan(msgChan)
 
 	go func() {
-		if err := ws.ConnectToIRC(cfg.Creds.AccessToken, cfg.User.Login, msgChan, cfg.Chat.OpenedChats); err != nil {
-			fmt.Println("Connection error: ", err)
+		if err := ConnectWithRetry(ws, tw, cfg); err != nil {
+			log.Fatal(err)
 		}
 	}()
 
@@ -141,7 +92,7 @@ func Open(twitch *twitch.Client, cfg *config.Config) {
 
 	m := model{
 		conf:                cfg,
-		twitch:              twitch,
+		twitch:              tw,
 		ws:                  ws,
 		chats:               chats,
 		width:               0,
@@ -156,7 +107,7 @@ func Open(twitch *twitch.Client, cfg *config.Config) {
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
@@ -166,7 +117,7 @@ func createNewChat(channel string, isActive bool) Chat {
 		Messages: []string{
 			lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Welcome to %s channel", channel)),
 		},
-		Room:    Room{},
+		Room:    twitch.Room{},
 		Channel: channel,
 	}
 }
@@ -282,22 +233,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case NewChannelMessage:
 		switch chanMsg := msg.Data.(type) {
-		case Room:
+		case twitch.Room:
 			m.addRoomToChat(chanMsg)
 
-		case ChatMessage:
+		case twitch.ChatMessage:
 			chat := m.getChat(chanMsg.Metadata.RoomID)
 			if chat != nil {
 				m.appendMessage(chat, m.FormatChatMessage(chanMsg, m.width))
 			}
 
-		case SubNotice:
+		case twitch.SubNotice:
 			chat := m.getChat(chanMsg.Metadata.RoomID)
 			if chat != nil {
 				m.appendMessage(chat, m.FormatSubMessage(chanMsg, m.width))
 			}
 
-		case Notice:
+		case twitch.Notice:
 			if chanMsg.Err != nil {
 				m.msgChan <- notifyMsg(chanMsg.SystemMsg)
 				m.msgChan <- notifyMsg(chanMsg.Err.Error())
@@ -330,11 +281,11 @@ func (m model) View() string {
 	return b.String()
 }
 
-func (m *model) createNewMessage(chat *Chat) ChatMessage {
-	newMessage := ChatMessage{
+func (m *model) newChatMessage(chat *Chat) twitch.ChatMessage {
+	newMessage := twitch.ChatMessage{
 		Message: m.textinput.Value(),
-		Metadata: ChatMessageMetadata{
-			Metadata: Metadata{
+		Metadata: twitch.ChatMessageMetadata{
+			Metadata: twitch.Metadata{
 				Color:        chat.Room.Metadata.Color,
 				DisplayName:  chat.Room.Metadata.DisplayName,
 				IsMod:        chat.Room.Metadata.IsMod,
@@ -366,7 +317,7 @@ func (m *model) sendMessage() {
 	if !strings.HasPrefix(input, "/") {
 		chat := m.getActiveChat()
 		if chat != nil {
-			newMessage := m.createNewMessage(chat)
+			newMessage := m.newChatMessage(chat)
 			m.ws.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
 			chat.Messages = append(chat.Messages, m.FormatChatMessage(newMessage, m.width))
 			m.updateChatViewport(chat)
@@ -404,7 +355,7 @@ func (m *model) addChat(channelName string) {
 	m.conf.Chat.OpenedChats = chats
 }
 
-func (m *model) addRoomToChat(chanMsg Room) {
+func (m *model) addRoomToChat(chanMsg twitch.Room) {
 	for i := range m.chats {
 		c := &(m.chats)[i]
 		if c.Channel == chanMsg.Metadata.Channel {

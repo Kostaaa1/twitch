@@ -13,10 +13,16 @@ import (
 
 var (
 	option options.Flag
-	conf   config.Config
+	conf   *config.Config
 )
 
 func init() {
+	var err error
+	conf, err = config.Get()
+	if err != nil {
+		panic(err)
+	}
+
 	flag.StringVar(&option.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them by comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
 	flag.StringVar(&option.Output, "output", conf.Downloader.Output, "Downloaded media path.")
 	flag.StringVar(&option.Quality, "quality", "", "[best|1080|720|480|360|160|worst|audio]")
@@ -35,23 +41,23 @@ func init() {
 }
 
 func main() {
+	dl := twitchdl.New()
+	dl.SetConfig(conf.Downloader)
+
 	// if option.Channel != "" {
 	// 	videos, err := dl.TWApi.GetVideosByChannelName(option.Channel, option.Limit)
 	// 	if err != nil {
 	// 		log.Fatal("failed to get the videos by username: %w", err)
 	// 		return
 	// 	}
-	// 	if option.Print != "" {
-	// 		for _, video := range videos {
-	// 			u := fmt.Sprintf("[%s | %s] - %s", video.Game.Name, video.ID, video.Title)
-	// 			fmt.Println(u)
-	// 		}
+	// 	// if option.Print != "" {
+	// 	for _, video := range videos {
+	// 		u := fmt.Sprintf("[%s | %s] - %s", video.Game.Name, video.ID, video.Title)
+	// 		fmt.Println(u)
 	// 	}
+	// 	// }
 	// 	return
 	// }
-
-	dl := twitchdl.New()
-	dl.SetConfig(conf.Downloader)
 
 	units := options.GetUnits(dl, option)
 

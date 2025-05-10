@@ -3,7 +3,9 @@ package chat
 import (
 	"fmt"
 
+	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/utils"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 )
@@ -12,16 +14,16 @@ func colorStyle(color string) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 }
 
-func GenerateIcon(userType string) string {
+func GenerateIcon(userType string, colors config.Colors) string {
 	switch userType {
 	case "broadcaster":
-		return colorStyle("#d20f39").Render(" [] ")
+		return colorStyle(colors.Icons.Broadcaster).Render(" [] ")
 	case "mod":
 		return " ✅"
 	case "vip":
-		return colorStyle("#ea76cb").Render(" [★] ")
+		return colorStyle(colors.Icons.Vip).Render(" [★] ")
 	case "staff":
-		return colorStyle("#8839ef").Render(" [★] ")
+		return colorStyle(colors.Icons.Staff).Render(" [★] ")
 	}
 	return " "
 }
@@ -35,8 +37,8 @@ func GenerateIcon(userType string) string {
 // 	return lipgloss.JoinHorizontal(1, newT, msg)
 // }
 
-func (m model) FormatChatMessage(message ChatMessage, width int) string {
-	icon := GenerateIcon(message.Metadata.UserType)
+func (m model) FormatChatMessage(message twitch.ChatMessage, width int) string {
+	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
 	// if message.Metadata.Color == "" {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }
@@ -58,7 +60,7 @@ func (m model) FormatChatMessage(message ChatMessage, width int) string {
 	}
 }
 
-func (m model) FormatSubMessage(message SubNotice, width int) string {
+func (m model) FormatSubMessage(message twitch.SubNotice, width int) string {
 	// if message.Metadata.Color == "" {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }
@@ -72,8 +74,8 @@ func (m model) FormatSubMessage(message SubNotice, width int) string {
 	return box.RenderBox(label, msg)
 }
 
-func (m model) FormatRaidMessage(message RaidNotice, width int) string {
-	icon := GenerateIcon(message.Metadata.UserType)
+func (m model) FormatRaidMessage(message twitch.RaidNotice, width int) string {
+	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
 	// if message.Metadata.Color == "" {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }

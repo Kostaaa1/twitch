@@ -25,8 +25,17 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 		return errors.New("error: Redirect URL is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Redirect URL in config")
 	}
 
+	if conf.Creds.RefreshToken != "" && conf.Creds.AccessToken == "" {
+		if err := tw.RefetchAccesToken(); err != nil {
+			return err
+		}
+		if err := config.Save(conf); err != nil {
+			return err
+		}
+	}
+
 	if conf.Creds.RefreshToken == "" {
-		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", conf.Creds.ClientID, conf.Creds.RedirectURL)
+		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", conf.Creds.ClientID, conf.Creds.RedirectURL)
 
 		u, err := url.Parse(conf.Creds.RedirectURL)
 		if err != nil {
@@ -115,10 +124,5 @@ func main() {
 	if err := authorize(tw, conf); err != nil {
 		log.Fatal(err)
 	}
-
-	// old := tw.Config()
-	// fmt.Println("TWITCH CONFIG: ", old)
-	// fmt.Println("AFTER AUTH: ", conf)
-
 	chat.Open(tw, conf)
 }
