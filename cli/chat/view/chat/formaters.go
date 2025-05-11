@@ -2,6 +2,8 @@ package chat
 
 import (
 	"fmt"
+	"math/rand"
+	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/utils"
@@ -37,26 +39,67 @@ func GenerateIcon(userType string, colors config.Colors) string {
 // 	return lipgloss.JoinHorizontal(1, newT, msg)
 // }
 
+func wrapText(s string, limit, padding int) string {
+	var out strings.Builder
+	// we keep track of the n char that were written
+	var lineLen int
+
+	// loop through every word in string
+	for _, word := range strings.Fields(s) {
+		// move to new row if length of the word + n char count is equal or bigger then limit
+		if len(word)+lineLen >= limit {
+			out.WriteString("\n")
+			paddingStr := strings.Repeat(" ", padding)
+			lineLen = padding
+			if padding > 0 {
+				out.WriteString(paddingStr)
+			}
+			// remainder := limit - lineLen
+			// if len(word) >= remainder {
+			// 	part := word[:remainder]
+			// 	part2 := word[remainder+1:]
+			// 	if padding > 0 {
+			// 		word = part + "\n" + paddingStr + part2
+			// 	} else {
+			// 		word = part + "\n" + part2
+			// 	}
+			// 	lineLen = padding + len(part2)
+			// }
+		} else if lineLen > 0 {
+			out.WriteString(" ")
+			lineLen++
+		}
+		out.WriteString(word)
+		lineLen += len(word)
+	}
+
+	return out.String()
+}
+
 func (m model) FormatChatMessage(message twitch.ChatMessage, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
-	// if message.Metadata.Color == "" {
-	// 	message.Metadata.Color = string(rand.Intn(257))
-	// }
-	msg := fmt.Sprintf(
-		"%s %s: %s",
-		icon,
-		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName),
-		message.Message,
-	)
+	if message.Metadata.Color == "" {
+		message.Metadata.Color = string(rand.Intn(257))
+	}
 
-	msg = wordwrap.String(msg, width-14)
+	var msgStr strings.Builder
+	if icon != "" {
+		msgStr.WriteString(icon + " ")
+	}
+	msgStr.WriteString(colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName) + ": ")
+	msgStr.WriteString(message.Message)
+	msgStyle := lipgloss.NewStyle()
+
 	if !message.Metadata.IsFirstMessage {
-		timestamp := lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("[%s]", message.Metadata.Timestamp))
-		return fmt.Sprintf("%s%s", timestamp, msg)
+		timestampMsg := fmt.Sprintf("[%s]", message.Metadata.Timestamp)
+		timestamp := msgStyle.Faint(true).Render(timestampMsg)
+		msg := wrapText(msgStr.String(), width-6, len(timestampMsg)+1)
+		return fmt.Sprintf("%s %s", timestamp, strings.TrimSpace(msg))
 	} else {
 		firstMsgColor := m.conf.Chat.Colors.Messages.First
 		box := NewBoxWithLabel(firstMsgColor)
-		return box.RenderBox(lipgloss.NewStyle().Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
+		msg := wrapText(msgStr.String(), width-6, 0)
+		return box.RenderBox(msgStyle.Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
 	}
 }
 
@@ -69,6 +112,7 @@ func (m model) FormatSubMessage(message twitch.SubNotice, width int) string {
 	subColor := m.conf.Chat.Colors.Messages.Sub
 	box := NewBoxWithLabel(subColor)
 	msg = wordwrap.String(msg, width-50)
+	msg = wrapText(msg, width-50, 0)
 	color := lipgloss.Color(subColor)
 	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", utils.Capitalize(message.SubPlan)))
 	return box.RenderBox(label, msg)
@@ -85,10 +129,10 @@ func (m model) FormatRaidMessage(message twitch.RaidNotice, width int) string {
 		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName),
 		message.Metadata.SystemMsg,
 	)
-
 	raidColor := m.conf.Chat.Colors.Messages.Raid
 	box := NewBoxWithLabel(raidColor)
 	msg = wordwrap.String(msg, width-50)
+	msg = wrapText(msg, width-50, 0)
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color(raidColor)).Render("Raid")
 	return box.RenderBox(label, msg)
 }

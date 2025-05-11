@@ -69,6 +69,7 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 	t.CharLimit = 500
 	t.Placeholder = "Send a message"
 	t.Prompt = " ▶ "
+	t.Width = 50
 	t.Focus()
 
 	msgChan := make(chan interface{})
@@ -150,6 +151,11 @@ func (m model) waitForMsg() tea.Cmd {
 	}
 }
 
+func (m *model) showNoChatMessage() {
+	msg := "No active chats. Use '/add <channel_name>' to join channel."
+	m.viewport.SetContent(lipgloss.NewStyle().Faint(true).Render(msg))
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		tiCmd tea.Cmd
@@ -173,8 +179,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.chats) > 0 && m.chats[0].IsActive {
 			m.updateChatViewport(&m.chats[0])
 		} else if len(m.chats) == 0 {
-			msg := "No active chats. Use '/add <channel_name>' to join channel."
-			m.viewport.SetContent(lipgloss.NewStyle().Faint(true).Render(msg))
+			m.showNoChatMessage()
 		}
 
 	case tea.KeyMsg:
@@ -193,9 +198,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlShiftLeft:
 			m.moveTabBack()
 		case tea.KeyCtrlW:
-			if len(m.chats) > 1 {
-				m.removeActiveChatAndDisconnect()
-			}
+			// if len(m.chats) > 1 {
+			m.removeActiveChatAndDisconnect()
+			// }
 		case tea.KeyCtrlO:
 			go func() { // check if safe
 				chat := m.getActiveChat()
@@ -345,12 +350,18 @@ func (m *model) handleInputCommand(cmd string) {
 }
 
 func (m *model) addChat(channelName string) {
-	newChat := createNewChat(channelName, len(m.chats) == 0)
+	newChat := createNewChat(channelName, true)
 	m.chats = append(m.chats, newChat)
 	m.ws.ConnectToChannel(newChat.Channel)
+	m.updateChatViewport(&newChat)
+
+	// For config
 	chats := []string{}
-	for _, c := range m.chats {
-		chats = append(chats, c.Channel)
+	for i := range m.chats {
+		if m.chats[i].Channel != newChat.Channel {
+			m.chats[i].IsActive = false
+		}
+		chats = append(chats, m.chats[i].Channel)
 	}
 	m.conf.Chat.OpenedChats = chats
 }
@@ -368,7 +379,7 @@ func (m *model) addRoomToChat(chanMsg twitch.Room) {
 func (m *model) removeActiveChatAndDisconnect() {
 	openedChats := m.conf.Chat.OpenedChats
 	var chats []Chat
-	var newActiveId int
+	newActiveId := -1
 
 	for i, chat := range m.chats {
 		if !chat.IsActive {
@@ -383,9 +394,13 @@ func (m *model) removeActiveChatAndDisconnect() {
 		}
 	}
 
-	chats[newActiveId].IsActive = true
-	chat := chats[newActiveId]
-	m.updateChatViewport(&chat)
+	if newActiveId > -1 {
+		chats[newActiveId].IsActive = true
+		chat := chats[newActiveId]
+		m.updateChatViewport(&chat)
+	} else {
+		m.showNoChatMessage()
+	}
 
 	m.conf.Chat.OpenedChats = openedChats
 	m.chats = chats

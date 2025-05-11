@@ -102,7 +102,7 @@ func (c *WSClient) Connect() error {
 					msg := parsePRIVMSG(rawIRCMessage)
 					c.writeToChannel(msg)
 				case "USERNOTICE":
-					fmt.Println("USERNOTICE")
+					// fmt.Println("USERNOTICE")
 					parseUSERNOTICE(rawIRCMessage, c.ch)
 				case "PING":
 					c.SendMessage([]byte("PONG :tmi.twitch.tv"))

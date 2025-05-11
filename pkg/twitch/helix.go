@@ -61,6 +61,55 @@ type User struct {
 	CreatedAt       string `json:"created_at"`
 }
 
+func helixReq[T any](
+	tw *Client,
+	url string,
+	httpMethod string,
+	body io.Reader,
+	maxRetries int,
+) (*T, error) {
+	var retryCount int
+
+	for {
+		req, err := http.NewRequest(httpMethod, url, body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
+		req.Header.Set("Authorization", tw.GetBearerToken())
+
+		resp, err := tw.do(req)
+		if err != nil {
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusUnauthorized {
+			if retryCount >= maxRetries {
+				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", maxRetries)
+			}
+
+			if err := tw.RefetchAccesToken(); err != nil {
+				return nil, fmt.Errorf("failed to refresh access token: %w", err)
+			}
+
+			retryCount++
+			continue
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
+		}
+
+		var result T
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return &result, nil
+	}
+}
+
 func (tw *Client) User(id, loginName *string) (*User, error) {
 	queryParams := []string{}
 	if id != nil {
@@ -75,39 +124,51 @@ func (tw *Client) User(id, loginName *string) (*User, error) {
 		url += "?" + strings.Join(queryParams, "&")
 	}
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetBearerToken())
-
-	resp, err := tw.do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	type data struct {
 		Data []User `json:"data"`
 	}
 	var user data
 
-	if err := json.Unmarshal(b, &user); err != nil {
+	user, err := helixReq[data](tw, url, http.MethodGet, nil, 3)
+	if err != nil {
 		return nil, err
 	}
 
-	if len(user.Data) == 0 {
-		return nil, fmt.Errorf("the channel %s does not exist", loginName)
-	}
+	return user, nil
 
-	return &user.Data[0], nil
+	// req, err := http.NewRequest(http.MethodGet, url, nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
+	// req.Header.Set("Authorization", tw.GetBearerToken())
+
+	// resp, err := tw.do(req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defer resp.Body.Close()
+
+	// b, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// type data struct {
+	// 	Data []User `json:"data"`
+	// }
+	// var user data
+
+	// if err := json.Unmarshal(b, &user); err != nil {
+	// 	return nil, err
+	// }
+
+	// if len(user.Data) == 0 {
+	// 	return nil, fmt.Errorf("the channel %s does not exist", loginName)
+	// }
+
+	// return &user.Data[0], nil
 }
 
 func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {

@@ -33,7 +33,7 @@ func (b *BoxWithLabel) SetWidth(width int) *BoxWithLabel {
 	return b
 }
 
-func (b *BoxWithLabel) renderLabel(chat Chat, id int) string {
+func (b *BoxWithLabel) renderTab(chat Chat, id int) string {
 	border := lipgloss.Border{
 		Top:         "─",
 		Left:        "│",
@@ -80,9 +80,10 @@ func (b *BoxWithLabel) RenderBoxWithTabs(chats []Chat, content string) string {
 		topBorderStyler func(strs ...string) string = lipgloss.NewStyle().
 				Foreground(b.BoxStyle.GetBorderTopForeground()).
 				Render
-		border   lipgloss.Border = b.BoxStyle.GetBorderStyle()
-		topLeft  string          = topBorderStyler(border.TopLeft)
-		topRight string          = topBorderStyler(border.TopRight)
+		border      lipgloss.Border = b.BoxStyle.GetBorderStyle()
+		borderTop   string          = topBorderStyler(border.Top)
+		borderLeft  string          = topBorderStyler(border.TopLeft)
+		borderRight string          = topBorderStyler(border.TopRight)
 	)
 
 	width := lipgloss.Width(content)
@@ -93,13 +94,20 @@ func (b *BoxWithLabel) RenderBoxWithTabs(chats []Chat, content string) string {
 
 	var stack []string
 	for i := range chats {
-		stack = append(stack, b.renderLabel(chats[i], i))
+		stack = append(stack, b.renderTab(chats[i], i))
 	}
 	labels := lipgloss.JoinHorizontal(lipgloss.Position(0), stack...)
 
-	cellsShort := max(0, width+borderWidth-lipgloss.Width(topLeft+topRight+labels))
-	gap := strings.Repeat(border.Top, cellsShort+1)
-	top := labels + topBorderStyler(gap) + topRight
+	cellsShort := max(1, width+borderWidth-lipgloss.Width(borderLeft+borderRight+labels))
+	gap := strings.Repeat(border.Top, cellsShort)
+
+	var top string
+	if len(stack) == 0 {
+		top = "\n" + "\n" + borderLeft + topBorderStyler(gap) + borderRight
+	} else {
+		top = labels + topBorderStyler(gap) + borderTop + borderRight
+	}
+
 	bottom := b.BoxStyle.
 		BorderTop(false).
 		Width(width).
@@ -141,5 +149,6 @@ func (b *BoxWithLabel) RenderBox(label, content string) string {
 		BorderTop(false).
 		Width(width).
 		Render(content)
+
 	return top + "\n" + bottom
 }

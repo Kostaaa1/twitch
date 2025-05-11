@@ -88,7 +88,6 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
 	}
-
 	req.Header.Set("Client-Id", gqlClientID)
 
 	resp, err := tw.do(req)

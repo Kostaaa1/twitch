@@ -27,7 +27,7 @@ func (i item) FilterValue() string { return i.title }
 type model struct {
 	list   list.Model
 	twitch *twitch.Client
-	cfg    config.Config
+	cfg    *config.Config
 }
 
 func (m model) Init() tea.Cmd {
@@ -61,7 +61,7 @@ func (m model) View() string {
 	return docStyle.Render(m.list.View())
 }
 
-func Open(twitch *twitch.Client, cfg config.Config) {
+func Open(twitch *twitch.Client, cfg *config.Config) {
 	var items = []list.Item{
 		item{title: "Chats", desc: "Open chats."},
 		item{title: "???", desc: "Add list."},
