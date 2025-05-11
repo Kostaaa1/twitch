@@ -38,6 +38,7 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 		log.Fatal(err)
 	}
 	fmt.Println(user)
+	return nil
 
 	if conf.Creds.RefreshToken == "" {
 		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", conf.Creds.ClientID, conf.Creds.RedirectURL)

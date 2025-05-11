@@ -61,12 +61,15 @@ type User struct {
 	CreatedAt       string `json:"created_at"`
 }
 
+type helixDataWrapper[T any] struct {
+	Data []T `json:"data"`
+}
+
 func helixReq[T any](
 	tw *Client,
 	url string,
 	httpMethod string,
 	body io.Reader,
-	maxRetries int,
 ) (*T, error) {
 	var retryCount int
 
@@ -79,21 +82,21 @@ func helixReq[T any](
 		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 		req.Header.Set("Authorization", tw.GetBearerToken())
 
-		resp, err := tw.do(req)
-		if err != nil {
-			return nil, fmt.Errorf("request failed: %w", err)
-		}
-		defer resp.Body.Close()
+		// resp, err := tw.do(req)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("request failed: %w", err)
+		// }
+		// defer resp.Body.Close()
+
+		resp, err := tw.httpClient.Do(req)
 
 		if resp.StatusCode == http.StatusUnauthorized {
-			if retryCount >= maxRetries {
-				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", maxRetries)
+			if retryCount >= 3 {
+				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
 			}
-
 			if err := tw.RefetchAccesToken(); err != nil {
 				return nil, fmt.Errorf("failed to refresh access token: %w", err)
 			}
-
 			retryCount++
 			continue
 		}
@@ -102,11 +105,18 @@ func helixReq[T any](
 			return nil, fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
 		}
 
-		var result T
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		var result helixDataWrapper[T]
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
-		return &result, nil
+
+		fmt.Println(result)
+		return &result.Data[0], nil
 	}
 }
 
@@ -124,23 +134,26 @@ func (tw *Client) User(id, loginName *string) (*User, error) {
 		url += "?" + strings.Join(queryParams, "&")
 	}
 
-	type data struct {
-		Data []User `json:"data"`
-	}
-	var user data
-
-	user, err := helixReq[data](tw, url, http.MethodGet, nil, 3)
+	user, err := helixReq[User](tw, url, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return user, nil
+}
 
-	// req, err := http.NewRequest(http.MethodGet, url, nil)
+func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
+	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
+	channel, err := helixReq[Channel](tw, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, err
+	}
+	return channel, nil
+
+	// req, err := http.NewRequest(http.MethodGet, u, nil)
 	// if err != nil {
 	// 	return nil, err
 	// }
-
 	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 	// req.Header.Set("Authorization", tw.GetBearerToken())
 
@@ -156,132 +169,102 @@ func (tw *Client) User(id, loginName *string) (*User, error) {
 	// }
 
 	// type data struct {
-	// 	Data []User `json:"data"`
+	// 	Data []Channel `json:"data"`
 	// }
-	// var user data
 
-	// if err := json.Unmarshal(b, &user); err != nil {
+	// var channel data
+	// if err := json.Unmarshal(b, &channel); err != nil {
 	// 	return nil, err
 	// }
 
-	// if len(user.Data) == 0 {
-	// 	return nil, fmt.Errorf("the channel %s does not exist", loginName)
-	// }
-
-	// return &user.Data[0], nil
-}
-
-func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
-	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
-	req, err := http.NewRequest(http.MethodGet, u, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetBearerToken())
-
-	resp, err := tw.do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	type data struct {
-		Data []Channel `json:"data"`
-	}
-
-	var channel data
-	if err := json.Unmarshal(b, &channel); err != nil {
-		return nil, err
-	}
-
-	return &channel.Data[0], nil
+	// return &channel.Data[0], nil
 }
 
 func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	streams, err := helixReq[Streams](tw, u, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
+	return streams, nil
 
-	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetBearerToken())
+	// req, err := http.NewRequest(http.MethodGet, u, nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	resp, err := tw.do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
+	// req.Header.Set("Authorization", tw.GetBearerToken())
+	// resp, err := tw.do(req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+	// b, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	var streams Streams
-	if err := json.Unmarshal(b, &streams); err != nil {
-		return nil, err
-	}
-
-	return &streams, nil
+	// var streams Streams
+	// if err := json.Unmarshal(b, &streams); err != nil {
+	// 	return nil, err
+	// }
 }
 
 func (tw *Client) GetStream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
-
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	stream, err := helixReq[Streams](tw, u, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	req.Header.Set("Authorization", tw.GetBearerToken())
+	return stream, nil
 
-	resp, err := tw.do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var streams Streams
-	if err := json.Unmarshal(b, &streams); err != nil {
-		return nil, err
-	}
-
-	return &streams, nil
+	// req, err := http.NewRequest(http.MethodGet, u, nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
+	// req.Header.Set("Authorization", tw.GetBearerToken())
+	// resp, err := tw.do(req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defer resp.Body.Close()
+	// b, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// var streams Streams
+	// if err := json.Unmarshal(b, &streams); err != nil {
+	// 	return nil, err
+	// }
+	// return &streams, nil
 }
 
 func (tw *Client) IsChannelLive(channelName string) (bool, error) {
 	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
 
-	resp, err := http.Get(u)
-	if err != nil {
-		return false, fmt.Errorf("failed getting the response from URL: %s. \nError: %s", u, err)
-	}
-	defer resp.Body.Close()
+	// resp, err := http.Get(u)
+	// if err != nil {
+	// 	return false, fmt.Errorf("failed getting the response from URL: %s. \nError: %s", u, err)
+	// }
+	// defer resp.Body.Close()
+	// if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	// 	return false, fmt.Errorf("channel %s does not exist?", channelName)
+	// }
+	// b, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
+	// }
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, fmt.Errorf("channel %s does not exist?", channelName)
-	}
-
-	b, err := io.ReadAll(resp.Body)
+	b, err := tw.fetch(u)
 	if err != nil {
-		return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
+		return false, err
 	}
 
 	if strings.HasPrefix(string(b), "[Error from Twitch Client]") {
 		return false, fmt.Errorf("[Error from Twitch Client]")
 	}
-
 	return !strings.Contains(string(b), "offline"), nil
 }

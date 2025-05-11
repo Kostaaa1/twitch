@@ -38,18 +38,18 @@ func (tw *Client) SetConfig(cfg *config.Config) {
 	tw.config = cfg
 }
 
-func (tw *Client) do(req *http.Request) (*http.Response, error) {
-	resp, err := tw.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform request: %s", err)
-	}
-	if s := resp.StatusCode; s < 200 || s >= 300 {
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("request failed with status code %d: %s", s, string(b))
-	}
-	return resp, nil
-}
+// func (tw *Client) do(req *http.Request) (*http.Response, error) {
+// 	resp, err := tw.httpClient.Do(req)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to perform request: %s", err)
+// 	}
+// 	if s := resp.StatusCode; s < 200 || s >= 300 {
+// 		defer resp.Body.Close()
+// 		b, _ := io.ReadAll(resp.Body)
+// 		return nil, fmt.Errorf("request failed with status code %d: %s", s, string(b))
+// 	}
+// 	return resp, nil
+// }
 
 func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
 	resp, err := http.Get(url)
