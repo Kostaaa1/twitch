@@ -90,15 +90,19 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	}
 	req.Header.Set("Client-Id", gqlClientID)
 
-	resp, err := tw.do(req)
+	resp, err := tw.httpClient.Do(req)
 	if err != nil {
 		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("unsupported response status code for graphql: %v", resp.StatusCode)
 	}
 
 	if err := tw.decodeJSONResponse(resp, &v); err != nil {
 		return err
 	}
-
 	return nil
 }
 

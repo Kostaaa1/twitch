@@ -82,14 +82,7 @@ func helixReq[T any](
 		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 		req.Header.Set("Authorization", tw.GetBearerToken())
 
-		// resp, err := tw.do(req)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("request failed: %w", err)
-		// }
-		// defer resp.Body.Close()
-
 		resp, err := tw.httpClient.Do(req)
-
 		if resp.StatusCode == http.StatusUnauthorized {
 			if retryCount >= 3 {
 				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)

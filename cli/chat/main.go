@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Kostaaa1/twitch/cli/chat/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -24,21 +25,14 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 		return errors.New("error: Redirect URL is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Redirect URL in config")
 	}
 
-	// if conf.Creds.RefreshToken != "" && conf.Creds.AccessToken == "" {
-	// 	if err := tw.RefetchAccesToken(); err != nil {
-	// 		return err
-	// 	}
-	// 	if err := config.Save(conf); err != nil {
-	// 		return err
-	// 	}
-	// }
-
-	user, err := tw.User(nil, nil)
-	if err != nil {
-		log.Fatal(err)
+	if conf.Creds.RefreshToken != "" && conf.Creds.AccessToken == "" {
+		if err := tw.RefetchAccesToken(); err != nil {
+			return err
+		}
+		if err := config.Save(conf); err != nil {
+			return err
+		}
 	}
-	fmt.Println(user)
-	return nil
 
 	if conf.Creds.RefreshToken == "" {
 		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", conf.Creds.ClientID, conf.Creds.RedirectURL)
@@ -130,5 +124,5 @@ func main() {
 	if err := authorize(tw, conf); err != nil {
 		log.Fatal(err)
 	}
-	// chat.Open(tw, conf)
+	chat.Open(tw, conf)
 }

@@ -86,7 +86,7 @@ func (m model) FormatChatMessage(message twitch.ChatMessage, width int) string {
 	if icon != "" {
 		msgStr.WriteString(icon + " ")
 	}
-	msgStr.WriteString(colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName) + ": ")
+	msgStr.WriteString(colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName+":") + " ")
 	msgStr.WriteString(message.Message)
 	msgStyle := lipgloss.NewStyle()
 
@@ -124,9 +124,9 @@ func (m model) FormatRaidMessage(message twitch.RaidNotice, width int) string {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }
 	msg := fmt.Sprintf(
-		"%s %s: ✯ %s",
+		"%s %s ✯ %s",
 		icon,
-		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName),
+		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName+":"),
 		message.Metadata.SystemMsg,
 	)
 	raidColor := m.conf.Chat.Colors.Messages.Raid
