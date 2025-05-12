@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -30,5 +31,24 @@ func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) 
 		return nil, err
 	}
 
+	fmt.Println("subscribed: ", data)
 	return data, nil
+}
+
+func (sub *EventSub) DeleteSubscription() {
+	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
+	data, err := twitch.HelixRequest[interface{}](sub.tw, url, http.MethodGet, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(*data)
+}
+
+func (sub *EventSub) GetSubscriptions() {
+	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
+	data, err := twitch.HelixRequest[interface{}](sub.tw, url, http.MethodGet, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(*data)
 }
