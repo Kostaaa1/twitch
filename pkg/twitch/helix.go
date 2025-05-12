@@ -85,6 +85,15 @@ func HelixRequest[T any](
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := tw.httpClient.Do(req)
+		if err != nil {
+			if resp != nil && resp.Body != nil {
+				test, _ := io.ReadAll(resp.Body)
+				fmt.Println("ERROR: tes: ", test)
+			}
+			return nil, err
+		}
+		defer resp.Body.Close()
+
 		if resp.StatusCode == http.StatusUnauthorized {
 			if retryCount >= 3 {
 				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
@@ -100,14 +109,10 @@ func HelixRequest[T any](
 			return nil, fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
 		}
 
-		if err != nil {
-			if resp.Body != nil {
-				test, _ := io.ReadAll(resp.Body)
-				fmt.Println("ERROR: tes: ", test)
-			}
-			return nil, err
+		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
+			var empty T
+			return &empty, nil
 		}
-		defer resp.Body.Close()
 
 		var result T
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

@@ -10,7 +10,7 @@ type Transport struct {
 
 type RequestBody struct {
 	Version   int32                  `json:"version"`
-	Type      string                 `json:"type"`
+	Type      Type                   `json:"type"`
 	Condition map[string]interface{} `json:"condition"`
 	Transport Transport              `json:"transport"`
 }

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Kostaaa1/twitch/cli/chat/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -120,15 +121,8 @@ func main() {
 	tw := twitch.New()
 	tw.SetConfig(conf)
 
-	user, err := tw.User(nil, nil)
-	if err != nil {
+	if err := authorize(tw, conf); err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(user)
-
-	// if err := authorize(tw, conf); err != nil {
-	// 	log.Fatal(err)
-	// }
-	// chat.Open(tw, conf)
+	chat.Open(tw, conf)
 }
