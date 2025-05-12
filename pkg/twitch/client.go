@@ -38,18 +38,8 @@ func (tw *Client) SetConfig(cfg *config.Config) {
 	tw.config = cfg
 }
 
-// func (tw *Client) do(req *http.Request) (*http.Response, error) {
-// 	resp, err := tw.httpClient.Do(req)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to perform request: %s", err)
-// 	}
-// 	if s := resp.StatusCode; s < 200 || s >= 300 {
-// 		defer resp.Body.Close()
-// 		b, _ := io.ReadAll(resp.Body)
-// 		return nil, fmt.Errorf("request failed with status code %d: %s", s, string(b))
-// 	}
-// 	return resp, nil
-// }
+func (tw *Client) SetCredentials(conf *config.Creds) {
+}
 
 func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
 	resp, err := http.Get(url)
@@ -110,14 +100,17 @@ func (tw *Client) GetBearerToken() string {
 	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
 }
 
-func (tw *Client) RefetchAccesToken() error {
-	v := url.Values{}
-	v.Add("client_id", tw.config.Creds.ClientID)
-	v.Add("client_secret", tw.config.Creds.ClientSecret)
-	v.Add("refresh_token", tw.config.Creds.RefreshToken)
-	v.Add("grant_type", "refresh_token")
+func (tw *Client) buildTokenRefetchValues() url.Values {
+	return url.Values{
+		"client_id":     {tw.config.Creds.ClientID},
+		"client_secret": {tw.config.Creds.ClientSecret},
+		"refresh_token": {tw.config.Creds.RefreshToken},
+		"grant_type":    {"refresh_token"},
+	}
+}
 
-	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", v)
+func (tw *Client) RefetchAccesToken() error {
+	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", tw.buildTokenRefetchValues())
 	if err != nil {
 		return err
 	}

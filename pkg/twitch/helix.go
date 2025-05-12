@@ -61,11 +61,12 @@ type User struct {
 	CreatedAt       string `json:"created_at"`
 }
 
-type helixDataWrapper[T any] struct {
+type helixEnvelope[T any] struct {
 	Data []T `json:"data"`
 }
 
-func helixReq[T any](
+// TODO: izmeni da koristi struct za docodiranje
+func HelixRequest[T any](
 	tw *Client,
 	url string,
 	httpMethod string,
@@ -81,6 +82,7 @@ func helixReq[T any](
 
 		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
 		req.Header.Set("Authorization", tw.GetBearerToken())
+		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := tw.httpClient.Do(req)
 		if resp.StatusCode == http.StatusUnauthorized {
@@ -99,20 +101,24 @@ func helixReq[T any](
 		}
 
 		if err != nil {
+			if resp.Body != nil {
+				test, _ := io.ReadAll(resp.Body)
+				fmt.Println("ERROR: tes: ", test)
+			}
 			return nil, err
 		}
 		defer resp.Body.Close()
 
-		var result helixDataWrapper[T]
+		var result T
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
-		fmt.Println(result)
-		return &result.Data[0], nil
+		return &result, nil
 	}
 }
 
+// if id and login are nil, your User data will be returned
 func (tw *Client) User(id, loginName *string) (*User, error) {
 	queryParams := []string{}
 	if id != nil {
@@ -127,135 +133,48 @@ func (tw *Client) User(id, loginName *string) (*User, error) {
 		url += "?" + strings.Join(queryParams, "&")
 	}
 
-	user, err := helixReq[User](tw, url, http.MethodGet, nil)
+	data, err := HelixRequest[helixEnvelope[User]](tw, url, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return user, nil
+	return &data.Data[0], nil
 }
 
 func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
-	channel, err := helixReq[Channel](tw, u, http.MethodGet, nil)
+	data, err := HelixRequest[helixEnvelope[Channel]](tw, u, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
-	return channel, nil
-
-	// req, err := http.NewRequest(http.MethodGet, u, nil)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	// req.Header.Set("Authorization", tw.GetBearerToken())
-
-	// resp, err := tw.do(req)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer resp.Body.Close()
-
-	// b, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// type data struct {
-	// 	Data []Channel `json:"data"`
-	// }
-
-	// var channel data
-	// if err := json.Unmarshal(b, &channel); err != nil {
-	// 	return nil, err
-	// }
-
-	// return &channel.Data[0], nil
+	return &data.Data[0], nil
 }
 
 func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
-	streams, err := helixReq[Streams](tw, u, http.MethodGet, nil)
+	data, err := HelixRequest[helixEnvelope[Streams]](tw, u, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
-	return streams, nil
-
-	// req, err := http.NewRequest(http.MethodGet, u, nil)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	// req.Header.Set("Authorization", tw.GetBearerToken())
-	// resp, err := tw.do(req)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer resp.Body.Close()
-
-	// b, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// var streams Streams
-	// if err := json.Unmarshal(b, &streams); err != nil {
-	// 	return nil, err
-	// }
+	return &data.Data[0], nil
 }
 
 func (tw *Client) GetStream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
-	stream, err := helixReq[Streams](tw, u, http.MethodGet, nil)
+	stream, err := HelixRequest[Streams](tw, u, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
 	return stream, nil
-
-	// req, err := http.NewRequest(http.MethodGet, u, nil)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-	// req.Header.Set("Authorization", tw.GetBearerToken())
-	// resp, err := tw.do(req)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer resp.Body.Close()
-	// b, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// var streams Streams
-	// if err := json.Unmarshal(b, &streams); err != nil {
-	// 	return nil, err
-	// }
-	// return &streams, nil
 }
 
+// change this, use helix for this
 func (tw *Client) IsChannelLive(channelName string) (bool, error) {
 	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
-
-	// resp, err := http.Get(u)
-	// if err != nil {
-	// 	return false, fmt.Errorf("failed getting the response from URL: %s. \nError: %s", u, err)
-	// }
-	// defer resp.Body.Close()
-	// if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-	// 	return false, fmt.Errorf("channel %s does not exist?", channelName)
-	// }
-	// b, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return false, fmt.Errorf("failed reading the response Body. \nError: %s", err)
-	// }
-
 	b, err := tw.fetch(u)
 	if err != nil {
 		return false, err
 	}
-
 	if strings.HasPrefix(string(b), "[Error from Twitch Client]") {
 		return false, fmt.Errorf("[Error from Twitch Client]")
 	}

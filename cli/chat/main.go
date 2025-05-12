@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/Kostaaa1/twitch/cli/chat/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -48,13 +47,13 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 		http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 			code := r.URL.Query().Get("code")
 			if code != "" {
-				values := url.Values{}
-				values.Add("code", code)
-				values.Add("client_id", conf.Creds.ClientID)
-				values.Add("client_secret", conf.Creds.ClientSecret)
-				values.Add("grant_type", "authorization_code")
-				values.Add("redirect_uri", conf.Creds.RedirectURL)
-
+				values := url.Values{
+					"code":          {code},
+					"client_id":     {conf.Creds.ClientID},
+					"client_secret": {conf.Creds.ClientSecret},
+					"grant_type":    {"authorization_code"},
+					"redirect_uri":  {conf.Creds.RedirectURL},
+				}
 				resp, err := http.PostForm("https://id.twitch.tv/oauth2/token", values)
 				if err != nil {
 					log.Fatalf("failed to exchange code for refresh token: %v", err)
@@ -121,8 +120,15 @@ func main() {
 	tw := twitch.New()
 	tw.SetConfig(conf)
 
-	if err := authorize(tw, conf); err != nil {
+	user, err := tw.User(nil, nil)
+	if err != nil {
 		log.Fatal(err)
 	}
-	chat.Open(tw, conf)
+
+	fmt.Println(user)
+
+	// if err := authorize(tw, conf); err != nil {
+	// 	log.Fatal(err)
+	// }
+	// chat.Open(tw, conf)
 }
