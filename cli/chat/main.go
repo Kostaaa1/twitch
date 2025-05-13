@@ -119,7 +119,7 @@ func main() {
 	}
 
 	tw := twitch.New()
-	tw.SetConfig(conf)
+	tw.SetCreds(&conf.Creds)
 
 	if err := authorize(tw, conf); err != nil {
 		log.Fatal(err)

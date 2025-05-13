@@ -2,12 +2,9 @@ package event
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"time"
-
-	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 type Subscription struct {
@@ -36,8 +33,8 @@ func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) 
 		return nil, err
 	}
 
-	data, err := twitch.HelixRequest[SubscriptionResponse](sub.tw, url, http.MethodPost, bytes.NewBuffer(b))
-	if err != nil {
+	var data SubscriptionResponse
+	if err := sub.tw.HelixRequest(url, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
 		return nil, err
 	}
 	sub.TotalCost = data.TotalCost
@@ -45,16 +42,16 @@ func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) 
 	sub.MaxTotalCost = data.MaxTotalCost
 
 	sub.Subscriptions = append(sub.Subscriptions, data.Data[0])
-	return data, nil
+	return &data, nil
 }
 
 func (sub *EventSub) GetSubscriptions() (*SubscriptionResponse, error) {
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
-	data, err := twitch.HelixRequest[SubscriptionResponse](sub.tw, url, http.MethodGet, nil)
-	if err != nil {
+	var data SubscriptionResponse
+	if err := sub.tw.HelixRequest(url, http.MethodGet, nil, &data); err != nil {
 		return nil, err
 	}
-	return data, nil
+	return &data, nil
 }
 
 func (sub *EventSub) RemoveSubscriptionByID(id string) {
@@ -67,21 +64,20 @@ func (sub *EventSub) RemoveSubscriptionByID(id string) {
 	sub.Subscriptions = newSubs
 }
 
-func (sub *EventSub) DeleteSubscription(ctx context.Context, subId string) error {
+func (sub *EventSub) DeleteSubscription(subId string) error {
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions?id=" + subId
-	_, err := twitch.HelixRequestWithCtx[interface{}](ctx, sub.tw, url, http.MethodDelete, nil)
-	if err != nil {
+	if err := sub.tw.HelixRequest(url, http.MethodDelete, nil, nil); err != nil {
 		return err
 	}
 	sub.RemoveSubscriptionByID(subId)
 	return nil
 }
 
-func (sub *EventSub) DeleteAllSubscriptions(ctx context.Context) error {
+func (sub *EventSub) DeleteAllSubscriptions() error {
 	subCopy := make([]Subscription, len(sub.Subscriptions))
 	copy(subCopy, sub.Subscriptions)
 	for _, data := range subCopy {
-		if err := sub.DeleteSubscription(ctx, data.ID); err != nil {
+		if err := sub.DeleteSubscription(data.ID); err != nil {
 			return err
 		}
 	}

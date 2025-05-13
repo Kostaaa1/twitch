@@ -52,7 +52,7 @@ func ConnectWithRetry(ws *twitch.WSClient, tw *twitch.Client, cfg *config.Config
 		if err := tw.RefetchAccesToken(); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}
-		config.Save(tw.Config())
+		// config.Save(tw.())
 		if err := ws.Connect(); err != nil {
 			return fmt.Errorf("retry connect failed: %w", err)
 		}

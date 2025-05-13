@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 type User struct {
@@ -48,10 +50,10 @@ type Creds struct {
 }
 
 type Config struct {
-	User       User       `json:"user"`
-	Downloader Downloader `json:"downloader"`
-	Chat       Chat       `json:"chat"`
-	Creds      Creds      `json:"creds"`
+	User       User         `json:"user"`
+	Downloader Downloader   `json:"downloader"`
+	Chat       Chat         `json:"chat"`
+	Creds      twitch.Creds `json:"creds"`
 }
 
 type Colors struct {
@@ -88,7 +90,7 @@ func initConfigData() Config {
 			OfflineImageURL: "",
 			Type:            "",
 		},
-		Creds: Creds{
+		Creds: twitch.Creds{
 			AccessToken:  "",
 			ClientID:     "",
 			RefreshToken: "",

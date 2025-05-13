@@ -1,8 +1,8 @@
 package twitch
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -66,80 +66,21 @@ type helixEnvelope[T any] struct {
 	Data []T `json:"data"`
 }
 
-func HelixRequestWithCtx[T any](
-	ctx context.Context,
-	tw *Client,
+func (tw *Client) HelixRequest(
 	url string,
 	httpMethod string,
 	body io.Reader,
-) (*T, error) {
-	var retryCount int
-
-	for {
-		req, err := http.NewRequestWithContext(ctx, httpMethod, url, body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
-		}
-
-		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
-		req.Header.Set("Authorization", tw.GetBearerToken())
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := tw.httpClient.Do(req)
-		if err != nil {
-			if resp != nil && resp.Body != nil {
-				test, _ := io.ReadAll(resp.Body)
-				fmt.Println("ERROR: tes: ", test)
-			}
-			return nil, err
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusUnauthorized {
-			if retryCount >= 3 {
-				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
-			}
-			if err := tw.RefetchAccesToken(); err != nil {
-				return nil, fmt.Errorf("failed to refresh access token: %w", err)
-			}
-			retryCount++
-			continue
-		}
-
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return nil, fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
-		}
-
-		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-			var empty T
-			return &empty, nil
-		}
-
-		var result T
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
-		}
-
-		return &result, nil
-	}
-}
-
-// TODO: izmeni da koristi struct za docodiranje
-func HelixRequest[T any](
-	tw *Client,
-	url string,
-	httpMethod string,
-	body io.Reader,
-) (*T, error) {
+	src interface{},
+) error {
 	var retryCount int
 
 	for {
 		req, err := http.NewRequest(httpMethod, url, body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
+			return fmt.Errorf("failed to create request: %w", err)
 		}
 
-		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
+		req.Header.Set("Client-Id", tw.creds.ClientID)
 		req.Header.Set("Authorization", tw.GetBearerToken())
 		req.Header.Set("Content-Type", "application/json")
 
@@ -149,36 +90,34 @@ func HelixRequest[T any](
 				test, _ := io.ReadAll(resp.Body)
 				fmt.Println("ERROR: tes: ", test)
 			}
-			return nil, err
+			return err
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusUnauthorized {
 			if retryCount >= 3 {
-				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
+				return fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
 			}
 			if err := tw.RefetchAccesToken(); err != nil {
-				return nil, fmt.Errorf("failed to refresh access token: %w", err)
+				return fmt.Errorf("failed to refresh access token: %w", err)
 			}
 			retryCount++
 			continue
 		}
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return nil, fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
+			return fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
 		}
 
 		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-			var empty T
-			return &empty, nil
+			return errors.New("response content length is 0")
 		}
 
-		var result T
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
+		if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
+			return fmt.Errorf("failed to decode response: %w", err)
 		}
 
-		return &result, nil
+		return nil
 	}
 }
 
@@ -197,39 +136,39 @@ func (tw *Client) User(id, loginName *string) (*User, error) {
 		url += "?" + strings.Join(queryParams, "&")
 	}
 
-	data, err := HelixRequest[helixEnvelope[User]](tw, url, http.MethodGet, nil)
-	if err != nil {
+	var body helixEnvelope[User]
+	if err := tw.HelixRequest(url, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
 
-	return &data.Data[0], nil
+	return &body.Data[0], nil
 }
 
 func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
-	data, err := HelixRequest[helixEnvelope[Channel]](tw, u, http.MethodGet, nil)
-	if err != nil {
+	var body helixEnvelope[Channel]
+	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return &data.Data[0], nil
+	return &body.Data[0], nil
 }
 
 func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
-	data, err := HelixRequest[helixEnvelope[Streams]](tw, u, http.MethodGet, nil)
-	if err != nil {
+	var body helixEnvelope[Streams]
+	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return &data.Data[0], nil
+	return &body.Data[0], nil
 }
 
 func (tw *Client) GetStream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
-	stream, err := HelixRequest[Streams](tw, u, http.MethodGet, nil)
-	if err != nil {
+	var body Streams
+	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return stream, nil
+	return &body, nil
 }
 
 // change this, use helix for this

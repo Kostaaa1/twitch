@@ -7,13 +7,22 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/Kostaaa1/twitch/internal/config"
 )
+
+type Creds struct {
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"client_secret"`
+	RedirectURL  string   `json:"redirect_url"`
+	RefreshToken string   `json:"refresh_token"`
+	AccessToken  string   `json:"access_token"`
+	ExpiresIn    int      `json:"expires_in"`
+	TokenType    string   `json:"token_type"`
+	Scope        []string `json:"scope"`
+}
 
 type Client struct {
 	httpClient *http.Client
-	config     *config.Config
+	creds      *Creds
 }
 
 const (
@@ -30,15 +39,12 @@ func New() *Client {
 	}
 }
 
-func (tw *Client) Config() *config.Config {
-	return tw.config
+func (tw *Client) Creds() *Creds {
+	return tw.creds
 }
 
-func (tw *Client) SetConfig(cfg *config.Config) {
-	tw.config = cfg
-}
-
-func (tw *Client) SetCredentials(conf *config.Creds) {
+func (tw *Client) SetCreds(creds *Creds) {
+	tw.creds = creds
 }
 
 func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
@@ -97,14 +103,14 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 }
 
 func (tw *Client) GetBearerToken() string {
-	return fmt.Sprintf("Bearer %s", tw.config.Creds.AccessToken)
+	return fmt.Sprintf("Bearer %s", tw.creds.AccessToken)
 }
 
 func (tw *Client) buildTokenRefetchValues() url.Values {
 	return url.Values{
-		"client_id":     {tw.config.Creds.ClientID},
-		"client_secret": {tw.config.Creds.ClientSecret},
-		"refresh_token": {tw.config.Creds.RefreshToken},
+		"client_id":     {tw.creds.ClientID},
+		"client_secret": {tw.creds.ClientSecret},
+		"refresh_token": {tw.creds.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 }
@@ -116,5 +122,5 @@ func (tw *Client) RefetchAccesToken() error {
 	}
 	defer resp.Body.Close()
 
-	return json.NewDecoder(resp.Body).Decode(&tw.config.Creds)
+	return json.NewDecoder(resp.Body).Decode(&tw.creds)
 }

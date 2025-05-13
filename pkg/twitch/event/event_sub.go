@@ -90,7 +90,7 @@ func (sub *EventSub) DialWSS(events []Event, keepalive time.Duration) error {
 	go func() {
 		<-c
 		go func() {
-			if err := sub.DeleteAllSubscriptions(ctx); err != nil {
+			if err := sub.DeleteAllSubscriptions(); err != nil {
 				fmt.Printf("failed to delete all subscriptions: %v\n", err)
 			}
 			close(done)

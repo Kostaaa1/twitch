@@ -16,7 +16,7 @@ func main() {
 	}
 
 	tw := twitch.New()
-	tw.SetConfig(conf)
+	tw.SetCreds(&conf.Creds)
 
 	username := "piratesoftware"
 	user, err := tw.User(nil, &username)
