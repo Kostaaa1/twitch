@@ -2,8 +2,8 @@ package event
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -30,12 +30,12 @@ type SubscriptionResponse struct {
 }
 
 func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) {
-	fmt.Println("Subscribing...")
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
+
 	data, err := twitch.HelixRequest[SubscriptionResponse](sub.tw, url, http.MethodPost, bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err
@@ -44,9 +44,7 @@ func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) 
 	sub.Total = data.Total
 	sub.MaxTotalCost = data.MaxTotalCost
 
-	fmt.Println("Subscribed to: ", data.Data[0].ID)
 	sub.Subscriptions = append(sub.Subscriptions, data.Data[0])
-
 	return data, nil
 }
 
@@ -69,9 +67,9 @@ func (sub *EventSub) RemoveSubscriptionByID(id string) {
 	sub.Subscriptions = newSubs
 }
 
-func (sub *EventSub) DeleteSubscription(subId string) error {
+func (sub *EventSub) DeleteSubscription(ctx context.Context, subId string) error {
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions?id=" + subId
-	_, err := twitch.HelixRequest[interface{}](sub.tw, url, http.MethodDelete, nil)
+	_, err := twitch.HelixRequestWithCtx[interface{}](ctx, sub.tw, url, http.MethodDelete, nil)
 	if err != nil {
 		return err
 	}
@@ -79,9 +77,11 @@ func (sub *EventSub) DeleteSubscription(subId string) error {
 	return nil
 }
 
-func (sub *EventSub) DeleteAllSubscriptions() error {
-	for _, data := range sub.Subscriptions {
-		if err := sub.DeleteSubscription(data.ID); err != nil {
+func (sub *EventSub) DeleteAllSubscriptions(ctx context.Context) error {
+	subCopy := make([]Subscription, len(sub.Subscriptions))
+	copy(subCopy, sub.Subscriptions)
+	for _, data := range subCopy {
+		if err := sub.DeleteSubscription(ctx, data.ID); err != nil {
 			return err
 		}
 	}

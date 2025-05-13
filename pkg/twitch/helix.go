@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -63,6 +64,64 @@ type User struct {
 
 type helixEnvelope[T any] struct {
 	Data []T `json:"data"`
+}
+
+func HelixRequestWithCtx[T any](
+	ctx context.Context,
+	tw *Client,
+	url string,
+	httpMethod string,
+	body io.Reader,
+) (*T, error) {
+	var retryCount int
+
+	for {
+		req, err := http.NewRequestWithContext(ctx, httpMethod, url, body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Client-Id", tw.config.Creds.ClientID)
+		req.Header.Set("Authorization", tw.GetBearerToken())
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := tw.httpClient.Do(req)
+		if err != nil {
+			if resp != nil && resp.Body != nil {
+				test, _ := io.ReadAll(resp.Body)
+				fmt.Println("ERROR: tes: ", test)
+			}
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusUnauthorized {
+			if retryCount >= 3 {
+				return nil, fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
+			}
+			if err := tw.RefetchAccesToken(); err != nil {
+				return nil, fmt.Errorf("failed to refresh access token: %w", err)
+			}
+			retryCount++
+			continue
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
+		}
+
+		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
+			var empty T
+			return &empty, nil
+		}
+
+		var result T
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to decode response: %w", err)
+		}
+
+		return &result, nil
+	}
 }
 
 // TODO: izmeni da koristi struct za docodiranje

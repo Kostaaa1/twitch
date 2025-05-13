@@ -2,7 +2,6 @@ package event
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -73,10 +72,10 @@ func NewSub(tw *twitch.Client) *EventSub {
 	}
 }
 
-func (sub *EventSub) DialWSS(events []Event) error {
-	eventsub := "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=10"
+func (sub *EventSub) DialWSS(events []Event, keepalive time.Duration) error {
+	url := fmt.Sprintf("wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=%d", int(keepalive.Seconds()))
 
-	conn, resp, err := websocket.DefaultDialer.Dial(eventsub, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to dial eventsub.wss: %v", err)
 	}
@@ -85,21 +84,27 @@ func (sub *EventSub) DialWSS(events []Event) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	done := make(chan struct{})
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		fmt.Println("deleting active subscriptions... found: ", sub.Total)
-		if err := sub.DeleteAllSubscriptions(); err != nil {
-			fmt.Printf("failed to delete all subscriptions: %v\n", err)
+		go func() {
+			if err := sub.DeleteAllSubscriptions(ctx); err != nil {
+				fmt.Printf("failed to delete all subscriptions: %v\n", err)
+			}
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			fmt.Println("Deleted all subscriptions")
 		}
+
+		fmt.Println("Closing connection!")
 		cancel()
-		fmt.Println("closing connection...")
 		conn.Close()
 	}()
-
-	test, _ := sub.GetSubscriptions()
-	fmt.Println("LENGTH: ", len(test.Data))
 
 	for {
 		select {
@@ -109,17 +114,20 @@ func (sub *EventSub) DialWSS(events []Event) error {
 		default:
 			var msg WebsocketConnResponse
 			if err := conn.ReadJSON(&msg); err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
 				fmt.Printf("error while reading the json msg: %v\n", err)
 				continue
 			}
 
 			switch MessageType(msg.Metadata.MessageType) {
 			case Revocation:
-				fmt.Println("revocation message: ", msg)
+				fmt.Println("revocation message:", msg)
 			case Notification:
-				fmt.Println("notification message: ", msg)
+				fmt.Println("notification message:", msg)
 			case KeepAlive:
-				fmt.Println("keepalive message: ", msg)
+				fmt.Println("keepalive message:", msg)
 			case SessionWelcome:
 				transport := WebsocketTransport(msg.Payload.Session.ID)
 				for _, event := range events {
@@ -129,37 +137,13 @@ func (sub *EventSub) DialWSS(events []Event) error {
 						Type:      event.Type,
 						Transport: transport,
 					}
-					_, err := sub.Subscribe(body)
+					resp, err := sub.Subscribe(body)
 					if err != nil {
 						log.Fatal(err)
 					}
+					subData := resp.Data
+					fmt.Println("Successfully subscribed:", subData[0].ID)
 				}
-
-				resp, err := sub.GetSubscriptions()
-				if err != nil {
-					fmt.Printf("failed to get subscriptions: %v\n", err)
-					continue
-				}
-
-				b1, _ := json.MarshalIndent(resp.Data, "", " ")
-				b2, _ := json.MarshalIndent(sub.Subscriptions, "", " ")
-
-				fmt.Println("B1: ", string(b1))
-				fmt.Println("B2: ", string(b2))
-				time.Sleep(8 * time.Second)
-
-				resp, err = sub.GetSubscriptions()
-				if err != nil {
-					fmt.Printf("failed to get subscriptions: %v\n", err)
-					continue
-				}
-				b3, _ := json.MarshalIndent(resp.Data, "", " ")
-				fmt.Println("B3: ", string(b3))
-
-				// sub.Subscriptions = resp.Data
-				// sub.MaxTotalCost = resp.MaxTotalCost
-				// sub.TotalCost = resp.TotalCost
-				// sub.Total = resp.Total
 			}
 		}
 	}

@@ -4,10 +4,14 @@ type Type string
 
 var (
 	ChannelFollow           Type = "channel.follow"
+	ChannelSubscribe        Type = "channel.subscribe"
 	ChannelAdBreakBegin     Type = "channel.ad_break.begin"
 	ChannelUpdate           Type = "channel.update"
 	ChannelBan              Type = "channel.ban"
 	ChannelUnban            Type = "channel.unban"
+	ChannelPollBegin        Type = "channel.poll.begin"
+	ChannelPollProgress     Type = "channel.poll.progress"
+	ChannelPollEnd          Type = "channel.poll.end"
 	StreamOnline            Type = "stream.online"
 	StreamOffline           Type = "stream.offline"
 	UserAuthorizationGrant  Type = "user.authorization.grant"
@@ -22,14 +26,74 @@ type Event struct {
 	Condition map[string]interface{} `json:"condition"`
 }
 
-func (sub *EventSub) StreamOnlineEvent(channelName string) (Event, error) {
-	user, err := sub.tw.User(nil, &channelName)
-	if err != nil {
-		return Event{}, err
-	}
+func StreamOnlineEvent(userID string) Event {
 	return Event{
 		Version:   1,
 		Type:      StreamOnline,
-		Condition: map[string]interface{}{"broadcaster_user_id": user.ID},
-	}, nil
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func StreamOfflineEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      StreamOffline,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelAdBreakBeginEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelAdBreakBegin,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelFollowEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelFollow,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelUpdateEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelUpdate,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelSubscribeEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelSubscribe,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelPollBeginEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelPollBegin,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelPollProgressEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelPollProgress,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
+}
+
+func ChannelPollEndEvent(userID string) Event {
+	return Event{
+		Version:   1,
+		Type:      ChannelPollEnd,
+		Condition: map[string]interface{}{"broadcaster_user_id": userID},
+	}
 }
