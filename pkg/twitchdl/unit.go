@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,6 +61,7 @@ func GetVideoType(s string) VideoType {
 	}
 }
 
+// needed for spinner interface
 func (mu Unit) GetError() error {
 	return mu.Error
 }
@@ -74,100 +76,122 @@ func (mu Unit) GetTitle() string {
 	return mu.ID
 }
 
-func (dl *Downloader) NewUnit(URL, quality, output string, start, end time.Duration) Unit {
-	du := Unit{
+func ParseVideoType(input string) (string, VideoType, error) {
+	if input == "" {
+		return "", 0, errors.New("input cannot be empty")
+	}
+	if !strings.Contains(input, "http://") && !strings.Contains(input, "https://") {
+		if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
+			return input, TypeVOD, nil
+		}
+		if len(input) >= 25 {
+			return input, TypeClip, nil
+		}
+		return input, TypeLivestream, nil
+	}
+
+	parsedURL, err := url.Parse(input)
+	if err != nil {
+		return "", 0, err
+	}
+
+	if !strings.Contains(parsedURL.Hostname(), "twitch.tv") {
+		return "", 0, errors.New("URL must belong to 'twitch.tv'")
+	}
+
+	_, id := path.Split(parsedURL.Path)
+
+	switch {
+	case strings.Contains(parsedURL.Host, "clips.twitch.tv") || strings.Contains(parsedURL.Path, "/clip/"):
+		return id, TypeClip, nil
+	case strings.Contains(parsedURL.Path, "/videos/"):
+		return id, TypeVOD, nil
+	default:
+		return id, TypeLivestream, nil
+	}
+}
+
+// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
+func (dl *Downloader) CreateDownloadUnit(input, quality, output string, start, end time.Duration) Unit {
+	unit := Unit{
 		Start: start,
 		End:   end,
 	}
 
-	parsedURL, err := url.Parse(URL)
-	if err != nil {
-		du.Error = err
-		return du
+	unit.ID, unit.Type, unit.Error = ParseVideoType(input)
+	if unit.Error != nil {
+		return unit
 	}
 
-	if !strings.Contains(parsedURL.Hostname(), "twitch.tv") {
-		du.Error = errors.New("the hostname of the URL does not contain twitch.tv")
-		return du
-	}
-
-	_, id := path.Split(parsedURL.Path)
-	du.ID = id
-
-	var fileName string
-
-	if strings.Contains(parsedURL.Host, "clips.twitch.tv") || strings.Contains(parsedURL.Path, "/clip/") {
-		du.Type = TypeClip
-		fileName, err = dl.getClipTitle(du.ID)
-	} else if strings.Contains(parsedURL.Path, "/videos/") {
-		du.Type = TypeVOD
-		fileName, err = dl.getVODTitle(du.ID)
-
-		if du.Start == 0 {
-			t := parsedURL.Query().Get("t")
-			if t != "" {
-				du.Start, _ = time.ParseDuration(t)
-			}
+	if unit.Type == TypeVOD {
+		if unit.Error = dl.parseVodParams(input, &unit); unit.Error != nil {
+			return unit
 		}
-
-		if du.Start > 0 && du.End > 0 && du.Start >= du.End {
-			du.Error = fmt.Errorf("invalid time range: Start time (%v) is greater or equal to End time (%v) for URL: %s", du.Start, du.End, URL)
-		}
-	} else {
-		// add stronger checks, check lenght of path parts
-		du.Type = TypeLivestream
-		fileName, err = dl.getStreamTitle(du.ID)
-	}
-
-	if err != nil {
-		du.Error = err
-		return du
 	}
 
 	if quality == "" {
 		quality = "best"
 	}
 
-	du.Quality, du.Error = QualityFromString(quality)
-	if du.Error != nil {
-		return du
+	unit.Quality, unit.Error = QualityFromInput(quality)
+	if unit.Error != nil {
+		return unit
 	}
 
+	fileName, err := dl.MediaTitle(unit.ID, unit.Type)
+	if err != nil {
+		unit.Error = err
+		return unit
+	}
 	ext := "mp4"
 	if strings.HasPrefix(quality, "audio") {
 		ext = "mp3"
 	}
+	unit.Writer, unit.Error = fileutil.CreateFile(output, fileName, ext)
 
-	f, err := fileutil.CreateFile(output, fileName, ext)
-	if err != nil {
-		du.Error = err
-		return du
-	}
-	du.Writer = f
-
-	return du
+	return unit
 }
 
-func (dl *Downloader) getVODTitle(id string) (string, error) {
-	d, err := dl.TWApi.VideoMetadata(id)
+func (dl *Downloader) parseVodParams(input string, unit *Unit) error {
+	parsedURL, err := url.Parse(input)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return d.Video.Title, nil
+
+	if unit.Start == 0 {
+		if t := parsedURL.Query().Get("t"); t != "" {
+			unit.Start, _ = time.ParseDuration(t)
+		}
+	}
+
+	if unit.Start >= unit.End {
+		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, input)
+	}
+
+	return nil
 }
 
-func (dl *Downloader) getStreamTitle(id string) (string, error) {
-	d, err := dl.TWApi.StreamMetadata(id)
-	if err != nil {
-		return "", err
+func (dl *Downloader) MediaTitle(id string, vtype VideoType) (string, error) {
+	switch vtype {
+	case TypeVOD:
+		data, err := dl.TWApi.VideoMetadata(id)
+		if err != nil {
+			return "", err
+		}
+		return data.Video.Title, nil
+	case TypeClip:
+		data, err := dl.TWApi.ClipMetadata(id)
+		if err != nil {
+			return "", err
+		}
+		return data.Video.Title, nil
+	case TypeLivestream:
+		data, err := dl.TWApi.StreamMetadata(id)
+		if err != nil {
+			return "", err
+		}
+		return data.BroadcastSettings.Title, nil
+	default:
+		return "", errors.New("not found")
 	}
-	return d.BroadcastSettings.Title, nil
-}
-
-func (dl *Downloader) getClipTitle(id string) (string, error) {
-	d, err := dl.TWApi.ClipMetadata(id)
-	if err != nil {
-		return "", err
-	}
-	return d.Video.Title, nil
 }

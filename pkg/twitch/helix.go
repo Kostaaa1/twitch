@@ -121,26 +121,24 @@ func (tw *Client) HelixRequest(
 	}
 }
 
-// if id and login are nil, your User data will be returned
-func (tw *Client) User(id, loginName *string) (*User, error) {
-	queryParams := []string{}
-	if id != nil {
-		queryParams = append(queryParams, fmt.Sprintf("id=%s", *id))
+func (tw *Client) UserByChannelName(channelName string) (*User, error) {
+	url := fmt.Sprintf("%s/users", helixURL, channelName)
+	if channelName != "" {
+		url += "?login=" + channelName
 	}
-	if loginName != nil {
-		queryParams = append(queryParams, fmt.Sprintf("login=%s", *loginName))
-	}
-
-	url := fmt.Sprintf("%s/users", helixURL)
-	if len(queryParams) > 0 {
-		url += "?" + strings.Join(queryParams, "&")
-	}
-
 	var body helixEnvelope[User]
 	if err := tw.HelixRequest(url, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+	return &body.Data[0], nil
+}
 
+func (tw *Client) UserByID(id string) (*User, error) {
+	url := fmt.Sprintf("%s/users?id=%s", helixURL, id)
+	var body helixEnvelope[User]
+	if err := tw.HelixRequest(url, http.MethodGet, nil, &body); err != nil {
+		return nil, err
+	}
 	return &body.Data[0], nil
 }
 

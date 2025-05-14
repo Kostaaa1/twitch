@@ -42,7 +42,7 @@ func (qt QualityType) String() string {
 	}
 }
 
-func QualityFromString(quality string) (QualityType, error) {
+func QualityFromInput(quality string) (QualityType, error) {
 	switch {
 	case quality == "best" || strings.HasPrefix(quality, "1080"):
 		return Quality1080p60, nil

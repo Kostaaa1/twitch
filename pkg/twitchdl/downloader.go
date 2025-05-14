@@ -124,7 +124,7 @@ func (mu *Unit) recordStream(dl *Downloader) error {
 		lastSegInfo := strings.TrimPrefix(segments[len(segments)-3], "#EXTINF:")
 
 		if dl.config.SkipAds && strings.Contains(lastSegInfo, "Amazon") {
-			msg := spinner.ChannelMessage{Message: "[AD is running]", Bytes: 0}
+			msg := spinner.ChannelMessage{Message: "[Ad is running]", Bytes: 0}
 			mu.NotifyProgressChannel(msg, dl.progressCh)
 			continue
 		}

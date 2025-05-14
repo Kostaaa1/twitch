@@ -70,7 +70,7 @@ func authorize(tw *twitch.Client, conf *config.Config) error {
 					log.Fatalf("failed to decode the exchange response: %v", err)
 				}
 
-				user, err := tw.User(nil, nil)
+				user, err := tw.UserByChannelName("")
 				if err != nil {
 					log.Fatalf("failed to get the user info: %v\n", err)
 				}

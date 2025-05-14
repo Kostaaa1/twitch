@@ -3,7 +3,6 @@ package options
 import (
 	"encoding/json"
 	"log"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -85,7 +84,7 @@ func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.Unit {
 	var units []twitchdl.Unit
 	for _, opt := range opts {
 		level(&opt, &flagOpts)
-		unit := dl.NewUnit(opt.Input, opt.Quality, opt.Output, opt.Start, opt.End)
+		unit := dl.CreateDownloadUnit(opt.Input, opt.Quality, opt.Output, opt.Start, opt.End)
 		units = append(units, unit)
 	}
 
@@ -97,7 +96,7 @@ func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.Unit {
 	var units []twitchdl.Unit
 	for _, url := range urls {
 		opt.Input = url
-		unit := dl.NewUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
+		unit := dl.CreateDownloadUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
 		units = append(units, unit)
 	}
 	return units
@@ -108,8 +107,8 @@ func GetUnits(dl *twitchdl.Downloader, p Flag) []twitchdl.Unit {
 		log.Fatalf("Input was not provided.")
 	}
 	var units []twitchdl.Unit
-	_, err := url.ParseRequestURI(p.Input)
-	if err == nil {
+	_, err := os.Stat(p.Input)
+	if os.IsNotExist(err) {
 		units = processFlagInput(dl, p)
 	} else {
 		units = processFileInput(dl, p)

@@ -41,9 +41,6 @@ func init() {
 }
 
 func main() {
-	dl := twitchdl.New()
-	dl.SetConfig(conf.Downloader)
-
 	// if option.Channel != "" {
 	// 	videos, err := dl.TWApi.GetVideosByChannelName(option.Channel, option.Limit)
 	// 	if err != nil {
@@ -58,6 +55,9 @@ func main() {
 	// 	// }
 	// 	return
 	// }
+
+	dl := twitchdl.New()
+	dl.SetConfig(conf.Downloader)
 
 	units := options.GetUnits(dl, option)
 
