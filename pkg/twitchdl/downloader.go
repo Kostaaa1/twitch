@@ -1,15 +1,9 @@
 package twitchdl
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"strconv"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -18,7 +12,6 @@ import (
 type Downloader struct {
 	TWApi      *twitch.Client
 	progressCh chan spinner.ChannelMessage
-	httpClient *http.Client
 	config     Config
 }
 
@@ -30,18 +23,10 @@ type Config struct {
 	SkipAds         bool   `json:"skip_ads"`
 }
 
-// func (dl *Downloader) SetConfig(conf config.Downloader) {
-// 	dl.config = conf
-// }
-
-func New(twClient *twitch.Client, httpClient *http.Client, conf Config) *Downloader {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
+func New(twClient *twitch.Client, conf Config) *Downloader {
 	return &Downloader{
-		TWApi:      twClient,
-		httpClient: httpClient,
-		config:     conf,
+		TWApi:  twClient,
+		config: conf,
 	}
 }
 
@@ -90,89 +75,8 @@ func (dl *Downloader) BatchDownload(units []Unit) {
 	wg.Wait()
 }
 
-func (mu *Unit) recordStream(dl *Downloader) error {
-	isLive, err := dl.TWApi.IsChannelLive(mu.ID)
-	if err != nil {
-		return err
-	}
-	if !isLive {
-		return fmt.Errorf("%s is offline", mu.ID)
-	}
-
-	master, err := dl.TWApi.MasterPlaylistStream(mu.ID)
-	if err != nil {
-		return err
-	}
-	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
-	if err != nil {
-		return err
-	}
-
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	count := 0
-	maxCount := 1
-	var byteBuf bytes.Buffer
-
-	for range ticker.C {
-		b, err := dl.fetch(variant.URL)
-		if err != nil {
-			msg := spinner.ChannelMessage{Error: errors.New("stream ended")}
-			mu.NotifyProgressChannel(msg, dl.progressCh)
-			return nil
-		}
-
-		segments := strings.Split(string(b), "\n")
-		lastSegInfo := strings.TrimPrefix(segments[len(segments)-3], "#EXTINF:")
-
-		if dl.config.SkipAds && strings.Contains(lastSegInfo, "Amazon") {
-			msg := spinner.ChannelMessage{Message: "[Ad is running]", Bytes: 0}
-			mu.NotifyProgressChannel(msg, dl.progressCh)
-			continue
-		}
-
-		parts := strings.SplitN(lastSegInfo, ",", 2)
-		val, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-		maxCount = int(val)
-
-		if maxCount <= 0 {
-			maxCount = 1
-		}
-
-		if count == 0 {
-			tsURL := segments[len(segments)-2]
-			segmentBytes, _ := dl.fetch(tsURL)
-			byteBuf.Reset()
-			byteBuf.Write(segmentBytes)
-		}
-
-		segmentSize := byteBuf.Len() / maxCount
-		start := count * segmentSize
-		end := start + segmentSize
-		if end > byteBuf.Len() {
-			end = byteBuf.Len()
-		}
-
-		n, err := mu.Writer.Write(byteBuf.Bytes()[start:end])
-		if err != nil {
-			return err
-		}
-
-		msg := spinner.ChannelMessage{Bytes: int64(n)}
-		mu.NotifyProgressChannel(msg, dl.progressCh)
-
-		count++
-		if count == maxCount {
-			count = 0
-		}
-	}
-
-	return nil
-}
-
 func (dl *Downloader) fetch(u string) ([]byte, error) {
-	resp, err := dl.httpClient.Get(u)
+	resp, err := dl.TWApi.HTTPClient().Get(u)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get response: %w", err)
 	}
@@ -184,7 +88,7 @@ func (dl *Downloader) fetch(u string) ([]byte, error) {
 }
 
 func (dl *Downloader) download(u string, w io.Writer) (int64, error) {
-	resp, err := dl.httpClient.Get(u)
+	resp, err := dl.TWApi.HTTPClient().Get(u)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get response: %w", err)
 	}

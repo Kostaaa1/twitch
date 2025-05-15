@@ -108,7 +108,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		return components.FormData{}, err
 	}
 
-	videoSrc, err := s.dl.GetClipVideoURL(clip, "best")
+	videoSrc, err := s.dl.ClipVideoURL(clip, "best")
 	if err != nil {
 		return components.FormData{}, err
 	}

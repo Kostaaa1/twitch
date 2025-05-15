@@ -32,6 +32,10 @@ func NewClient(httpClient *http.Client, creds *Creds) *Client {
 	}
 }
 
+func (tw *Client) HTTPClient() *http.Client {
+	return tw.httpClient
+}
+
 func (tw *Client) SetHttpClient(c *http.Client) {
 	tw.httpClient = c
 }

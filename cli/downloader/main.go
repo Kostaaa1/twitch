@@ -2,12 +2,10 @@ package main
 
 import (
 	"flag"
-	"sync"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/options"
-	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
@@ -58,23 +56,20 @@ func main() {
 	// }
 
 	client := twitch.NewClient(nil, &conf.Creds)
-	dl := twitchdl.New(client, nil, conf.Downloader)
-
+	dl := twitchdl.New(client, conf.Downloader)
 	units := options.GetUnits(dl, option)
 
-	spin := spinner.New(units, conf.Downloader.SpinnerModel)
-	dl.SetProgressChannel(spin.ProgChan)
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		spin.Run()
-	}()
+	// spin := spinner.New(units, conf.Downloader.SpinnerModel)
+	// dl.SetProgressChannel(spin.ProgChan)
+	// var wg sync.WaitGroup
+	// wg.Add(1)
+	// go func() {
+	// 	defer wg.Done()
+	// 	spin.Run()
+	// }()
 
 	dl.BatchDownload(units)
 
-	wg.Wait()
-	close(spin.ProgChan)
+	// wg.Wait()
+	// close(spin.ProgChan)
 }
