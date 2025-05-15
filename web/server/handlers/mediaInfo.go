@@ -72,13 +72,12 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		return components.FormData{}, err
 	}
 
-	master, err := s.dl.TWApi.GetVODMasterM3u8(slug)
-
-	var qualities []components.Quality
+	master, err := s.dl.TWApi.MasterPlaylistVOD(slug)
 	if err != nil {
 		return components.FormData{}, err
 	}
 
+	var qualities []components.Quality
 	for _, list := range master.Lists {
 		qualities = append(qualities, components.Quality{
 			Resolution: list.Resolution,

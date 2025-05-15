@@ -23,7 +23,14 @@ var (
 	Reconnect      MessageType = "session_reconnect"
 )
 
-type WebsocketConnResponse struct {
+type RequestBody struct {
+	Version   int32                  `json:"version"`
+	Type      Type                   `json:"type"`
+	Condition map[string]interface{} `json:"condition"`
+	Transport Transport              `json:"transport"`
+}
+
+type ResponseBody struct {
 	Metadata struct {
 		MessageID           string    `json:"message_id"`
 		MessageType         string    `json:"message_type"`
@@ -54,7 +61,7 @@ type WebsocketConnResponse struct {
 	} `json:"payload"`
 }
 
-type EventSub struct {
+type EventSubClient struct {
 	tw            *twitch.Client
 	Subscriptions []Subscription
 	Total         int
@@ -62,8 +69,8 @@ type EventSub struct {
 	MaxTotalCost  int
 }
 
-func NewSub(tw *twitch.Client) *EventSub {
-	return &EventSub{
+func NewClient(tw *twitch.Client) *EventSubClient {
+	return &EventSubClient{
 		tw:            tw,
 		Subscriptions: []Subscription{},
 		Total:         0,
@@ -72,7 +79,7 @@ func NewSub(tw *twitch.Client) *EventSub {
 	}
 }
 
-func (sub *EventSub) DialWSS(events []Event, keepalive time.Duration) error {
+func (client *EventSubClient) DialWS(events []Event, keepalive time.Duration) error {
 	url := fmt.Sprintf("wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=%d", int(keepalive.Seconds()))
 
 	conn, resp, err := websocket.DefaultDialer.Dial(url, nil)
@@ -89,18 +96,17 @@ func (sub *EventSub) DialWSS(events []Event, keepalive time.Duration) error {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
+		fmt.Println("Closing...")
 		go func() {
-			if err := sub.DeleteAllSubscriptions(); err != nil {
+			if err := client.UnsubscribeToAll(); err != nil {
 				fmt.Printf("failed to delete all subscriptions: %v\n", err)
 			}
 			close(done)
 		}()
-
 		select {
 		case <-done:
-			fmt.Println("Deleted all subscriptions")
+			fmt.Println("Dispatched subscribed events!")
 		}
-
 		fmt.Println("Closing connection!")
 		cancel()
 		conn.Close()
@@ -112,7 +118,7 @@ func (sub *EventSub) DialWSS(events []Event, keepalive time.Duration) error {
 			fmt.Println("Connection closed!")
 			return nil
 		default:
-			var msg WebsocketConnResponse
+			var msg ResponseBody
 			if err := conn.ReadJSON(&msg); err != nil {
 				if ctx.Err() != nil {
 					return nil
@@ -137,12 +143,12 @@ func (sub *EventSub) DialWSS(events []Event, keepalive time.Duration) error {
 						Type:      event.Type,
 						Transport: transport,
 					}
-					resp, err := sub.Subscribe(body)
+					resp, err := client.Subscribe(body)
 					if err != nil {
 						log.Fatal(err)
 					}
 					subData := resp.Data
-					fmt.Println("Successfully subscribed:", subData[0].ID)
+					fmt.Printf("Subscription successful [event: %s | event_id: %s]\n", event.Type, subData[0].ID)
 				}
 			}
 		}

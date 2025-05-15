@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -19,25 +18,30 @@ import (
 type Downloader struct {
 	TWApi      *twitch.Client
 	progressCh chan spinner.ChannelMessage
-	client     *http.Client
-	config     config.Downloader
+	httpClient *http.Client
+	config     Config
 }
 
-func (dl *Downloader) SetConfig(conf config.Downloader) {
-	dl.config = conf
+type Config struct {
+	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
+	ShowSpinner     bool   `json:"show_spinner"`
+	Output          string `json:"output"`
+	SpinnerModel    string `json:"spinner_model"`
+	SkipAds         bool   `json:"skip_ads"`
 }
 
-func New() *Downloader {
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:       10,
-			IdleConnTimeout:    30 * time.Second,
-			DisableCompression: true,
-		},
+// func (dl *Downloader) SetConfig(conf config.Downloader) {
+// 	dl.config = conf
+// }
+
+func New(twClient *twitch.Client, httpClient *http.Client, conf Config) *Downloader {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
 	}
 	return &Downloader{
-		TWApi:  twitch.New(),
-		client: httpClient,
+		TWApi:      twClient,
+		httpClient: httpClient,
+		config:     conf,
 	}
 }
 
@@ -95,11 +99,10 @@ func (mu *Unit) recordStream(dl *Downloader) error {
 		return fmt.Errorf("%s is offline", mu.ID)
 	}
 
-	master, err := dl.TWApi.GetStreamMasterPlaylist(mu.ID)
+	master, err := dl.TWApi.MasterPlaylistStream(mu.ID)
 	if err != nil {
 		return err
 	}
-
 	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
 	if err != nil {
 		return err
@@ -168,29 +171,26 @@ func (mu *Unit) recordStream(dl *Downloader) error {
 	return nil
 }
 
-func (dl *Downloader) downloadAndWrite(u string, w io.Writer) (int64, error) {
-	resp, err := dl.client.Get(u)
+func (dl *Downloader) fetch(u string) ([]byte, error) {
+	resp, err := dl.httpClient.Get(u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get response: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+func (dl *Downloader) download(u string, w io.Writer) (int64, error) {
+	resp, err := dl.httpClient.Get(u)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get response: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return 0, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
 	}
 	return io.Copy(w, resp.Body)
-}
-
-func (dl *Downloader) fetch(url string) ([]byte, error) {
-	resp, err := dl.client.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("fetching failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	return io.ReadAll(resp.Body)
 }

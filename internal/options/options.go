@@ -84,7 +84,7 @@ func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.Unit {
 	var units []twitchdl.Unit
 	for _, opt := range opts {
 		level(&opt, &flagOpts)
-		unit := dl.CreateDownloadUnit(opt.Input, opt.Quality, opt.Output, opt.Start, opt.End)
+		unit := dl.NewUnit(opt.Input, opt.Quality, opt.Output, opt.Start, opt.End)
 		units = append(units, unit)
 	}
 
@@ -96,7 +96,7 @@ func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.Unit {
 	var units []twitchdl.Unit
 	for _, url := range urls {
 		opt.Input = url
-		unit := dl.CreateDownloadUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
+		unit := dl.NewUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
 		units = append(units, unit)
 	}
 	return units

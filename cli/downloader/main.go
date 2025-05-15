@@ -8,6 +8,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/options"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
 
@@ -56,8 +57,8 @@ func main() {
 	// 	return
 	// }
 
-	dl := twitchdl.New()
-	dl.SetConfig(conf.Downloader)
+	client := twitch.NewClient(nil, &conf.Creds)
+	dl := twitchdl.New(client, nil, conf.Downloader)
 
 	units := options.GetUnits(dl, option)
 

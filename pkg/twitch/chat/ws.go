@@ -1,4 +1,4 @@
-package twitch
+package chat
 
 import (
 	"errors"
@@ -25,7 +25,7 @@ var (
 	ErrAuthImproperFormat = errors.New("improperly formatted auth")
 )
 
-func DialWS(name, token string, channels []string) (*WSClient, error) {
+func DialWS(username, accessToken string, channels []string) (*WSClient, error) {
 	socketURL := "ws://irc-ws.chat.twitch.tv:80"
 	conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
 	if err != nil {
@@ -33,8 +33,8 @@ func DialWS(name, token string, channels []string) (*WSClient, error) {
 	}
 	return &WSClient{
 		Conn:        conn,
-		Username:    name,
-		AccessToken: token,
+		Username:    username,
+		AccessToken: accessToken,
 		Channels:    channels,
 	}, nil
 }

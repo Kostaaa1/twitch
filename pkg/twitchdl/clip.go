@@ -23,7 +23,7 @@ func (mu Unit) downloadClip(dl *Downloader) error {
 	if mu.Quality == QualityAudioOnly {
 		// writtenBytes, err = extractAudio(usherURL, mu.Writer)
 	} else {
-		writtenBytes, err = dl.downloadAndWrite(usherURL, mu.Writer)
+		writtenBytes, err = dl.download(usherURL, mu.Writer)
 	}
 
 	if err != nil {

@@ -15,8 +15,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tw := twitch.New()
-	tw.SetCreds(&conf.Creds)
+	tw := twitch.NewClient(nil, &conf.Creds)
 
 	user, _ := tw.UserByChannelName("piratesoftware")
 	user2, _ := tw.UserByChannelName("jasontheween")
@@ -38,8 +37,8 @@ func main() {
 		event.StreamOnlineEvent(user8.ID),
 	}
 
-	sub := event.NewSub(tw)
-	if err := sub.DialWSS(events, time.Second*10); err != nil {
+	eventsub := event.NewClient(tw)
+	if err := eventsub.DialWS(events, time.Second*10); err != nil {
 		log.Fatal(err)
 	}
 }

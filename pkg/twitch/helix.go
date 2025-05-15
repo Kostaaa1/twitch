@@ -2,7 +2,6 @@ package twitch
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,7 +109,7 @@ func (tw *Client) HelixRequest(
 		}
 
 		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-			return errors.New("response content length is 0")
+			return nil
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
@@ -121,8 +120,9 @@ func (tw *Client) HelixRequest(
 	}
 }
 
+// if channelName is empty, it will return current auth user data
 func (tw *Client) UserByChannelName(channelName string) (*User, error) {
-	url := fmt.Sprintf("%s/users", helixURL, channelName)
+	url := fmt.Sprintf("%s/users", helixURL)
 	if channelName != "" {
 		url += "?login=" + channelName
 	}
@@ -142,7 +142,7 @@ func (tw *Client) UserByID(id string) (*User, error) {
 	return &body.Data[0], nil
 }
 
-func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
+func (tw *Client) ChannelInfo(broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
 	var body helixEnvelope[Channel]
 	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
@@ -151,7 +151,7 @@ func (tw *Client) GetChannelInfo(broadcasterID string) (*Channel, error) {
 	return &body.Data[0], nil
 }
 
-func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
+func (tw *Client) FollowedStreams(id string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
 	var body helixEnvelope[Streams]
 	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
@@ -160,7 +160,7 @@ func (tw *Client) GetFollowedStreams(id string) (*Streams, error) {
 	return &body.Data[0], nil
 }
 
-func (tw *Client) GetStream(userId string) (*Streams, error) {
+func (tw *Client) Stream(userId string) (*Streams, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
 	var body Streams
 	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
@@ -169,7 +169,7 @@ func (tw *Client) GetStream(userId string) (*Streams, error) {
 	return &body, nil
 }
 
-// change this, use helix for this
+// remove decapi - handle this with graphql
 func (tw *Client) IsChannelLive(channelName string) (bool, error) {
 	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
 	b, err := tw.fetch(u)

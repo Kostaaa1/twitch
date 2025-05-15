@@ -1,4 +1,4 @@
-package twitch
+package chat
 
 type Metadata struct {
 	Color        string
@@ -8,15 +8,15 @@ type Metadata struct {
 	UserType     string
 }
 
-type ChatMessageMetadata struct {
+type MessageMetadata struct {
 	Metadata
 	RoomID         string
 	IsFirstMessage bool
 	Timestamp      string
 }
 
-type ChatMessage struct {
-	Metadata ChatMessageMetadata
+type Message struct {
+	Metadata MessageMetadata
 	Message  string
 }
 

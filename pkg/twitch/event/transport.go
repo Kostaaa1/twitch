@@ -8,13 +8,6 @@ type Transport struct {
 	Secret             string `json:"secret"`
 }
 
-type RequestBody struct {
-	Version   int32                  `json:"version"`
-	Type      Type                   `json:"type"`
-	Condition map[string]interface{} `json:"condition"`
-	Transport Transport              `json:"transport"`
-}
-
 func WebsocketTransport(sessionID string) Transport {
 	return Transport{
 		Method:    "websocket",

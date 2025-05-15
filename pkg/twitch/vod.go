@@ -16,7 +16,7 @@ type VideoCredResponse struct {
 	Value     string `json:"value"`
 }
 
-func (tw *Client) getVideoCredentials(id string) (string, string, error) {
+func (tw *Client) vodTokenAndSignature(id string) (string, string, error) {
 	gqlPayload := `{
 	    "operationName": "PlaybackAccessToken_Template",
 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -48,8 +48,8 @@ func (tw *Client) getVideoCredentials(id string) (string, string, error) {
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (tw *Client) GetVODMasterM3u8(vodID string) (*m3u8.MasterPlaylist, error) {
-	token, sig, err := tw.getVideoCredentials(vodID)
+func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) {
+	token, sig, err := tw.vodTokenAndSignature(vodID)
 	if err != nil {
 		return nil, err
 	}

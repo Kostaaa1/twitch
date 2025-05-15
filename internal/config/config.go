@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitchdl"
 )
 
 type User struct {
@@ -30,14 +31,6 @@ type Chat struct {
 	Colors         Colors   `json:"colors"`
 }
 
-type Downloader struct {
-	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
-	ShowSpinner     bool   `json:"show_spinner"`
-	Output          string `json:"output"`
-	SpinnerModel    string `json:"spinner_model"`
-	SkipAds         bool   `json:"skip_ads"`
-}
-
 type Creds struct {
 	RefreshToken string   `json:"refresh_token"`
 	AccessToken  string   `json:"access_token"`
@@ -50,10 +43,10 @@ type Creds struct {
 }
 
 type Config struct {
-	User       User         `json:"user"`
-	Downloader Downloader   `json:"downloader"`
-	Chat       Chat         `json:"chat"`
-	Creds      twitch.Creds `json:"creds"`
+	User       User            `json:"user"`
+	Downloader twitchdl.Config `json:"downloader"`
+	Chat       Chat            `json:"chat"`
+	Creds      twitch.Creds    `json:"creds"`
 }
 
 type Colors struct {
@@ -100,7 +93,7 @@ func initConfigData() Config {
 			TokenType:    "",
 			Scope:        []string{},
 		},
-		Downloader: Downloader{
+		Downloader: twitchdl.Config{
 			IsFFmpegEnabled: false,
 			ShowSpinner:     true,
 			Output:          "",
@@ -165,7 +158,7 @@ func getConfigPath() (string, error) {
 	return configPath, nil
 }
 
-func Save(conf *Config) error {
+func (conf *Config) Save() error {
 	fpath, err := getConfigPath()
 	if err != nil {
 		return err

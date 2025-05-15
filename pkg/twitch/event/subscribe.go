@@ -26,7 +26,7 @@ type SubscriptionResponse struct {
 	Pagination   map[string]interface{} `json:"pagination"`
 }
 
-func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) {
+func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, error) {
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -45,7 +45,7 @@ func (sub *EventSub) Subscribe(body RequestBody) (*SubscriptionResponse, error) 
 	return &data, nil
 }
 
-func (sub *EventSub) GetSubscriptions() (*SubscriptionResponse, error) {
+func (sub *EventSubClient) GetSubscriptions() (*SubscriptionResponse, error) {
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
 	var data SubscriptionResponse
 	if err := sub.tw.HelixRequest(url, http.MethodGet, nil, &data); err != nil {
@@ -54,7 +54,7 @@ func (sub *EventSub) GetSubscriptions() (*SubscriptionResponse, error) {
 	return &data, nil
 }
 
-func (sub *EventSub) RemoveSubscriptionByID(id string) {
+func (sub *EventSubClient) RemoveSubscriptionByID(id string) {
 	newSubs := sub.Subscriptions[:0]
 	for _, s := range sub.Subscriptions {
 		if s.ID != id {
@@ -64,7 +64,7 @@ func (sub *EventSub) RemoveSubscriptionByID(id string) {
 	sub.Subscriptions = newSubs
 }
 
-func (sub *EventSub) DeleteSubscription(subId string) error {
+func (sub *EventSubClient) Unsubscribe(subId string) error {
 	url := "https://api.twitch.tv/helix/eventsub/subscriptions?id=" + subId
 	if err := sub.tw.HelixRequest(url, http.MethodDelete, nil, nil); err != nil {
 		return err
@@ -73,11 +73,11 @@ func (sub *EventSub) DeleteSubscription(subId string) error {
 	return nil
 }
 
-func (sub *EventSub) DeleteAllSubscriptions() error {
+func (sub *EventSubClient) UnsubscribeToAll() error {
 	subCopy := make([]Subscription, len(sub.Subscriptions))
 	copy(subCopy, sub.Subscriptions)
 	for _, data := range subCopy {
-		if err := sub.DeleteSubscription(data.ID); err != nil {
+		if err := sub.Unsubscribe(data.ID); err != nil {
 			return err
 		}
 	}

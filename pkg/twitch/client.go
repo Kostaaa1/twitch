@@ -9,17 +9,6 @@ import (
 	"strings"
 )
 
-type Creds struct {
-	ClientID     string   `json:"client_id"`
-	ClientSecret string   `json:"client_secret"`
-	RedirectURL  string   `json:"redirect_url"`
-	RefreshToken string   `json:"refresh_token"`
-	AccessToken  string   `json:"access_token"`
-	ExpiresIn    int      `json:"expires_in"`
-	TokenType    string   `json:"token_type"`
-	Scope        []string `json:"scope"`
-}
-
 type Client struct {
 	httpClient *http.Client
 	creds      *Creds
@@ -33,22 +22,22 @@ const (
 	oauthURL    = "https://id.twitch.tv/oauth2"
 )
 
-func New() *Client {
+func NewClient(httpClient *http.Client, creds *Creds) *Client {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
 	return &Client{
 		httpClient: http.DefaultClient,
+		creds:      creds,
 	}
 }
 
-func (tw *Client) Creds() *Creds {
-	return tw.creds
-}
-
-func (tw *Client) SetCreds(creds *Creds) {
-	tw.creds = creds
+func (tw *Client) SetHttpClient(c *http.Client) {
+	tw.httpClient = c
 }
 
 func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
-	resp, err := http.Get(url)
+	resp, err := tw.httpClient.Get(url)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -102,10 +91,6 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	return nil
 }
 
-func (tw *Client) GetBearerToken() string {
-	return fmt.Sprintf("Bearer %s", tw.creds.AccessToken)
-}
-
 func (tw *Client) buildTokenRefetchValues() url.Values {
 	return url.Values{
 		"client_id":     {tw.creds.ClientID},
@@ -113,14 +98,4 @@ func (tw *Client) buildTokenRefetchValues() url.Values {
 		"refresh_token": {tw.creds.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
-}
-
-func (tw *Client) RefetchAccesToken() error {
-	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", tw.buildTokenRefetchValues())
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return json.NewDecoder(resp.Body).Decode(&tw.creds)
 }

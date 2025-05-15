@@ -23,7 +23,7 @@ const (
 )
 
 type Unit struct {
-	// unique identifier. vod ID or clip Slug
+	// Vod id, clip slug or channel name
 	ID      string
 	URL     string
 	Type    VideoType
@@ -112,7 +112,7 @@ func ParseVideoType(input string) (string, VideoType, error) {
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
-func (dl *Downloader) CreateDownloadUnit(input, quality, output string, start, end time.Duration) Unit {
+func (dl *Downloader) NewUnit(input, quality, output string, start, end time.Duration) Unit {
 	unit := Unit{
 		Start: start,
 		End:   end,

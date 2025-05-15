@@ -7,10 +7,6 @@ import (
 	"time"
 )
 
-func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
-	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
-}
-
 type VideoQuality struct {
 	FrameRate float64 `json:"frameRate"`
 	Quality   string  `json:"quality"`
@@ -121,6 +117,10 @@ type Clip struct {
 	} `json:"videoQualities"`
 	IsViewerEditRestricted bool   `json:"isViewerEditRestricted"`
 	Typename               string `json:"__typename"`
+}
+
+func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
 func (c *Client) ClipMetadata(slug string) (Clip, error) {

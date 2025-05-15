@@ -18,21 +18,18 @@ type segmentJob struct {
 
 // Concurrent ordered download. Segments needs to be in order so it can be written to file. Instead of doing this sequentally (one-by-one), this is downloading them concurrently.
 func (mu Unit) downloadVOD(dl *Downloader) error {
-	master, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
+	master, err := dl.TWApi.MasterPlaylistVOD(mu.ID)
 	if err != nil {
 		return err
 	}
-
 	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
 	if err != nil {
 		return err
 	}
-
 	playlist, err := dl.TWApi.FetchAndParseMediaPlaylist(variant)
 	if err != nil {
 		return err
 	}
-
 	if err := playlist.TruncateSegments(mu.Start, mu.End); err != nil {
 		return err
 	}
@@ -110,16 +107,14 @@ func (mu Unit) downloadVOD(dl *Downloader) error {
 }
 
 func (mu Unit) StreamVOD(dl *Downloader) error {
-	master, err := dl.TWApi.GetVODMasterM3u8(mu.ID)
+	master, err := dl.TWApi.MasterPlaylistVOD(mu.ID)
 	if err != nil {
 		return err
 	}
-
 	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
 	if err != nil {
 		return err
 	}
-
 	playlist, err := dl.TWApi.FetchAndParseMediaPlaylist(variant)
 	if err != nil {
 		return err
@@ -133,7 +128,7 @@ func (mu Unit) StreamVOD(dl *Downloader) error {
 		if strings.HasSuffix(segment, ".ts") {
 			lastIndex := strings.LastIndex(variant.URL, "/")
 			segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
-			n, err := dl.downloadAndWrite(segmentURL, mu.Writer)
+			n, err := dl.download(segmentURL, mu.Writer)
 			if err != nil {
 				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
 				return err

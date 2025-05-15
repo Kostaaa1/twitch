@@ -1,4 +1,4 @@
-package twitch
+package chat
 
 import (
 	"regexp"
@@ -47,13 +47,13 @@ func parseROOMSTATE(rawMsg string) Room {
 	return room
 }
 
-func parsePRIVMSG(msg string) ChatMessage {
+func parsePRIVMSG(msg string) Message {
 	emojiRx := regexp.MustCompile(`[^\p{L}\p{N}\p{Zs}:/?&=.-@]+`)
 	parts := strings.SplitN(msg, " :", 2)
 	extracted := strings.TrimSpace(strings.Split(parts[1], " :")[1])
-	message := ChatMessage{
+	message := Message{
 		Message:  emojiRx.ReplaceAllString(extracted, ""),
-		Metadata: ChatMessageMetadata{},
+		Metadata: MessageMetadata{},
 	}
 
 	mdParts := strings.Split(parts[0], ";")
@@ -184,7 +184,7 @@ func parseMetadata(metadata interface{}, pairs []string) []string {
 				case "user-id":
 					m.UserID = value
 				}
-			case *ChatMessageMetadata:
+			case *MessageMetadata:
 				parseBaseMetadata(&m.Metadata, key, value, pair)
 				switch key {
 				case "room-id":

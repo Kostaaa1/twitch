@@ -7,7 +7,7 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/utils"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 )
@@ -76,7 +76,7 @@ func wrapText(s string, limit, padding int) string {
 	return out.String()
 }
 
-func (m model) FormatChatMessage(message twitch.ChatMessage, width int) string {
+func (m model) FormatMessage(message chat.Message, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
 	if message.Metadata.Color == "" {
 		message.Metadata.Color = string(rand.Intn(257))
@@ -103,7 +103,7 @@ func (m model) FormatChatMessage(message twitch.ChatMessage, width int) string {
 	}
 }
 
-func (m model) FormatSubMessage(message twitch.SubNotice, width int) string {
+func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 	// if message.Metadata.Color == "" {
 	// 	message.Metadata.Color = string(rand.Intn(257))
 	// }
@@ -118,7 +118,7 @@ func (m model) FormatSubMessage(message twitch.SubNotice, width int) string {
 	return box.RenderBox(label, msg)
 }
 
-func (m model) FormatRaidMessage(message twitch.RaidNotice, width int) string {
+func (m model) FormatRaidMessage(message chat.RaidNotice, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
 	// if message.Metadata.Color == "" {
 	// 	message.Metadata.Color = string(rand.Intn(257))
