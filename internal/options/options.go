@@ -11,13 +11,11 @@ import (
 )
 
 type Flag struct {
-	Input   string        `json:"url"`
-	Quality string        `json:"quality"`
-	Start   time.Duration `json:"start"`
-	End     time.Duration `json:"end"`
-	Output  string        `json:"output"`
-	// list
-	// limit
+	Input     string        `json:"url"`
+	Quality   string        `json:"quality"`
+	Start     time.Duration `json:"start"`
+	End       time.Duration `json:"end"`
+	Output    string        `json:"output"`
 	Channel   string
 	Print     string
 	MediaType string

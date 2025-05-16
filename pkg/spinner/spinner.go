@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/bytecount"
+	"github.com/Kostaaa1/twitch/internal/byteutil"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -165,7 +165,7 @@ func downloadSpeedKBs(totalBytes float64, elapsedTime time.Duration) float64 {
 }
 
 func (m *model) getProgressMsg(total float64, elapsed time.Duration) string {
-	b := bytecount.ConvertBytes(total)
+	b := byteutil.ConvertBytes(total)
 	speed := downloadSpeedKBs(total, elapsed)
 	msg := fmt.Sprintf("(%.1f %s | %.2f Mb/s) [%s]", b.Total, b.Unit, speed, elapsed.Truncate(time.Second))
 	return msg

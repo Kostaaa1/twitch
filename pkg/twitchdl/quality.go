@@ -72,22 +72,3 @@ var qualities = []string{
 	"160p30",
 	"worst",
 }
-
-// func ValidateQuality(quality string, vtype VideoType) (string, error) {
-// 	for _, q := range qualities {
-// 		if q == quality || strings.HasPrefix(quality, q) || strings.HasPrefix(q, quality) {
-// 			if vtype == TypeVOD {
-// 				switch quality {
-// 				case "best", "1080p60":
-// 					return "chunked", nil
-// 				case "audio_only":
-// 					return "audio_only", nil
-// 				case "worst":
-// 					return "160p30", nil
-// 				}
-// 			}
-// 			return q, nil
-// 		}
-// 	}
-// 	return "", fmt.Errorf("invalid quality was provided: %s. these are valid: %s", quality, strings.Join(qualities, ", "))
-// }

@@ -1,25 +1,41 @@
 package twitchdl
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"strconv"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
-// func getLastSegment(segments []string) string {
-// 	for i := len(segments) - 1; i >= 0; i-- {
-// 		segment := segments[i]
-// 		if strings.HasPrefix(segment, "#EXTINF:") {
-// 			return segment
-// 		}
-// 	}
-// 	return ""
-// }
+type segmentHist struct {
+	seen map[string]struct{}
+	list []string
+	max  int
+}
+
+func (h *segmentHist) Add(url string) {
+	if _, ok := h.seen[url]; ok {
+		return
+	}
+	h.seen[url] = struct{}{}
+	h.list = append(h.list, url)
+
+	if len(h.list) > h.max {
+		old := h.list[0]
+		h.list = h.list[:1]
+		delete(h.seen, old)
+	}
+}
+
+func (h *segmentHist) Seen(url string) bool {
+	if _, ok := h.seen[url]; ok {
+		return true
+	}
+	return false
+}
 
 func (mu *Unit) recordStream(dl *Downloader) error {
 	isLive, err := dl.TWApi.IsChannelLive(mu.ID)
@@ -34,81 +50,54 @@ func (mu *Unit) recordStream(dl *Downloader) error {
 	if err != nil {
 		return err
 	}
+
 	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
 	if err != nil {
 		return err
 	}
 
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	segHist := segmentHist{
+		seen: make(map[string]struct{}),
+		list: make([]string, 0),
+		max:  500,
+	}
 
-	count := 0
-	maxCount := 1
-	var byteBuf bytes.Buffer
-
-	for range ticker.C {
+	for {
 		b, err := dl.fetch(variant.URL)
 		if err != nil {
 			msg := spinner.ChannelMessage{Error: errors.New("stream ended")}
 			mu.NotifyProgressChannel(msg, dl.progressCh)
-			return nil
-		}
-
-		segments := strings.Split(string(b), "\n")
-		lastSegHeader := strings.TrimPrefix(segments[len(segments)-3], "#EXTINF:")
-
-		// segments := strings.Split(string(b), "\n")
-		// var lastSegURL string
-		// var lastSegHeader string
-		// for i := len(segments) - 1; i >= 0; i-- {
-		// 	segment := segments[i]
-		// 	if strings.HasPrefix(segment, "#EXTINF:") {
-		// 		lastSegURL = segments[i+1]
-		// 		lastSegHeader = segment
-		// 		break
-		// 	}
-		// }
-
-		// fmt.Println("- ", variant.URL)
-		// fmt.Println("Index: ", id, " url: ", lastSegURL, " header: ", lastSegHeader, "Ad? ", strings.Contains(lastSegHeader, "Amazon"))
-
-		if dl.config.SkipAds && strings.Contains(lastSegHeader, "Amazon") {
-			msg := spinner.ChannelMessage{Message: "[Ad is running]", Bytes: 0}
-			mu.NotifyProgressChannel(msg, dl.progressCh)
-			continue
-		}
-
-		maxCount, _ = strconv.Atoi(strings.SplitN(lastSegHeader, ",", 2)[0])
-		if maxCount <= 0 {
-			maxCount = 1
-		}
-
-		if count == 0 {
-			segmentBytes, _ := dl.fetch(lastSegURL)
-			byteBuf.Reset()
-			byteBuf.Write(segmentBytes)
-		}
-
-		segmentSize := byteBuf.Len() / maxCount
-		start := count * segmentSize
-		end := start + segmentSize
-		if end > byteBuf.Len() {
-			end = byteBuf.Len()
-		}
-
-		n, err := mu.Writer.Write(byteBuf.Bytes()[start:end])
-		if err != nil {
 			return err
 		}
 
-		msg := spinner.ChannelMessage{Bytes: int64(n)}
-		mu.NotifyProgressChannel(msg, dl.progressCh)
+		lines := strings.Split(string(b), "\n")
 
-		count++
-		if count == maxCount {
-			count = 0
+		for i := 0; i < len(lines)-1; i++ {
+			line := lines[i]
+			if strings.HasPrefix(line, "#EXTINF") {
+				if dl.config.SkipAds && strings.Contains(line, "Amazon") {
+					msg := spinner.ChannelMessage{Message: "[Ad is running]", Bytes: 0}
+					mu.NotifyProgressChannel(msg, dl.progressCh)
+					continue
+				}
+
+				segURL := lines[i+1]
+				if segHist.Seen(segURL) {
+					continue
+				}
+				segmentBytes, _ := dl.fetch(segURL)
+
+				n, err := mu.Writer.Write(segmentBytes)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				msg := spinner.ChannelMessage{Bytes: int64(n)}
+				mu.NotifyProgressChannel(msg, dl.progressCh)
+
+				segHist.Add(segURL)
+			}
 		}
+		time.Sleep(1 * time.Second)
 	}
-
-	return nil
 }

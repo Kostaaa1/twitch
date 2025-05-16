@@ -25,14 +25,12 @@ const (
 type Unit struct {
 	// Vod id, clip slug or channel name
 	ID      string
-	URL     string
 	Type    VideoType
 	Quality QualityType
 	Start   time.Duration
 	End     time.Duration
 	Writer  io.Writer
 	Error   error
-	skipAd  bool
 }
 
 func (v VideoType) String() string {
