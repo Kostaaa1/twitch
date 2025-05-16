@@ -2,7 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
@@ -41,25 +45,6 @@ func init() {
 	flag.Parse()
 }
 
-func splitBytes(b []byte, n int) [][]byte {
-	var result [][]byte
-	chunkSize := len(b) / n
-	remainder := len(b) % n
-
-	start := 0
-	for i := 0; i < n; i++ {
-		end := start + chunkSize
-		if remainder > 0 {
-			end++
-			remainder--
-		}
-		result = append(result, b[start:end])
-		start = end
-	}
-
-	return result
-}
-
 func main() {
 	// if option.Channel != "" {
 	// 	videos, err := dl.TWApi.GetVideosByChannelName(option.Channel, option.Limit)
@@ -76,22 +61,37 @@ func main() {
 	// 	return
 	// }
 
+	done := make(chan struct{}, 1)
+
 	client := twitch.NewClient(nil, &conf.Creds)
-	dl := twitchdl.New(client, conf.Downloader)
+	dl := twitchdl.New(done, client, conf.Downloader)
 	units := options.GetUnits(dl, option)
 
-	spin := spinner.New(units, conf.Downloader.SpinnerModel)
-	dl.SetProgressChannel(spin.ProgChan)
+	spin := spinner.New(done, units, conf.Downloader.SpinnerModel)
+	dl.SetProgressChannel(spin.ProgChan())
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		<-ch
+		close(spin.ProgChan())
+		close(done)
+	}()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		dl.Record(units[0])
+	}()
+
 	go func() {
 		defer wg.Done()
 		spin.Run()
 	}()
 
-	dl.BatchDownload(units)
-
 	wg.Wait()
-	close(spin.ProgChan)
+
+	fmt.Println("Finished downloading")
 }

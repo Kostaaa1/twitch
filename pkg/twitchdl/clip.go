@@ -8,7 +8,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
-func (mu Unit) downloadClip(dl *Downloader) error {
+func (dl *Downloader) downloadClip(mu Unit) error {
 	clip, err := dl.TWApi.ClipMetadata(mu.ID)
 	if err != nil {
 		return err

@@ -3,6 +3,8 @@ package twitchdl
 import (
 	"fmt"
 	"io"
+	"net/http"
+	"runtime"
 	"sync"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
@@ -13,6 +15,7 @@ type Downloader struct {
 	TWApi      *twitch.Client
 	progressCh chan spinner.ChannelMessage
 	config     Config
+	done       chan struct{}
 }
 
 type Config struct {
@@ -23,8 +26,9 @@ type Config struct {
 	SkipAds         bool   `json:"skip_ads"`
 }
 
-func New(twClient *twitch.Client, conf Config) *Downloader {
+func New(done chan struct{}, twClient *twitch.Client, conf Config) *Downloader {
 	return &Downloader{
+		done:   done,
 		TWApi:  twClient,
 		config: conf,
 	}
@@ -38,19 +42,22 @@ func (dl *Downloader) Download(u Unit) error {
 	if u.Error == nil {
 		switch u.Type {
 		case TypeVOD:
-			u.Error = u.downloadVOD(dl)
+			u.Error = dl.downloadVOD(u)
 		case TypeClip:
-			u.Error = u.downloadClip(dl)
+			u.Error = dl.downloadClip(u)
 		case TypeLivestream:
-			u.Error = u.recordStream(dl)
+			u.Error = dl.recordStream(u)
 		}
 	}
 	return u.Error
 }
 
+func (dl *Downloader) Record(unit Unit) error {
+	return dl.recordStream(unit)
+}
+
 func (dl *Downloader) BatchDownload(units []Unit) {
-	// climit := runtime.NumCPU() / 2
-	climit := 25
+	climit := runtime.NumCPU() / 2
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, climit)
@@ -60,7 +67,6 @@ func (dl *Downloader) BatchDownload(units []Unit) {
 
 		go func(u Unit) {
 			defer wg.Done()
-
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
@@ -72,29 +78,44 @@ func (dl *Downloader) BatchDownload(units []Unit) {
 			u.NotifyProgressChannel(msg, dl.progressCh)
 		}(unit)
 	}
+
 	wg.Wait()
 }
 
-func (dl *Downloader) fetch(u string) ([]byte, error) {
-	resp, err := dl.TWApi.HTTPClient().Get(u)
+func (dl *Downloader) fetch(url string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request with context: %v", err)
+	}
+
+	resp, err := dl.TWApi.HTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get response: %w", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
 	}
+
 	return io.ReadAll(resp.Body)
 }
 
-func (dl *Downloader) download(u string, w io.Writer) (int64, error) {
-	resp, err := dl.TWApi.HTTPClient().Get(u)
+func (dl *Downloader) download(url string, w io.Writer) (int64, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request with context: %v", err)
+	}
+
+	resp, err := dl.TWApi.HTTPClient().Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get response: %w", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return 0, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
 	}
+
 	return io.Copy(w, resp.Body)
 }

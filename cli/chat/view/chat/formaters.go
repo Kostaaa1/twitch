@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/internal/utils"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
@@ -14,6 +13,10 @@ import (
 
 func colorStyle(color string) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+}
+
+func capitalize(v string) string {
+	return strings.ToUpper(v[:1]) + v[1:]
 }
 
 func GenerateIcon(userType string, colors config.Colors) string {
@@ -114,7 +117,7 @@ func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 	msg = wordwrap.String(msg, width-50)
 	msg = wrapText(msg, width-50, 0)
 	color := lipgloss.Color(subColor)
-	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", utils.Capitalize(message.SubPlan)))
+	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", capitalize(message.SubPlan)))
 	return box.RenderBox(label, msg)
 }
 

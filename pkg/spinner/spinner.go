@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/byteutil"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -39,16 +38,18 @@ type UnitProvider interface {
 }
 
 type model struct {
+	done      chan struct{}
 	units     []unit
 	spinner   spinner.Model
 	err       error
 	width     int
 	doneCount int
 	program   *tea.Program
-	ProgChan  chan ChannelMessage
+	progChan  chan ChannelMessage
 }
 
 var (
+	units      = []string{"B", "KB", "MB", "GB", "TB"}
 	spinnerMap = map[string]spinner.Spinner{
 		"dot": {
 			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
@@ -83,7 +84,7 @@ func (m model) Init() tea.Cmd {
 
 func (m *model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		return <-m.ProgChan
+		return <-m.progChan
 	}
 }
 
@@ -154,20 +155,25 @@ func (m *model) updateTime() {
 	}
 }
 
-func downloadSpeedKBs(totalBytes float64, elapsedTime time.Duration) float64 {
+func downloadSpeedMBs(bytes float64, elapsedTime time.Duration) float64 {
 	elapsedSeconds := elapsedTime.Seconds()
 	if elapsedSeconds == 0 {
 		return 0
 	}
-	bytesPerSecond := totalBytes / elapsedSeconds
+	bytesPerSecond := bytes / elapsedSeconds
 	kilobytesPerSecond := bytesPerSecond / (1024 * 1024)
 	return kilobytesPerSecond
 }
 
 func (m *model) getProgressMsg(total float64, elapsed time.Duration) string {
-	b := byteutil.ConvertBytes(total)
-	speed := downloadSpeedKBs(total, elapsed)
-	msg := fmt.Sprintf("(%.1f %s | %.2f Mb/s) [%s]", b.Total, b.Unit, speed, elapsed.Truncate(time.Second))
+	totalConverted := total
+	i := 0
+	for totalConverted >= 1024 && i < len(units)-1 {
+		totalConverted /= 1024
+		i++
+	}
+	speed := downloadSpeedMBs(total, elapsed)
+	msg := fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, units[i], speed, elapsed.Truncate(time.Second))
 	return msg
 }
 
@@ -210,7 +216,7 @@ func constructErrorMessage(err error) string {
 	return fmt.Sprintf("❌ %s", err.Error())
 }
 
-func New[T UnitProvider](units []T, spinnerModel string) *model {
+func New[T UnitProvider](done chan struct{}, units []T, spinnerModel string) *model {
 	progChan := make(chan ChannelMessage, len(units))
 	su := make([]unit, len(units))
 
@@ -236,21 +242,33 @@ func New[T UnitProvider](units []T, spinnerModel string) *model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return &model{
+		done:      done,
 		units:     su,
 		spinner:   s,
 		doneCount: doneCount,
-		ProgChan:  progChan,
+		progChan:  progChan,
 	}
 }
 
+func (m *model) ProgChan() chan ChannelMessage {
+	return m.progChan
+}
+
 func (m *model) Run() {
+	go func() {
+		<-m.done
+		m.Close()
+	}()
+
 	m.program = tea.NewProgram(m)
 	if _, err := m.program.Run(); err != nil {
-		fmt.Printf("Error starting programram: %v", err)
+		fmt.Printf("Error starting program: %v", err)
 		panic(err)
 	}
 }
 
-func (m model) Close() {
-	m.program.Send(quitMsg{})
-}
+func (m *model) Start() { go m.Run() }
+
+func (m model) Close() { m.program.Send(quitMsg{}) }
+
+func (m model) Quit() { m.program.Quit() }

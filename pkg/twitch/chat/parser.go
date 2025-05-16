@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/Kostaaa1/twitch/internal/utils"
 )
 
 func parseROOMSTATE(rawMsg string) Room {
@@ -180,7 +178,8 @@ func parseMetadata(metadata interface{}, pairs []string) []string {
 				case "system-msg":
 					m.SystemMsg = strings.Join(strings.Split(value, `\s`), " ")
 				case "tmi-sent-ts":
-					m.Timestamp = utils.ParseTimestamp(value)
+					// m.Timestamp = utils.ParseTimestamp(value)
+					m.Timestamp = value
 				case "user-id":
 					m.UserID = value
 				}
@@ -190,7 +189,8 @@ func parseMetadata(metadata interface{}, pairs []string) []string {
 				case "room-id":
 					m.RoomID = value
 				case "tmi-sent-ts":
-					m.Timestamp = utils.ParseTimestamp(value)
+					// m.Timestamp = utils.ParseTimestamp(value)
+					m.Timestamp = value
 				}
 			}
 		}

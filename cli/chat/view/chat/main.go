@@ -9,7 +9,6 @@ import (
 
 	"github.com/Kostaaa1/twitch/cli/chat/view/components"
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/internal/utils"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -299,7 +298,7 @@ func (m *model) newMessage(newChat *Chat) chat.Message {
 				UserType:     newChat.Room.Metadata.UserType,
 			},
 			RoomID:    newChat.Room.RoomID,
-			Timestamp: utils.GetCurrentTimeFormatted(),
+			Timestamp: time.Now().Format("15:04"),
 		},
 	}
 	return newMessage
