@@ -8,7 +8,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wordwrap"
 )
 
 func colorStyle(color string) lipgloss.Style {
@@ -44,12 +43,9 @@ func GenerateIcon(userType string, colors config.Colors) string {
 
 func wrapText(s string, limit, padding int) string {
 	var out strings.Builder
-	// we keep track of the n char that were written
 	var lineLen int
 
-	// loop through every word in string
 	for _, word := range strings.Fields(s) {
-		// move to new row if length of the word + n char count is equal or bigger then limit
 		if len(word)+lineLen >= limit {
 			out.WriteString("\n")
 			paddingStr := strings.Repeat(" ", padding)
@@ -114,7 +110,6 @@ func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 
 	subColor := m.conf.Chat.Colors.Messages.Sub
 	box := NewBoxWithLabel(subColor)
-	msg = wordwrap.String(msg, width-50)
 	msg = wrapText(msg, width-50, 0)
 	color := lipgloss.Color(subColor)
 	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", capitalize(message.SubPlan)))
@@ -134,7 +129,6 @@ func (m model) FormatRaidMessage(message chat.RaidNotice, width int) string {
 	)
 	raidColor := m.conf.Chat.Colors.Messages.Raid
 	box := NewBoxWithLabel(raidColor)
-	msg = wordwrap.String(msg, width-50)
 	msg = wrapText(msg, width-50, 0)
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color(raidColor)).Render("Raid")
 	return box.RenderBox(label, msg)

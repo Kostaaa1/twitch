@@ -1,23 +1,24 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"fmt"
+	"log"
+	"net/http"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/cli"
+	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/internal/options"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/Kostaaa1/twitch/pkg/twitchdl"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 )
 
 var (
-	option options.Flag
+	option cli.Option
 	conf   *config.Config
 )
 
@@ -28,70 +29,119 @@ func init() {
 		panic(err)
 	}
 
-	flag.StringVar(&option.Input, "input", "", "Provide URL of VOD, clip or livestream to download. You can provide multiple URLs by seperating them by comma. Example: -input=https://www.twitch.tv/videos/2280187162,https://www.twitch.tv/brittt/clip/IronicArtisticOrcaWTRuck-UecXBrM6ECC-DAZR")
-	flag.StringVar(&option.Output, "output", conf.Downloader.Output, "Downloaded media path.")
-	flag.StringVar(&option.Quality, "quality", "", "[best|1080|720|480|360|160|worst|audio]")
-	flag.DurationVar(&option.Start, "start", time.Duration(0), "The start of the VOD subset. It only works with VODs and it needs to be in this format: '1h30m0s' (optional)")
-	flag.DurationVar(&option.End, "end", time.Duration(0), "The end of the VOD subset. It only works with VODs and it needs to be in format: '1h33m0s' (optional)")
+	flag.StringVar(&option.Input, "input", "", "Twitch URL, VOD ID, clip slug, or channel name. Comma-separated values enable batch downloads. If output is set, download starts automatically.")
+	flag.StringVar(&option.Output, "output", conf.Downloader.Output, "Destination path for downloaded files.")
+	flag.StringVar(&option.Quality, "quality", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio.")
+	flag.DurationVar(&option.Start, "start", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs.")
+	flag.DurationVar(&option.End, "end", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs.")
+	flag.IntVar(&option.Threads, "threads", 0, "Number of parallel downloads (batch mode only).")
 
-	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name")
-	flag.StringVar(&option.Print, "print", "", "print videos information")
-	flag.StringVar(&option.Print, "type", "", "vod|clip|highlight")
-	flag.IntVar(&option.Limit, "limit", 25, "limit of the list records (default: 25)")
+	flag.StringVar(&option.Category, "category", "", "Twitch category name.")
+	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name.")
 
-	// twitchdl --channel mizkif --print videos --limit 25
-	// twitchdl --channel mizkif --limit 25 // download latest 25 videos?
+	flag.BoolVar(&option.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
+	flag.StringVar(&option.Subscribe, "subscribe", "", "Comma-separated list of channel names to monitor and automatically download live streams when they go online. Useful for automation with tools like systemd.")
 
 	flag.Parse()
 }
 
-func main() {
-	// if option.Channel != "" {
-	// 	videos, err := dl.TWApi.GetVideosByChannelName(option.Channel, option.Limit)
-	// 	if err != nil {
-	// 		log.Fatal("failed to get the videos by username: %w", err)
-	// 		return
-	// 	}
-	// 	// if option.Print != "" {
-	// 	for _, video := range videos {
-	// 		u := fmt.Sprintf("[%s | %s] - %s", video.Game.Name, video.ID, video.Title)
-	// 		fmt.Println(u)
-	// 	}
-	// 	// }
-	// 	return
-	// }
+func initDownloader() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	done := make(chan struct{}, 1)
+	client := twitch.NewClient(http.DefaultClient, &conf.Creds)
+	dl := downloader.New(ctx, client, conf.Downloader)
 
-	client := twitch.NewClient(nil, &conf.Creds)
-	dl := twitchdl.New(done, client, conf.Downloader)
-	units := options.GetUnits(dl, option)
+	units := option.ProcessFlags(dl)
 
-	spin := spinner.New(done, units, conf.Downloader.SpinnerModel)
+	spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
 	dl.SetProgressChannel(spin.ProgChan())
-
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
-	go func() {
-		<-ch
-		close(spin.ProgChan())
-		close(done)
-	}()
+	dl.SetThreads(option.Threads)
 
 	var wg sync.WaitGroup
+
+	if option.Subscribe != "" {
+		wg.Add(1)
+		go func() {
+
+		}()
+	}
+
 	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		dl.Record(units[0])
-	}()
-
 	go func() {
 		defer wg.Done()
 		spin.Run()
 	}()
 
-	wg.Wait()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		dl.BatchDownload(units)
+	}()
 
-	fmt.Println("Finished downloading")
+	wg.Wait()
+	close(spin.ProgChan())
+}
+
+func initChat() {
+	tw := twitch.NewClient(nil, &conf.Creds)
+
+	if err := tw.Authorize(); err != nil {
+		log.Fatal(err)
+	}
+
+	user, err := tw.UserByChannelName("")
+	if err != nil {
+		log.Fatalf("failed to get the user info: %v\n", err)
+	}
+	conf.User = config.User{
+		BroadcasterType: user.BroadcasterType,
+		CreatedAt:       user.CreatedAt,
+		Description:     user.Description,
+		DisplayName:     user.DisplayName,
+		ID:              user.ID,
+		Login:           user.Login,
+		OfflineImageURL: user.OfflineImageURL,
+		ProfileImageURL: user.ProfileImageURL,
+		Type:            user.Type,
+	}
+	conf.Save()
+
+	chat.Open(tw, conf)
+}
+
+func main() {
+	if len(os.Args) == 0 {
+		initChat()
+		return
+	}
+
+	if option.Output != "" {
+		initDownloader()
+	}
+
+	// client := twitch.NewClient(http.DefaultClient, &conf.Creds)
+	// user1, err := client.UserByChannelName("39deph")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// user2, err := client.UserByChannelName("kosta")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// user3, err := client.UserByChannelName("ksota")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// user4, err := client.UserByChannelName("39daph")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// fmt.Println(user1.ID)
+	// fmt.Println(user2.ID)
+	// fmt.Println(user3.ID)
+	// fmt.Println(user4.ID)
+
+	// client.Stream(user1.ID)
 }

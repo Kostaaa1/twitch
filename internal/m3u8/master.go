@@ -40,8 +40,8 @@ func createServingID() string {
 	return id
 }
 
-// Used for restricted VODs (users need to be subscribed to watch the VOD)
-func CreateFakeMaster(c *http.Client, vodID string, previewURL *url.URL, broadcastType string) *MasterPlaylist {
+// Used for sub-only VODs (users need to be subscribed to watch the VOD)
+func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broadcastType string) *MasterPlaylist {
 	master := MasterPlaylist{
 		Origin:          "s3",
 		B:               false,
@@ -195,7 +195,7 @@ func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (Var
 // 	return VariantPlaylist{}, false
 // }
 
-// func (master *MasterPlaylist) GetVariantPlaylistByQuality(q twitchdl.QualityType) (VariantPlaylist, error) {
+// func (master *MasterPlaylist) GetVariantPlaylistByQuality(q downloader.QualityType) (VariantPlaylist, error) {
 // if q == "" {
 // 	return VariantPlaylist{}, fmt.Errorf("could not find the playlist by provided quality: %s", q.String())
 // }

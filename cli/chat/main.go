@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/Kostaaa1/twitch/cli/chat/view/chat"
+	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )

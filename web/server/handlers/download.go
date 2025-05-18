@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitchdl"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,11 +32,11 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	mediaFormat := c.Query("media_format")
 	mediaType := c.Query("media_type")
 
-	var unit twitchdl.Unit
+	var unit downloader.Unit
 	unit.ID = c.Query("media_slug")
 
-	unit.Type = twitchdl.GetVideoType(mediaType)
-	unit.Quality = mediaFormat
+	unit.Type = downloader.GetVideoType(mediaType)
+	// unit.Quality =
 	unit.Writer = c.Writer
 
 	ext := "mp4"
@@ -53,11 +53,11 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	c.Writer.Flush()
 
 	switch unit.Type {
-	case twitchdl.TypeClip:
+	case downloader.TypeClip:
 		if err := s.dl.Download(unit); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
-	case twitchdl.TypeVOD:
+	case downloader.TypeVOD:
 		startH := c.Query("start_h")
 		startM := c.Query("start_m")
 		startS := c.Query("start_s")

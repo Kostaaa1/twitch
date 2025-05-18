@@ -1,5 +1,5 @@
 BIN_DIR := ./bin
-DOWNLOADER_BIN := $(BIN_DIR)/twitchdl
+DOWNLOADER_BIN := $(BIN_DIR)/downloader
 CHAT_BIN := $(BIN_DIR)/twitchat
 
 .PHONY: all clean build-downloader build-chat build run

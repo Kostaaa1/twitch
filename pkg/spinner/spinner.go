@@ -1,6 +1,7 @@
 package spinner
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -38,14 +39,15 @@ type UnitProvider interface {
 }
 
 type model struct {
-	done      chan struct{}
-	units     []unit
-	spinner   spinner.Model
-	err       error
-	width     int
-	doneCount int
-	program   *tea.Program
-	progChan  chan ChannelMessage
+	// ctx       context.Context
+	cancelFunc context.CancelFunc
+	units      []unit
+	spinner    spinner.Model
+	err        error
+	width      int
+	doneCount  int
+	program    *tea.Program
+	progChan   chan ChannelMessage
 }
 
 var (
@@ -90,24 +92,27 @@ func (m *model) waitForMsg() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if len(m.units) == m.doneCount {
+		m.exit()
 		return m, tea.Quit
 	}
 
 	switch msg := msg.(type) {
-	case quitMsg:
+	case tea.QuitMsg:
+		m.exit()
 		return m, tea.Quit
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
+			m.exit()
 			return m, tea.Quit
 		default:
 			return m, nil
 		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
 
 	case errMsg:
 		m.err = msg
@@ -147,6 +152,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m *model) exit() {
+	for i := 0; i < len(m.units); i++ {
+		m.units[i].IsDone = true
+	}
+	m.cancelFunc()
+}
+
 func (m *model) updateTime() {
 	for i := range m.units {
 		if !m.units[i].IsDone && m.units[i].TotalBytes > 0 {
@@ -165,7 +177,37 @@ func downloadSpeedMBs(bytes float64, elapsedTime time.Duration) float64 {
 	return kilobytesPerSecond
 }
 
-func (m *model) getProgressMsg(total float64, elapsed time.Duration) string {
+func (m model) View() string {
+	if m.err != nil {
+		return m.err.Error()
+	}
+	var str strings.Builder
+	for i := 0; i < len(m.units); i++ {
+		str.WriteString(m.wrapText(m.formatMessage(m.units[i])) + "\n")
+	}
+	return str.String()
+}
+
+func (m model) wrapText(text string) string {
+	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
+}
+
+func (m model) formatMessage(u unit) string {
+	if u.Err != nil {
+		return errorMsg(u.Err)
+	}
+
+	var str strings.Builder
+	progress := getProgress(u.TotalBytes, u.ElapsedTime)
+	if u.IsDone {
+		str.WriteString(successMsg(u.Title, progress))
+	} else {
+		str.WriteString(fmt.Sprintf(" %s %s %s %s", m.spinner.View(), u.Title, progress, u.Message))
+	}
+	return str.String()
+}
+
+func getProgress(total float64, elapsed time.Duration) string {
 	totalConverted := total
 	i := 0
 	for totalConverted >= 1024 && i < len(units)-1 {
@@ -177,46 +219,15 @@ func (m *model) getProgressMsg(total float64, elapsed time.Duration) string {
 	return msg
 }
 
-func (m model) View() string {
-	if m.err != nil {
-		return m.err.Error()
-	}
-	var str strings.Builder
-	for i := 0; i < len(m.units); i++ {
-		str.WriteString(m.wrapText(m.formatMessage(m.units[i])))
-		str.WriteString("\n")
-	}
-	return str.String()
-}
-
-func (m model) wrapText(text string) string {
-	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
-}
-
-func (m model) formatMessage(u unit) string {
-	if u.Err != nil {
-		return constructErrorMessage(u.Err)
-	}
-
-	var str strings.Builder
-	progMsg := m.getProgressMsg(u.TotalBytes, u.ElapsedTime)
-	if u.IsDone {
-		str.WriteString(constructSuccessMessage(u.Title, progMsg))
-	} else {
-		str.WriteString(fmt.Sprintf(" %s %s %s %s", m.spinner.View(), u.Title, progMsg, u.Message))
-	}
-	return str.String()
-}
-
-func constructSuccessMessage(text, message string) string {
+func successMsg(text, message string) string {
 	return fmt.Sprintf("✅ %s %s", text, message)
 }
 
-func constructErrorMessage(err error) string {
+func errorMsg(err error) string {
 	return fmt.Sprintf("❌ %s", err.Error())
 }
 
-func New[T UnitProvider](done chan struct{}, units []T, spinnerModel string) *model {
+func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.CancelFunc) *model {
 	progChan := make(chan ChannelMessage, len(units))
 	su := make([]unit, len(units))
 
@@ -234,7 +245,6 @@ func New[T UnitProvider](done chan struct{}, units []T, spinnerModel string) *mo
 		if err != nil {
 			doneCount++
 		}
-
 	}
 
 	s := spinner.New()
@@ -242,11 +252,11 @@ func New[T UnitProvider](done chan struct{}, units []T, spinnerModel string) *mo
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return &model{
-		done:      done,
-		units:     su,
-		spinner:   s,
-		doneCount: doneCount,
-		progChan:  progChan,
+		cancelFunc: cancelFunc,
+		units:      su,
+		spinner:    s,
+		doneCount:  doneCount,
+		progChan:   progChan,
 	}
 }
 
@@ -255,20 +265,15 @@ func (m *model) ProgChan() chan ChannelMessage {
 }
 
 func (m *model) Run() {
-	go func() {
-		<-m.done
-		m.Close()
-	}()
-
 	m.program = tea.NewProgram(m)
 	if _, err := m.program.Run(); err != nil {
-		fmt.Printf("Error starting program: %v", err)
+		fmt.Printf("Error starting program: %v\n", err)
 		panic(err)
 	}
 }
 
-func (m *model) Start() { go m.Run() }
-
-func (m model) Close() { m.program.Send(quitMsg{}) }
-
-func (m model) Quit() { m.program.Quit() }
+func (m model) Quit() {
+	if m.program != nil {
+		m.program.Quit()
+	}
+}

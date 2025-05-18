@@ -48,6 +48,7 @@ func (tw *Client) StreamMetadata(channelName string) (*StreamMetadata, error) {
 			Stream StreamMetadata `json:"user"`
 		} `json:"data"`
 	}
+
 	var resp payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
@@ -92,9 +93,9 @@ func (tw *Client) MasterPlaylistStream(channel string) (*m3u8.MasterPlaylist, er
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
-	u := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
+	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
-	b, err := tw.fetch(u)
+	b, err := tw.fetch(url)
 	if err != nil {
 		return nil, err
 	}

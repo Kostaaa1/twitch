@@ -1,9 +1,11 @@
-package twitchdl
+package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
 
@@ -15,7 +17,8 @@ type Downloader struct {
 	TWApi      *twitch.Client
 	progressCh chan spinner.ChannelMessage
 	config     Config
-	done       chan struct{}
+	ctx        context.Context
+	threads    int
 }
 
 type Config struct {
@@ -23,15 +26,18 @@ type Config struct {
 	ShowSpinner     bool   `json:"show_spinner"`
 	Output          string `json:"output"`
 	SpinnerModel    string `json:"spinner_model"`
-	SkipAds         bool   `json:"skip_ads"`
 }
 
-func New(done chan struct{}, twClient *twitch.Client, conf Config) *Downloader {
+func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader {
 	return &Downloader{
-		done:   done,
+		ctx:    ctx,
 		TWApi:  twClient,
 		config: conf,
 	}
+}
+
+func (dl *Downloader) SetThreads(n int) {
+	dl.threads = n
 }
 
 func (dl *Downloader) SetProgressChannel(progressCh chan spinner.ChannelMessage) {
@@ -57,18 +63,23 @@ func (dl *Downloader) Record(unit Unit) error {
 }
 
 func (dl *Downloader) BatchDownload(units []Unit) {
-	climit := runtime.NumCPU() / 2
+	var sem chan struct{}
+	if dl.threads > 0 {
+		climit := runtime.NumCPU() / 2
+		sem = make(chan struct{}, climit)
+	}
 
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, climit)
 
 	for _, unit := range units {
 		wg.Add(1)
-
 		go func(u Unit) {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+
+			if dl.threads > 0 {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+			}
 
 			if err := dl.Download(u); err != nil {
 				u.Error = err
@@ -76,6 +87,12 @@ func (dl *Downloader) BatchDownload(units []Unit) {
 
 			msg := spinner.ChannelMessage{Error: u.Error, IsDone: true}
 			u.NotifyProgressChannel(msg, dl.progressCh)
+
+			if u.Error != nil {
+				if f, ok := u.Writer.(*os.File); ok {
+					os.Remove(f.Name())
+				}
+			}
 		}(unit)
 	}
 
@@ -83,7 +100,7 @@ func (dl *Downloader) BatchDownload(units []Unit) {
 }
 
 func (dl *Downloader) fetch(url string) ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
@@ -102,7 +119,7 @@ func (dl *Downloader) fetch(url string) ([]byte, error) {
 }
 
 func (dl *Downloader) download(url string, w io.Writer) (int64, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create request with context: %v", err)
 	}

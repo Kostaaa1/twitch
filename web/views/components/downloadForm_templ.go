@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import "time"
 import "github.com/Kostaaa1/twitch/pkg/twitch"
 import "fmt"
-import "github.com/Kostaaa1/twitch/pkg/twitchdl"
+import "github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 
 type Quality struct {
 	Resolution string
@@ -28,7 +28,7 @@ type FormData struct {
 	CreatedAt           time.Time
 	Qualities           []Quality
 	Duration            string
-	Type                twitchdl.VideoType
+	Type                downloader.VideoType
 	Curator             twitch.Curator
 }
 
@@ -58,7 +58,7 @@ func DownloadForm(media FormData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		switch media.Type {
-		case twitchdl.TypeClip:
+		case downloader.TypeClip:
 			if media.VideoURL != "" {
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<video controls class=\"block object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50\"><source src=\"")
 				if templ_7745c5c3_Err != nil {
@@ -118,7 +118,7 @@ func DownloadForm(media FormData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-		case twitchdl.TypeVOD:
+		case downloader.TypeVOD:
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<img class=\"block w-full w-full max-w-[660px] object-cover object-center rounded-lg shadow-xl shadow-blue-gray-900/50\" src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -252,7 +252,7 @@ func DownloadForm(media FormData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		switch media.Type {
-		case twitchdl.TypeVOD:
+		case downloader.TypeVOD:
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex justify-between flex-wrap\"><div><label class=\"block mb-2 text-slate-600\">Start</label><div class=\"flex items-center justify-center gap-2\"><input id=\"start_h\" name=\"start_h\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0h\" min=\"0\"> <input id=\"start_m\" name=\"start_m\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0m\" min=\"0\"> <input id=\"start_s\" name=\"start_s\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0s\" min=\"0\"></div></div><div><label class=\"block mb-2 text-slate-600\">End</label><div class=\"flex items-center justify-center w-full gap-2\"><input id=\"end_h\" name=\"end_h\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0h\" min=\"0\"> <input id=\"end_m\" name=\"end_m\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0m\" min=\"0\"> <input id=\"end_s\" name=\"end_s\" type=\"number\" class=\"no-arrows w-[54px] text-center bg-white placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-md px-3 py-2 transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-300 shadow-sm focus:shadow\" placeholder=\"0s\" min=\"0\"></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

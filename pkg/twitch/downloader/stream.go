@@ -1,7 +1,6 @@
-package twitchdl
+package downloader
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -11,13 +10,13 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
-type SegmentHistory struct {
+type segmentHistory struct {
 	seen map[string]struct{}
 	list []string
 	max  int
 }
 
-func (h *SegmentHistory) Add(url string) {
+func (h *segmentHistory) Add(url string) {
 	if _, ok := h.seen[url]; ok {
 		return
 	}
@@ -31,7 +30,7 @@ func (h *SegmentHistory) Add(url string) {
 	}
 }
 
-func (h *SegmentHistory) Seen(url string) bool {
+func (h *segmentHistory) Seen(url string) bool {
 	if _, ok := h.seen[url]; ok {
 		return true
 	}
@@ -55,21 +54,19 @@ func (dl *Downloader) recordStream(mu Unit) error {
 		return err
 	}
 
-	segHist := SegmentHistory{
+	segHist := segmentHistory{
 		seen: make(map[string]struct{}),
 		list: make([]string, 0),
 		max:  500,
 	}
 
-	go func() {
-		<-dl.done
-	}()
-
 	for {
 		select {
-		case <-dl.done:
+		case <-dl.ctx.Done():
+			// msg := spinner.ChannelMessage{IsDone: true}
+			// mu.NotifyProgressChannel(msg, dl.progressCh)
 			return nil
-		default:
+		case <-time.After(1 * time.Second):
 			b, err := dl.fetch(variant.URL)
 			if err != nil {
 				msg := spinner.ChannelMessage{Error: errors.New("stream ended")}
@@ -79,39 +76,40 @@ func (dl *Downloader) recordStream(mu Unit) error {
 
 			lines := strings.Split(string(b), "\n")
 			for i := 0; i < len(lines)-1; i++ {
-				line := lines[i]
-				if strings.HasPrefix(line, "#EXTINF") {
-					if dl.config.SkipAds && strings.Contains(line, "Amazon") {
-						msg := spinner.ChannelMessage{Message: "[Ad is running]", Bytes: 0}
-						mu.NotifyProgressChannel(msg, dl.progressCh)
-						continue
-					}
-					segURL := lines[i+1]
-					if segHist.Seen(segURL) {
-						continue
-					}
-
-					segmentBytes, err := dl.fetch(segURL)
-					if err != nil {
-						if errors.Is(err, context.Canceled) {
-							return nil
+				select {
+				case <-dl.ctx.Done():
+					// msg := spinner.ChannelMessage{IsDone: true}
+					// mu.NotifyProgressChannel(msg, dl.progressCh)
+					return nil
+				default:
+					line := lines[i]
+					if strings.HasPrefix(line, "#EXTINF") {
+						// skip writing ads
+						if strings.Contains(line, "Amazon") {
+							continue
 						}
-						return err
+
+						segURL := lines[i+1]
+						if segHist.Seen(segURL) {
+							continue
+						}
+
+						segmentBytes, err := dl.fetch(segURL)
+						if err != nil {
+							return err
+						}
+
+						n, err := mu.Writer.Write(segmentBytes)
+						if err != nil {
+							log.Fatal(err)
+						}
+
+						msg := spinner.ChannelMessage{Bytes: int64(n)}
+						mu.NotifyProgressChannel(msg, dl.progressCh)
+						segHist.Add(segURL)
 					}
-
-					n, err := mu.Writer.Write(segmentBytes)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					msg := spinner.ChannelMessage{Bytes: int64(n)}
-					mu.NotifyProgressChannel(msg, dl.progressCh)
-
-					segHist.Add(segURL)
 				}
 			}
 		}
-
-		time.Sleep(1 * time.Second)
 	}
 }

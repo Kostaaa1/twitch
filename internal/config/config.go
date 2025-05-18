@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/Kostaaa1/twitch/pkg/twitchdl"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 )
 
 type User struct {
@@ -43,10 +43,10 @@ type Creds struct {
 }
 
 type Config struct {
-	User       User            `json:"user"`
-	Downloader twitchdl.Config `json:"downloader"`
-	Chat       Chat            `json:"chat"`
-	Creds      twitch.Creds    `json:"creds"`
+	User       User              `json:"user"`
+	Downloader downloader.Config `json:"downloader"`
+	Chat       Chat              `json:"chat"`
+	Creds      twitch.Creds      `json:"creds"`
 }
 
 type Colors struct {
@@ -93,12 +93,11 @@ func initConfigData() Config {
 			TokenType:    "",
 			Scope:        []string{},
 		},
-		Downloader: twitchdl.Config{
+		Downloader: downloader.Config{
 			IsFFmpegEnabled: false,
 			ShowSpinner:     true,
 			Output:          "",
 			SpinnerModel:    "dot",
-			SkipAds:         true,
 		},
 		Chat: Chat{
 			OpenedChats:    []string{},

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/cli/chat/view/components"
+	"github.com/Kostaaa1/twitch/internal/cli/view/components"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"

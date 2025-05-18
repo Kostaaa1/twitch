@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/Kostaaa1/twitch/pkg/twitchdl"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/Kostaaa1/twitch/web/server"
 	"github.com/Kostaaa1/twitch/web/views/home"
 	"github.com/gin-gonic/gin"
@@ -11,12 +11,12 @@ import (
 
 type Static struct {
 	// tw *twitch.Client
-	dl *twitchdl.Downloader
+	dl *downloader.Downloader
 }
 
 func NewStatic() *Static {
 	return &Static{
-		dl: twitchdl.New(),
+		dl: downloader.New(nil, nil, downloader.Config{}),
 	}
 }
 

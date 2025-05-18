@@ -1,4 +1,4 @@
-package options
+package cli
 
 import (
 	"encoding/json"
@@ -7,23 +7,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitchdl"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 )
 
-type Flag struct {
-	Input     string        `json:"url"`
+type Option struct {
+	Input     string        `json:"input"`
+	Output    string        `json:"output"`
 	Quality   string        `json:"quality"`
 	Start     time.Duration `json:"start"`
 	End       time.Duration `json:"end"`
-	Output    string        `json:"output"`
+	Threads   int
+	Category  string
 	Channel   string
-	Print     string
-	MediaType string
-	Limit     int
+	Authorize bool
+	Subscribe string
 }
 
-func (p *Flag) UnmarshalJSON(b []byte) error {
-	type Alias Flag
+func (p *Option) UnmarshalJSON(b []byte) error {
+	type Alias Option
 	aux := &struct {
 		Start string `json:"start"`
 		End   string `json:"end"`
@@ -54,7 +55,7 @@ func (p *Flag) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func level(main, fallback *Flag) {
+func level(main, fallback *Option) {
 	if main.Output == "" && fallback.Output != "" {
 		main.Output = fallback.Output
 	}
@@ -63,35 +64,35 @@ func level(main, fallback *Flag) {
 	}
 }
 
-func processFileInput(dl *twitchdl.Downloader, flagOpts Flag) []twitchdl.Unit {
-	_, err := os.Stat(flagOpts.Input)
+func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit {
+	_, err := os.Stat(opt.Input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
 	}
 
-	content, err := os.ReadFile(flagOpts.Input)
+	content, err := os.ReadFile(opt.Input)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var opts []Flag
+	var opts []Option
 	if err := json.Unmarshal(content, &opts); err != nil {
 		log.Fatal(err)
 	}
 
-	var units []twitchdl.Unit
-	for _, opt := range opts {
-		level(&opt, &flagOpts)
-		unit := dl.NewUnit(opt.Input, opt.Quality, opt.Output, opt.Start, opt.End)
+	var units []downloader.Unit
+	for _, unitOpt := range opts {
+		level(&unitOpt, &opt)
+		unit := dl.NewUnit(unitOpt.Input, unitOpt.Quality, unitOpt.Output, unitOpt.Start, unitOpt.End)
 		units = append(units, unit)
 	}
 
 	return units
 }
 
-func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.Unit {
+func (opt Option) processFlagInput(dl *downloader.Downloader) []downloader.Unit {
 	urls := strings.Split(opt.Input, ",")
-	var units []twitchdl.Unit
+	var units []downloader.Unit
 	for _, url := range urls {
 		opt.Input = url
 		unit := dl.NewUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
@@ -100,16 +101,16 @@ func processFlagInput(dl *twitchdl.Downloader, opt Flag) []twitchdl.Unit {
 	return units
 }
 
-func GetUnits(dl *twitchdl.Downloader, p Flag) []twitchdl.Unit {
-	if p.Input == "" {
+func (opts Option) ProcessFlags(dl *downloader.Downloader) []downloader.Unit {
+	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
-	var units []twitchdl.Unit
-	_, err := os.Stat(p.Input)
+	var units []downloader.Unit
+	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		units = processFlagInput(dl, p)
+		units = opts.processFlagInput(dl)
 	} else {
-		units = processFileInput(dl, p)
+		units = opts.processFileInput(dl)
 	}
 	return units
 }

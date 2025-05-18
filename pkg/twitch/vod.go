@@ -58,7 +58,7 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 	b, code, err := tw.fetchWithCode(m3u8Url)
 	if code == http.StatusForbidden {
 		// this means that you need to be subscribed to access the m3u8 master. In that case, creating fake playlist.
-		subVOD, err := tw.SubVODData(vodID)
+		subVOD, err := tw.SubVodData(vodID)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 		if err != nil {
 			return nil, err
 		}
-		return m3u8.CreateFakeMaster(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), nil
+		return m3u8.MasterPlaylistMock(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), nil
 	}
 
 	if err != nil {
@@ -262,7 +262,7 @@ type SubVODResponse struct {
 	} `json:"video"`
 }
 
-func (tw *Client) SubVODData(vodID string) (SubVODResponse, error) {
+func (tw *Client) SubVodData(vodID string) (SubVODResponse, error) {
 	gqlPayload := `{
  	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
 	}`

@@ -1,4 +1,4 @@
-package twitchdl
+package downloader
 
 import (
 	"fmt"

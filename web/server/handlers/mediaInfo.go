@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitchdl"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/Kostaaa1/twitch/web/server"
 	"github.com/Kostaaa1/twitch/web/views/components"
 	"github.com/dustin/go-humanize"
@@ -45,16 +45,16 @@ func (s *Static) mediaInfo(c *gin.Context) {
 
 	var formData components.FormData
 	if strings.Contains(u.Host, "clips.twitch.tv") || strings.Contains(u.Path, "/clip/") {
-		formData.Type = twitchdl.TypeClip
+		formData.Type = downloader.TypeClip
 		formData, err = s.getClipData(id)
 	} else if strings.Contains(u.Path, "/videos/") {
-		formData.Type = twitchdl.TypeVOD
+		formData.Type = downloader.TypeVOD
 		formData, err = s.getVODData(id)
 	}
 
-	// if parsed.Type == twitchdl.TypeClip {
+	// if parsed.Type == downloader.TypeClip {
 	// 	formData, err = s.getClipData(parsed.ID)
-	// } else if parsed.Type == twitchdl.TypeVOD {
+	// } else if parsed.Type == downloader.TypeVOD {
 	// 	formData, err = s.getVODData(parsed.ID)
 	// }
 	// formData.Type = parsed.Type
@@ -96,7 +96,7 @@ func (s *Static) getVODData(slug string) (components.FormData, error) {
 		ViewCount:           humanize.Comma(metadata.Video.ViewCount),
 		Qualities:           qualities,
 		Duration:            duration.String(),
-		Type:                twitchdl.TypeVOD,
+		Type:                downloader.TypeVOD,
 	}
 
 	return formData, nil
@@ -139,7 +139,7 @@ func (s *Static) getClipData(slug string) (components.FormData, error) {
 		Qualities:           qualities,
 		Duration:            duration.String(),
 		Curator:             clip.Curator,
-		Type:                twitchdl.TypeClip,
+		Type:                downloader.TypeClip,
 	}
 
 	return formData, nil

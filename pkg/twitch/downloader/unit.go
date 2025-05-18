@@ -1,4 +1,4 @@
-package twitchdl
+package downloader
 
 import (
 	"errors"
@@ -162,7 +162,7 @@ func (dl *Downloader) parseVodParams(input string, unit *Unit) error {
 		}
 	}
 
-	if unit.Start >= unit.End {
+	if unit.Start > unit.End {
 		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, input)
 	}
 
