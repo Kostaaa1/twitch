@@ -1,24 +1,16 @@
 BIN_DIR := ./bin
-DOWNLOADER_BIN := $(BIN_DIR)/downloader
-CHAT_BIN := $(BIN_DIR)/twitchat
+# DOWNLOADER_BIN := $(BIN_DIR)/downloader
+# CHAT_BIN := $(BIN_DIR)/twitchat
 
 .PHONY: all clean build-downloader build-chat build run
 
 all: clean build
 
-build: build-downloader build-chat
-
-build-downloader:
-	@echo "Building twitch downloader..."
+build:
+	@echo "Building Twitch CLI..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(DOWNLOADER_BIN) ./cli/downloader
-	@echo "Twitch downloader built successfully."
-
-build-chat:
-	@echo "Building twitch chat..."
-	@mkdir -p $(BIN_DIR)
-	@go build -o $(CHAT_BIN) ./cli/chat
-	@echo "Twitch chat built successfully."
+	@go build -o $(BIN_DIR)/twitch ./cli/downloader/main.go
+	@echo "Twitch CLI built successfully."
 
 clean:
 	@echo "Cleaning up old binaries..."

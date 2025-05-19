@@ -2,12 +2,15 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/Kostaaa1/twitch/pkg/twitch/event"
 )
 
 type Option struct {
@@ -20,7 +23,7 @@ type Option struct {
 	Category  string
 	Channel   string
 	Authorize bool
-	Subscribe string
+	Subscribe bool
 }
 
 func (p *Option) UnmarshalJSON(b []byte) error {
@@ -75,30 +78,57 @@ func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit 
 		log.Fatal(err)
 	}
 
-	var opts []Option
-	if err := json.Unmarshal(content, &opts); err != nil {
+	var inputUnits []Option
+	if err := json.Unmarshal(content, &inputUnits); err != nil {
 		log.Fatal(err)
 	}
 
 	var units []downloader.Unit
-	for _, unitOpt := range opts {
-		level(&unitOpt, &opt)
-		unit := dl.NewUnit(unitOpt.Input, unitOpt.Quality, unitOpt.Output, unitOpt.Start, unitOpt.End)
-		units = append(units, unit)
+	for _, input := range inputUnits {
+		level(&input, &opt)
+		unit := downloader.NewUnit(input.Input, input.Quality, input.Output, input.Start, input.End)
+		unit.Writer, unit.Error = newFileWriter(dl, unit, input.Output)
+		units = append(units, *unit)
 	}
 
 	return units
 }
 
+func newFileWriter(dl *downloader.Downloader, unit *downloader.Unit, output string) (*os.File, error) {
+	if output == "" {
+		return nil, errors.New("output not provided")
+	}
+	fileName, err := dl.MediaTitle(unit.ID, unit.Type)
+	if err != nil {
+		return nil, err
+	}
+	ext := "mp4"
+	if strings.HasPrefix(unit.Quality.String(), "audio") {
+		ext = "mp3"
+	}
+	return fileutil.CreateFile(output, fileName, ext)
+}
+
 func (opt Option) processFlagInput(dl *downloader.Downloader) []downloader.Unit {
-	urls := strings.Split(opt.Input, ",")
+	inputs := strings.Split(opt.Input, ",")
 	var units []downloader.Unit
-	for _, url := range urls {
-		opt.Input = url
-		unit := dl.NewUnit(url, opt.Quality, opt.Output, opt.Start, opt.End)
-		units = append(units, unit)
+	for _, input := range inputs {
+		unit := downloader.NewUnit(input, opt.Quality, opt.Output, opt.Start, opt.End)
+		unit.Writer, unit.Error = newFileWriter(dl, unit, opt.Output)
+		units = append(units, *unit)
 	}
 	return units
+}
+
+// creates stream online events from already processed units. it will filter only channel names
+func EventsFromUnits(units []downloader.Unit) []event.Event {
+	var events []event.Event
+	for _, unit := range units {
+		if unit.Type == downloader.TypeLivestream {
+			events = append(events, event.StreamOnlineEvent(unit.ID))
+		}
+	}
+	return events
 }
 
 func (opts Option) ProcessFlags(dl *downloader.Downloader) []downloader.Unit {

@@ -44,18 +44,30 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for job := range jobsChan {
-				data, err := dl.fetch(job.url)
-				job.data = data
-				job.err = err
+			for {
+				select {
+				case <-dl.ctx.Done():
+					return
+				case job, ok := <-jobsChan:
+					if !ok {
+						return
+					}
+					data, err := dl.fetch(job.url)
+					job.data = data
+					job.err = err
 
-				if err == nil {
-					job.bytesRead = int64(len(data))
-					msg := spinner.ChannelMessage{Bytes: job.bytesRead}
-					mu.NotifyProgressChannel(msg, dl.progressCh)
+					if err == nil {
+						job.bytesRead = int64(len(data))
+						msg := spinner.ChannelMessage{Bytes: job.bytesRead}
+						mu.NotifyProgressChannel(msg, dl.progressCh)
+					}
+
+					select {
+					case <-dl.ctx.Done():
+						return
+					case resultsChan <- job:
+					}
 				}
-
-				resultsChan <- job
 			}
 		}()
 	}
@@ -65,9 +77,13 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 			if strings.HasSuffix(segment, ".ts") {
 				lastIndex := strings.LastIndex(variant.URL, "/")
 				segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
-				jobsChan <- segmentJob{
+				select {
+				case <-dl.ctx.Done():
+					return
+				case jobsChan <- segmentJob{
 					index: i,
 					url:   segmentURL,
+				}:
 				}
 			}
 		}
@@ -82,28 +98,34 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	segmentBuffer := make(map[int]segmentJob)
 	nextIndexToWrite := 0
 
-	for result := range resultsChan {
-		if result.err != nil {
-			return fmt.Errorf("error downloading segment %s: %v", result.url, result.err)
-		}
+	for {
+		select {
+		case <-dl.ctx.Done():
+			return dl.ctx.Err()
+		case result, ok := <-resultsChan:
+			if !ok {
+				return nil
+			}
+			if result.err != nil {
+				return fmt.Errorf("error downloading segment %s: %v", result.url, result.err)
+			}
 
-		segmentBuffer[result.index] = result
+			segmentBuffer[result.index] = result
 
-		for {
-			if job, exists := segmentBuffer[nextIndexToWrite]; exists {
-				_, err := mu.Writer.Write(job.data)
-				if err != nil {
-					return fmt.Errorf("error writing segment %d: %v", nextIndexToWrite, err)
+			for {
+				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
+					_, err := mu.Writer.Write(job.data)
+					if err != nil {
+						return fmt.Errorf("error writing segment %d: %v", nextIndexToWrite, err)
+					}
+					delete(segmentBuffer, nextIndexToWrite)
+					nextIndexToWrite++
+				} else {
+					break
 				}
-				delete(segmentBuffer, nextIndexToWrite)
-				nextIndexToWrite++
-			} else {
-				break
 			}
 		}
 	}
-
-	return nil
 }
 
 func (mu Unit) StreamVOD(dl *Downloader) error {

@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"os"
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
@@ -34,22 +33,6 @@ func (dl *Downloader) downloadClip(mu Unit) error {
 	mu.NotifyProgressChannel(msg, dl.progressCh)
 
 	return nil
-}
-
-func (unit Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
-	if progressCh == nil {
-		return
-	}
-	if unit.Writer != nil {
-		if file, ok := unit.Writer.(*os.File); ok && file != nil {
-			if unit.Error != nil {
-				os.Remove(file.Name())
-			}
-			l := msg
-			l.Text = file.Name()
-			progressCh <- l
-		}
-	}
 }
 
 func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) string {

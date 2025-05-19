@@ -1,10 +1,5 @@
 package downloader
 
-import (
-	"fmt"
-	"strings"
-)
-
 type Quality struct {
 	Res string
 	FPS int32
@@ -39,25 +34,6 @@ func (qt QualityType) String() string {
 		return "audio_only"
 	default:
 		return ""
-	}
-}
-
-func QualityFromInput(quality string) (QualityType, error) {
-	switch {
-	case quality == "best" || strings.HasPrefix(quality, "1080"):
-		return Quality1080p60, nil
-	case strings.HasPrefix(quality, "720"):
-		return Quality720p60, nil
-	case strings.HasPrefix(quality, "480"):
-		return Quality480p30, nil
-	case strings.HasPrefix(quality, "360"):
-		return Quality360p30, nil
-	case quality == "worst" || strings.HasPrefix(quality, "160"):
-		return Quality160p30, nil
-	case strings.HasPrefix(quality, "audio"):
-		return QualityAudioOnly, nil
-	default:
-		return 0, fmt.Errorf("invalid quality was provided: %s. valid are: %s", quality, strings.Join(qualities, ", "))
 	}
 }
 

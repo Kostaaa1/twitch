@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/Kostaaa1/twitch/pkg/twitch/event"
 )
 
 var (
@@ -40,108 +42,82 @@ func init() {
 	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name.")
 
 	flag.BoolVar(&option.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
-	flag.StringVar(&option.Subscribe, "subscribe", "", "Comma-separated list of channel names to monitor and automatically download live streams when they go online. Useful for automation with tools like systemd.")
+	flag.BoolVar(&option.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input to automatically download streams when they go live. Useful for automation (e.g., with systemd).")
 
 	flag.Parse()
 }
 
-func initDownloader() {
+func main() {
+	client := twitch.NewClient(http.DefaultClient, &conf.Creds)
+
+	if len(os.Args) == 1 {
+		initChat(client)
+		return
+	}
+
+	if option.Authorize {
+		conf.AuthorizeAndSaveUserData(client)
+		return
+	}
+
+	initDownloader(client)
+}
+
+func initDownloader(client *twitch.Client) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := twitch.NewClient(http.DefaultClient, &conf.Creds)
 	dl := downloader.New(ctx, client, conf.Downloader)
+	dl.SetThreads(option.Threads)
 
 	units := option.ProcessFlags(dl)
 
 	spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
 	dl.SetProgressChannel(spin.ProgChan())
-	dl.SetThreads(option.Threads)
 
 	var wg sync.WaitGroup
 
-	if option.Subscribe != "" {
+	if option.Subscribe {
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
+			initEventSub(ctx, dl, units)
+		}()
+	} else {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			spin.Run()
+		}()
 
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			dl.BatchDownload(units)
 		}()
 	}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		spin.Run()
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		dl.BatchDownload(units)
-	}()
 
 	wg.Wait()
 	close(spin.ProgChan())
 }
 
-func initChat() {
-	tw := twitch.NewClient(nil, &conf.Creds)
+func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downloader.Unit) error {
+	events := cli.EventsFromUnits(units)
 
-	if err := tw.Authorize(); err != nil {
-		log.Fatal(err)
+	eventsub := event.NewClient(dl.TWApi)
+	eventsub.OnNotification = func(resp event.ResponseBody) {
+		fmt.Println("on notification response", resp)
 	}
 
-	user, err := tw.UserByChannelName("")
-	if err != nil {
-		log.Fatalf("failed to get the user info: %v\n", err)
+	if err := eventsub.DialWS(ctx, events); err != nil {
+		return err
 	}
-	conf.User = config.User{
-		BroadcasterType: user.BroadcasterType,
-		CreatedAt:       user.CreatedAt,
-		Description:     user.Description,
-		DisplayName:     user.DisplayName,
-		ID:              user.ID,
-		Login:           user.Login,
-		OfflineImageURL: user.OfflineImageURL,
-		ProfileImageURL: user.ProfileImageURL,
-		Type:            user.Type,
-	}
-	conf.Save()
-
-	chat.Open(tw, conf)
+	return nil
 }
 
-func main() {
-	if len(os.Args) == 0 {
-		initChat()
-		return
+func initChat(client *twitch.Client) {
+	if err := conf.AuthorizeAndSaveUserData(client); err != nil {
+		log.Fatal(err)
 	}
-
-	if option.Output != "" {
-		initDownloader()
-	}
-
-	// client := twitch.NewClient(http.DefaultClient, &conf.Creds)
-	// user1, err := client.UserByChannelName("39deph")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// user2, err := client.UserByChannelName("kosta")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// user3, err := client.UserByChannelName("ksota")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// user4, err := client.UserByChannelName("39daph")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// fmt.Println(user1.ID)
-	// fmt.Println(user2.ID)
-	// fmt.Println(user3.ID)
-	// fmt.Println(user4.ID)
-
-	// client.Stream(user1.ID)
+	chat.Open(client, conf)
 }

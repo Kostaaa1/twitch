@@ -237,3 +237,26 @@ func Get() (*Config, error) {
 // 	}
 // 	return nil
 // }
+
+func (conf *Config) AuthorizeAndSaveUserData(client *twitch.Client) error {
+	if err := client.Authorize(); err != nil {
+		return err
+	}
+	user, err := client.UserByChannelName("")
+	if err != nil {
+		return fmt.Errorf("failed to get the user data: %v", err)
+	}
+	conf.User = User{
+		BroadcasterType: user.BroadcasterType,
+		CreatedAt:       user.CreatedAt,
+		Description:     user.Description,
+		DisplayName:     user.DisplayName,
+		ID:              user.ID,
+		Login:           user.Login,
+		OfflineImageURL: user.OfflineImageURL,
+		ProfileImageURL: user.ProfileImageURL,
+		Type:            user.Type,
+	}
+	conf.Save()
+	return nil
+}

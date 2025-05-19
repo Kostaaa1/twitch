@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"runtime"
 	"sync"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
@@ -65,15 +63,14 @@ func (dl *Downloader) Record(unit Unit) error {
 func (dl *Downloader) BatchDownload(units []Unit) {
 	var sem chan struct{}
 	if dl.threads > 0 {
-		climit := runtime.NumCPU() / 2
-		sem = make(chan struct{}, climit)
+		sem = make(chan struct{}, dl.threads)
 	}
 
 	var wg sync.WaitGroup
 
 	for _, unit := range units {
 		wg.Add(1)
-		go func(u Unit) {
+		go func() {
 			defer wg.Done()
 
 			if dl.threads > 0 {
@@ -81,19 +78,13 @@ func (dl *Downloader) BatchDownload(units []Unit) {
 				defer func() { <-sem }()
 			}
 
-			if err := dl.Download(u); err != nil {
-				u.Error = err
+			if err := dl.Download(unit); err != nil {
+				unit.Error = err
 			}
 
-			msg := spinner.ChannelMessage{Error: u.Error, IsDone: true}
-			u.NotifyProgressChannel(msg, dl.progressCh)
-
-			if u.Error != nil {
-				if f, ok := u.Writer.(*os.File); ok {
-					os.Remove(f.Name())
-				}
-			}
-		}(unit)
+			msg := spinner.ChannelMessage{Error: unit.Error, IsDone: true}
+			unit.NotifyProgressChannel(msg, dl.progressCh)
+		}()
 	}
 
 	wg.Wait()

@@ -3,11 +3,12 @@ package event
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 )
 
-type Subscription struct {
+type SubscriptionMessage struct {
 	ID        string                 `json:"id"`
 	Status    string                 `json:"status"`
 	Type      string                 `json:"type"`
@@ -19,22 +20,25 @@ type Subscription struct {
 }
 
 type SubscriptionResponse struct {
-	Data         []Subscription         `json:"data"`
+	Data         []SubscriptionMessage  `json:"data"`
 	Total        int                    `json:"total"`
 	TotalCost    int                    `json:"total_cost"`
 	MaxTotalCost int                    `json:"max_total_cost"`
 	Pagination   map[string]interface{} `json:"pagination"`
 }
 
+var (
+	subscriptionsURL = "https://api.twitch.tv/helix/eventsub/subscriptions"
+)
+
 func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, error) {
-	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 
 	var data SubscriptionResponse
-	if err := sub.tw.HelixRequest(url, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
+	if err := sub.tw.HelixRequest(subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
 		return nil, err
 	}
 	sub.TotalCost = data.TotalCost
@@ -46,9 +50,8 @@ func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, e
 }
 
 func (sub *EventSubClient) GetSubscriptions() (*SubscriptionResponse, error) {
-	url := "https://api.twitch.tv/helix/eventsub/subscriptions"
 	var data SubscriptionResponse
-	if err := sub.tw.HelixRequest(url, http.MethodGet, nil, &data); err != nil {
+	if err := sub.tw.HelixRequest(subscriptionsURL, http.MethodGet, nil, &data); err != nil {
 		return nil, err
 	}
 	return &data, nil
@@ -65,7 +68,7 @@ func (sub *EventSubClient) RemoveSubscriptionByID(id string) {
 }
 
 func (sub *EventSubClient) Unsubscribe(subId string) error {
-	url := "https://api.twitch.tv/helix/eventsub/subscriptions?id=" + subId
+	url := fmt.Sprintf("%s?id=%s", subscriptionsURL, subId)
 	if err := sub.tw.HelixRequest(url, http.MethodDelete, nil, nil); err != nil {
 		return err
 	}
@@ -74,7 +77,7 @@ func (sub *EventSubClient) Unsubscribe(subId string) error {
 }
 
 func (sub *EventSubClient) UnsubscribeToAll() error {
-	subCopy := make([]Subscription, len(sub.Subscriptions))
+	subCopy := make([]SubscriptionMessage, len(sub.Subscriptions))
 	copy(subCopy, sub.Subscriptions)
 	for _, data := range subCopy {
 		if err := sub.Unsubscribe(data.ID); err != nil {

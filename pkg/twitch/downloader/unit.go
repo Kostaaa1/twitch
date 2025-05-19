@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/fileutil"
+	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type VideoType int
@@ -66,7 +66,7 @@ func (mu Unit) GetError() error {
 
 func (mu Unit) GetTitle() string {
 	if f, ok := mu.Writer.(*os.File); ok && f != nil {
-		if mu.Error != nil { // ??
+		if mu.Error != nil {
 			os.Remove(f.Name())
 		}
 		return f.Name()
@@ -74,7 +74,42 @@ func (mu Unit) GetTitle() string {
 	return mu.ID
 }
 
-func ParseVideoType(input string) (string, VideoType, error) {
+func (unit Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
+	if progressCh == nil {
+		return
+	}
+	if unit.Writer != nil {
+		if file, ok := unit.Writer.(*os.File); ok && file != nil {
+			if unit.Error != nil {
+				os.Remove(file.Name())
+			}
+			l := msg
+			l.Text = file.Name()
+			progressCh <- l
+		}
+	}
+}
+
+func qualityFromInput(quality string) (QualityType, error) {
+	switch {
+	case quality == "best" || strings.HasPrefix(quality, "1080"):
+		return Quality1080p60, nil
+	case strings.HasPrefix(quality, "720"):
+		return Quality720p60, nil
+	case strings.HasPrefix(quality, "480"):
+		return Quality480p30, nil
+	case strings.HasPrefix(quality, "360"):
+		return Quality360p30, nil
+	case quality == "worst" || strings.HasPrefix(quality, "160"):
+		return Quality160p30, nil
+	case strings.HasPrefix(quality, "audio"):
+		return QualityAudioOnly, nil
+	default:
+		return 0, fmt.Errorf("invalid quality was provided: %s. valid are: %s", quality, strings.Join(qualities, ", "))
+	}
+}
+
+func parseVideoType(input string) (string, VideoType, error) {
 	if input == "" {
 		return "", 0, errors.New("input cannot be empty")
 	}
@@ -110,19 +145,19 @@ func ParseVideoType(input string) (string, VideoType, error) {
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
-func (dl *Downloader) NewUnit(input, quality, output string, start, end time.Duration) Unit {
-	unit := Unit{
+func NewUnit(input, quality, output string, start, end time.Duration) *Unit {
+	unit := &Unit{
 		Start: start,
 		End:   end,
 	}
 
-	unit.ID, unit.Type, unit.Error = ParseVideoType(input)
+	unit.ID, unit.Type, unit.Error = parseVideoType(input)
 	if unit.Error != nil {
 		return unit
 	}
 
 	if unit.Type == TypeVOD {
-		if unit.Error = dl.parseVodParams(input, &unit); unit.Error != nil {
+		if unit.Error = parseVodParams(input, unit); unit.Error != nil {
 			return unit
 		}
 	}
@@ -131,26 +166,15 @@ func (dl *Downloader) NewUnit(input, quality, output string, start, end time.Dur
 		quality = "best"
 	}
 
-	unit.Quality, unit.Error = QualityFromInput(quality)
+	unit.Quality, unit.Error = qualityFromInput(quality)
 	if unit.Error != nil {
 		return unit
 	}
 
-	fileName, err := dl.MediaTitle(unit.ID, unit.Type)
-	if err != nil {
-		unit.Error = err
-		return unit
-	}
-	ext := "mp4"
-	if strings.HasPrefix(quality, "audio") {
-		ext = "mp3"
-	}
-	unit.Writer, unit.Error = fileutil.CreateFile(output, fileName, ext)
-
 	return unit
 }
 
-func (dl *Downloader) parseVodParams(input string, unit *Unit) error {
+func parseVodParams(input string, unit *Unit) error {
 	parsedURL, err := url.Parse(input)
 	if err != nil {
 		return err
