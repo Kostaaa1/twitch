@@ -86,15 +86,15 @@ func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit 
 	var units []downloader.Unit
 	for _, u := range inputUnits {
 		level(&u, &opt)
-		newUnit := downloader.NewUnit(u.Input, u.Quality, u.Start, u.End)
-		newUnit.Writer, newUnit.Error = newFileWriter(dl, newUnit, u.Output)
+		newUnit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
+		newUnit.Writer, newUnit.Error = NewFile(dl, newUnit, u.Output)
 		units = append(units, *newUnit)
 	}
 
 	return units
 }
 
-func newFileWriter(dl *downloader.Downloader, unit *downloader.Unit, output string) (*os.File, error) {
+func NewFile(dl *downloader.Downloader, unit *downloader.Unit, output string) (*os.File, error) {
 	if output == "" {
 		return nil, errors.New("output path not provided")
 	}
@@ -113,8 +113,8 @@ func (opt Option) processFlagInput(dl *downloader.Downloader) []downloader.Unit 
 	inputs := strings.Split(opt.Input, ",")
 	var units []downloader.Unit
 	for _, input := range inputs {
-		unit := downloader.NewUnit(input, opt.Quality, opt.Start, opt.End)
-		unit.Writer, unit.Error = newFileWriter(dl, unit, opt.Output)
+		unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
+		unit.Writer, unit.Error = NewFile(dl, unit, opt.Output)
 		units = append(units, *unit)
 	}
 	return units

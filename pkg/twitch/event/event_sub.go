@@ -70,7 +70,6 @@ type EventSubClient struct {
 	OnReconnect    func(resp ResponseBody)
 	OnKeepAlive    func(resp ResponseBody)
 	OnNotification func(resp ResponseBody)
-	// OnSessionWelcome func(resp ResponseBody)
 }
 
 func NewClient(tw *twitch.Client) *EventSubClient {

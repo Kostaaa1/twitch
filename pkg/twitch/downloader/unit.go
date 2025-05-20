@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
-	// "github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type VideoType int
@@ -22,6 +21,21 @@ const (
 	TypeVOD
 	TypeLivestream
 )
+
+type UnitOption func(*Unit)
+
+func WithWriter(w io.Writer) UnitOption {
+	return func(u *Unit) {
+		u.Writer = w
+	}
+}
+
+func WithTimestamps(start, end time.Duration) UnitOption {
+	return func(u *Unit) {
+		u.Start = start
+		u.End = end
+	}
+}
 
 type Unit struct {
 	// Vod id, clip slug or channel name
@@ -146,11 +160,8 @@ func parseVideoType(input string) (string, VideoType, error) {
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
-func NewUnit(input, quality string, start, end time.Duration) *Unit {
-	unit := &Unit{
-		Start: start,
-		End:   end,
-	}
+func NewUnit(input, quality string, opts ...UnitOption) *Unit {
+	unit := &Unit{}
 
 	unit.ID, unit.Type, unit.Error = parseVideoType(input)
 	if unit.Error != nil {
@@ -168,33 +179,12 @@ func NewUnit(input, quality string, start, end time.Duration) *Unit {
 		return unit
 	}
 
+	for _, opt := range opts {
+		opt(unit)
+	}
+
 	return unit
 }
-
-// func NewUnit(input, quality string, start, end time.Duration) *Unit {
-// 	unit := &Unit{
-// 		Start: start,
-// 		End:   end,
-// 	}
-
-// 	unit.ID, unit.Type, unit.Error = parseVideoType(input)
-// 	if unit.Error != nil {
-// 		return unit
-// 	}
-
-// 	if unit.Type == TypeVOD {
-// 		if unit.Error = parseVodParams(input, unit); unit.Error != nil {
-// 			return unit
-// 		}
-// 	}
-
-// 	unit.Quality, unit.Error = qualityFromInput(quality)
-// 	if unit.Error != nil {
-// 		return unit
-// 	}
-
-// 	return unit
-// }
 
 func parseVodParams(input string, unit *Unit) error {
 	parsedURL, err := url.Parse(input)

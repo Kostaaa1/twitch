@@ -39,7 +39,6 @@ type UnitProvider interface {
 }
 
 type model struct {
-	// ctx       context.Context
 	cancelFunc context.CancelFunc
 	units      []unit
 	spinner    spinner.Model

@@ -115,28 +115,16 @@ func initDownloader(client *twitch.Client) {
 func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downloader.Unit) error {
 	eventsub := event.NewClient(dl.TWApi)
 
-	unitChan := make(chan downloader.Unit)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case unit := <-unitChan:
-				go dl.Download(unit)
-			}
-		}
-	}()
-
 	eventsub.OnNotification = func(resp event.ResponseBody) {
 		fmt.Println("on notification response", resp)
+
 		if resp.Payload.Subscription != nil {
 			condition := resp.Payload.Subscription.Condition
 			if id, ok := condition["broadcaster_id"].(string); ok {
-				unit := downloader.NewUnit(id, downloader.Quality1080p60.String(), 0, 0)
-				// unitChan <- unit
-				// dl.Download(unit)
+				unit := downloader.NewUnit(id, downloader.Quality1080p60.String())
+				unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
+				go dl.Download(*unit)
 			}
-
 		}
 	}
 
