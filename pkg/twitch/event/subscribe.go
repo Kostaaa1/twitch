@@ -41,10 +41,6 @@ func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, e
 	if err := sub.tw.HelixRequest(subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
 		return nil, err
 	}
-	sub.TotalCost = data.TotalCost
-	sub.Total = data.Total
-	sub.MaxTotalCost = data.MaxTotalCost
-
 	sub.Subscriptions = append(sub.Subscriptions, data.Data[0])
 	return &data, nil
 }

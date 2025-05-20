@@ -214,30 +214,6 @@ func Get() (*Config, error) {
 	return &data, nil
 }
 
-// func ValidateUserCreds() error {
-// 	cfg, err := Get()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	errors := []string{}
-// 	if cfg.Creds.AccessToken == "" {
-// 		errors = append(errors, "AccessToken")
-// 	}
-// 	if cfg.Creds.ClientSecret == "" {
-// 		errors = append(errors, "ClientSecret")
-// 	}
-// 	if cfg.Creds.ClientID == "" {
-// 		errors = append(errors, "ClientID")
-// 	}
-// 	if len(errors) > 0 {
-// 		for _, err := range errors {
-// 			msg := fmt.Sprintf("missing %s from twith_config.json", err)
-// 			return fmt.Errorf(msg)
-// 		}
-// 	}
-// 	return nil
-// }
-
 func (conf *Config) AuthorizeAndSaveUserData(client *twitch.Client) error {
 	if err := client.Authorize(); err != nil {
 		return err

@@ -40,7 +40,8 @@ func (tw *Client) RefetchAccesToken() error {
 		return err
 	}
 	defer resp.Body.Close()
-	return json.NewDecoder(resp.Body).Decode(&tw.creds)
+	err = json.NewDecoder(resp.Body).Decode(&tw.creds)
+	return err
 }
 
 func (tw *Client) Authorize() error {

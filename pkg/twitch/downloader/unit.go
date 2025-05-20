@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
+	// "github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type VideoType int
@@ -66,9 +67,9 @@ func (mu Unit) GetError() error {
 
 func (mu Unit) GetTitle() string {
 	if f, ok := mu.Writer.(*os.File); ok && f != nil {
-		if mu.Error != nil {
-			os.Remove(f.Name())
-		}
+		// if mu.Error != nil {
+		// 	os.Remove(f.Name())
+		// }
 		return f.Name()
 	}
 	return mu.ID
@@ -80,9 +81,9 @@ func (unit Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh ch
 	}
 	if unit.Writer != nil {
 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
-			if unit.Error != nil {
-				os.Remove(file.Name())
-			}
+			// if unit.Error != nil {
+			// 	os.Remove(file.Name())
+			// }
 			l := msg
 			l.Text = file.Name()
 			progressCh <- l
@@ -92,7 +93,7 @@ func (unit Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh ch
 
 func qualityFromInput(quality string) (QualityType, error) {
 	switch {
-	case quality == "best" || strings.HasPrefix(quality, "1080"):
+	case quality == "" || quality == "best" || strings.HasPrefix(quality, "1080"):
 		return Quality1080p60, nil
 	case strings.HasPrefix(quality, "720"):
 		return Quality720p60, nil
@@ -145,7 +146,7 @@ func parseVideoType(input string) (string, VideoType, error) {
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
-func NewUnit(input, quality, output string, start, end time.Duration) *Unit {
+func NewUnit(input, quality string, start, end time.Duration) *Unit {
 	unit := &Unit{
 		Start: start,
 		End:   end,
@@ -162,10 +163,6 @@ func NewUnit(input, quality, output string, start, end time.Duration) *Unit {
 		}
 	}
 
-	if quality == "" {
-		quality = "best"
-	}
-
 	unit.Quality, unit.Error = qualityFromInput(quality)
 	if unit.Error != nil {
 		return unit
@@ -174,22 +171,44 @@ func NewUnit(input, quality, output string, start, end time.Duration) *Unit {
 	return unit
 }
 
+// func NewUnit(input, quality string, start, end time.Duration) *Unit {
+// 	unit := &Unit{
+// 		Start: start,
+// 		End:   end,
+// 	}
+
+// 	unit.ID, unit.Type, unit.Error = parseVideoType(input)
+// 	if unit.Error != nil {
+// 		return unit
+// 	}
+
+// 	if unit.Type == TypeVOD {
+// 		if unit.Error = parseVodParams(input, unit); unit.Error != nil {
+// 			return unit
+// 		}
+// 	}
+
+// 	unit.Quality, unit.Error = qualityFromInput(quality)
+// 	if unit.Error != nil {
+// 		return unit
+// 	}
+
+// 	return unit
+// }
+
 func parseVodParams(input string, unit *Unit) error {
 	parsedURL, err := url.Parse(input)
 	if err != nil {
 		return err
 	}
-
 	if unit.Start == 0 {
 		if t := parsedURL.Query().Get("t"); t != "" {
 			unit.Start, _ = time.ParseDuration(t)
 		}
 	}
-
 	if unit.Start > unit.End {
 		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, input)
 	}
-
 	return nil
 }
 

@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/cli"
@@ -48,15 +50,18 @@ func init() {
 }
 
 func main() {
+	defer conf.Save()
+
 	client := twitch.NewClient(http.DefaultClient, &conf.Creds)
 
-	if len(os.Args) == 1 {
-		initChat(client)
-		return
+	// authorize if prompted
+	if option.Authorize {
+		client.Authorize()
 	}
 
-	if option.Authorize {
-		conf.AuthorizeAndSaveUserData(client)
+	// start chat if no args
+	if len(os.Args) == 1 {
+		initChat(client)
 		return
 	}
 
@@ -81,7 +86,13 @@ func initDownloader(client *twitch.Client) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			initEventSub(ctx, dl, units)
+
+			ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+			defer cancel()
+
+			if err := initEventSub(ctx, dl, units); err != nil {
+				log.Fatal(err)
+			}
 		}()
 	} else {
 		wg.Add(1)
@@ -102,16 +113,42 @@ func initDownloader(client *twitch.Client) {
 }
 
 func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downloader.Unit) error {
-	events := cli.EventsFromUnits(units)
-
 	eventsub := event.NewClient(dl.TWApi)
+
+	unitChan := make(chan downloader.Unit)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case unit := <-unitChan:
+				go dl.Download(unit)
+			}
+		}
+	}()
+
 	eventsub.OnNotification = func(resp event.ResponseBody) {
 		fmt.Println("on notification response", resp)
+		if resp.Payload.Subscription != nil {
+			condition := resp.Payload.Subscription.Condition
+			if id, ok := condition["broadcaster_id"].(string); ok {
+				unit := downloader.NewUnit(id, downloader.Quality1080p60.String(), 0, 0)
+				// unitChan <- unit
+				// dl.Download(unit)
+			}
+
+		}
+	}
+
+	events, err := cli.EventsFromUnits(dl, units)
+	if err != nil {
+		return err
 	}
 
 	if err := eventsub.DialWS(ctx, events); err != nil {
 		return err
 	}
+
 	return nil
 }
 

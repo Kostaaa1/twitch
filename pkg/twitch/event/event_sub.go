@@ -64,12 +64,8 @@ type EventMessage struct {
 }
 
 type EventSubClient struct {
-	tw            *twitch.Client
-	Subscriptions []SubscriptionMessage
-	Total         int
-	TotalCost     int
-	MaxTotalCost  int
-
+	tw             *twitch.Client
+	Subscriptions  []SubscriptionMessage
 	OnRevocation   func(resp ResponseBody)
 	OnReconnect    func(resp ResponseBody)
 	OnKeepAlive    func(resp ResponseBody)
@@ -91,22 +87,38 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 	}
 	defer resp.Body.Close()
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	fmt.Println("Connected to eventsub websocket!")
+
+	msgchan := make(chan ResponseBody)
+	errChan := make(chan error)
+
+	// read the conn messages in separate goroutine, because conn.ReadJSON is blocking call which means that select {case <-ctx.Done()} will never run until conn.ReadJSON finished and we need to simultaneously wait for ctx.Done message. So this is the pattern that I should recognize, i can avoid blocking with spawning blocking code in goroutine which will communicate via channels
+	go func() {
+		var msg ResponseBody
+		err := conn.ReadJSON(&msg)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		msgchan <- msg
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Connection closed!")
+			fmt.Println("Unsubscribing to the events...")
+			if err := client.UnsubscribeToAll(); err != nil {
+				fmt.Printf("failed to delete all subscriptions: %v\n", err)
+			}
+			fmt.Println("Closing the connection...")
 			conn.Close()
 			return nil
-		default:
-			var msg ResponseBody
-			if err := conn.ReadJSON(&msg); err != nil {
-				if ctx.Err() != nil {
-					return nil
-				}
-				fmt.Printf("error while reading the json msg: %v\n", err)
-				continue
-			}
-
+		case err := <-errChan:
+			fmt.Println(err)
+		case msg := <-msgchan:
 			switch MessageType(msg.Metadata.MessageType) {
 			case Revocation:
 				if client.OnRevocation != nil {
@@ -133,39 +145,14 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 						Type:      event.Type,
 						Transport: transport,
 					}
-
 					resp, err := client.Subscribe(body)
 					if err != nil {
 						log.Fatal(err)
 					}
 					subData := resp.Data
-
-					fmt.Printf("Subscription successful [event: %s | event_id: %s]\n", event.Type, subData[0].ID)
+					fmt.Printf("Subscribed: %s | event_id: %s\n", event.Type, subData[0].ID)
 				}
 			}
 		}
 	}
 }
-
-// ctx, cancel := context.WithCancel(context.Background())
-// defer cancel()
-// done := make(chan struct{})
-// c := make(chan os.Signal, 1)
-// signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-// go func() {
-// 	<-c
-// 	fmt.Println("Closing...")
-// 	go func() {
-// 		if err := client.UnsubscribeToAll(); err != nil {
-// 			fmt.Printf("failed to delete all subscriptions: %v\n", err)
-// 		}
-// 		close(done)
-// 	}()
-// 	select {
-// 	case <-done:
-// 		fmt.Println("Dispatched subscribed events!")
-// 	}
-// 	fmt.Println("Closing connection!")
-// 	conn.Close()
-// 	// cancel()
-// }()

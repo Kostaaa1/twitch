@@ -27,11 +27,10 @@ type Stream struct {
 	IsMature     bool          `json:"is_mature"`
 }
 
-type Streams struct {
-	Data       []Stream `json:"data"`
-	Pagination struct {
-	} `json:"pagination"`
-}
+// type Streams struct {
+// 	Data       []Stream `json:"data"`
+// 	Pagination struct{} `json:"pagination"`
+// }
 
 type Channel struct {
 	BroadcasterID               string   `json:"broadcaster_id"`
@@ -85,10 +84,6 @@ func (tw *Client) HelixRequest(
 
 		resp, err := tw.httpClient.Do(req)
 		if err != nil {
-			if resp != nil && resp.Body != nil {
-				test, _ := io.ReadAll(resp.Body)
-				fmt.Println("ERROR: tes: ", test)
-			}
 			return err
 		}
 		defer resp.Body.Close()
@@ -120,7 +115,6 @@ func (tw *Client) HelixRequest(
 	}
 }
 
-// if channelName is empty, it will return current auth user data
 func (tw *Client) UserByChannelName(channelName string) (*User, error) {
 	url := fmt.Sprintf("%s/users", helixURL)
 	if channelName != "" {
@@ -130,7 +124,10 @@ func (tw *Client) UserByChannelName(channelName string) (*User, error) {
 	if err := tw.HelixRequest(url, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return &body.Data[0], nil
+	if len(body.Data) > 0 {
+		return &body.Data[0], nil
+	}
+	return nil, fmt.Errorf("failed to get user data for: %s", channelName)
 }
 
 func (tw *Client) UserByID(id string) (*User, error) {
@@ -139,7 +136,10 @@ func (tw *Client) UserByID(id string) (*User, error) {
 	if err := tw.HelixRequest(url, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return &body.Data[0], nil
+	if len(body.Data) > 0 {
+		return &body.Data[0], nil
+	}
+	return nil, fmt.Errorf("failed to get user data by id: %s", id)
 }
 
 func (tw *Client) ChannelInfo(broadcasterID string) (*Channel, error) {
@@ -148,21 +148,27 @@ func (tw *Client) ChannelInfo(broadcasterID string) (*Channel, error) {
 	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return &body.Data[0], nil
+	if len(body.Data) > 0 {
+		return &body.Data[0], nil
+	}
+	return nil, fmt.Errorf("failed to get the channel info for: %s", broadcasterID)
 }
 
-func (tw *Client) FollowedStreams(id string) (*Streams, error) {
+func (tw *Client) FollowedStreams(id string) (*[]Stream, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
-	var body helixEnvelope[Streams]
+	var body helixEnvelope[[]Stream]
 	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return &body.Data[0], nil
+	if len(body.Data) > 0 {
+		return &body.Data[0], nil
+	}
+	return nil, fmt.Errorf("failed to get followed streams by user id: %s", id)
 }
 
-func (tw *Client) Stream(userId string) (*Streams, error) {
+func (tw *Client) Stream(userId string) (*[]Stream, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
-	var body Streams
+	var body []Stream
 	if err := tw.HelixRequest(u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}

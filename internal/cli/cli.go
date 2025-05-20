@@ -84,11 +84,11 @@ func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit 
 	}
 
 	var units []downloader.Unit
-	for _, input := range inputUnits {
-		level(&input, &opt)
-		unit := downloader.NewUnit(input.Input, input.Quality, input.Output, input.Start, input.End)
-		unit.Writer, unit.Error = newFileWriter(dl, unit, input.Output)
-		units = append(units, *unit)
+	for _, u := range inputUnits {
+		level(&u, &opt)
+		newUnit := downloader.NewUnit(u.Input, u.Quality, u.Start, u.End)
+		newUnit.Writer, newUnit.Error = newFileWriter(dl, newUnit, u.Output)
+		units = append(units, *newUnit)
 	}
 
 	return units
@@ -96,7 +96,7 @@ func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit 
 
 func newFileWriter(dl *downloader.Downloader, unit *downloader.Unit, output string) (*os.File, error) {
 	if output == "" {
-		return nil, errors.New("output not provided")
+		return nil, errors.New("output path not provided")
 	}
 	fileName, err := dl.MediaTitle(unit.ID, unit.Type)
 	if err != nil {
@@ -113,22 +113,28 @@ func (opt Option) processFlagInput(dl *downloader.Downloader) []downloader.Unit 
 	inputs := strings.Split(opt.Input, ",")
 	var units []downloader.Unit
 	for _, input := range inputs {
-		unit := downloader.NewUnit(input, opt.Quality, opt.Output, opt.Start, opt.End)
+		unit := downloader.NewUnit(input, opt.Quality, opt.Start, opt.End)
 		unit.Writer, unit.Error = newFileWriter(dl, unit, opt.Output)
 		units = append(units, *unit)
 	}
 	return units
 }
 
-// creates stream online events from already processed units. it will filter only channel names
-func EventsFromUnits(units []downloader.Unit) []event.Event {
+func EventsFromUnits(dl *downloader.Downloader, units []downloader.Unit) ([]event.Event, error) {
 	var events []event.Event
 	for _, unit := range units {
+		if unit.Error != nil {
+			return nil, unit.Error
+		}
 		if unit.Type == downloader.TypeLivestream {
-			events = append(events, event.StreamOnlineEvent(unit.ID))
+			user, err := dl.TWApi.UserByChannelName(unit.ID)
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, event.StreamOnlineEvent(user.ID))
 		}
 	}
-	return events
+	return events, nil
 }
 
 func (opts Option) ProcessFlags(dl *downloader.Downloader) []downloader.Unit {
