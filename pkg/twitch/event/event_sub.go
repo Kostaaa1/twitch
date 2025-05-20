@@ -3,7 +3,6 @@ package event
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -80,6 +79,13 @@ func NewClient(tw *twitch.Client) *EventSubClient {
 }
 
 func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error {
+	// subs, _ := client.GetSubscriptions()
+	// if len(subs.Data) > 0 {
+	// 	fmt.Println("found: ", len(subs.Data))
+	// 	client.Subscriptions = subs.Data
+	// 	client.UnsubscribeToAll()
+	// }
+
 	conn, resp, err := websocket.DefaultDialer.Dial("wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30", nil)
 	if err != nil {
 		return fmt.Errorf("failed to dial eventsub.wss: %v", err)
@@ -96,13 +102,15 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 
 	// read the conn messages in separate goroutine, because conn.ReadJSON is blocking call which means that select {case <-ctx.Done()} will never run until conn.ReadJSON finished and we need to simultaneously wait for ctx.Done message. So this is the pattern that I should recognize, i can avoid blocking with spawning blocking code in goroutine which will communicate via channels
 	go func() {
-		var msg ResponseBody
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			errChan <- err
-			return
+		for {
+			var msg ResponseBody
+			err := conn.ReadJSON(&msg)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			msgchan <- msg
 		}
-		msgchan <- msg
 	}()
 
 	for {
@@ -128,6 +136,7 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 					client.OnNotification(msg)
 				}
 			case KeepAlive:
+				fmt.Println("Keepalive message!")
 				if client.OnKeepAlive != nil {
 					client.OnKeepAlive(msg)
 				}
@@ -146,7 +155,8 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 					}
 					resp, err := client.Subscribe(body)
 					if err != nil {
-						log.Fatal(err)
+						fmt.Printf("Failed to subscribe to: %s | error: %s\n", event.Type, err)
+						continue
 					}
 					subData := resp.Data
 					fmt.Printf("Subscribed: %s | event_id: %s\n", event.Type, subData[0].ID)

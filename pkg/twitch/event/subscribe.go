@@ -41,6 +41,7 @@ func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, e
 	if err := sub.tw.HelixRequest(subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
 		return nil, err
 	}
+
 	sub.Subscriptions = append(sub.Subscriptions, data.Data[0])
 	return &data, nil
 }

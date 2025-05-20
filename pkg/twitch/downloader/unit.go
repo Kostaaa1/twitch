@@ -93,6 +93,7 @@ func (unit Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh ch
 	if progressCh == nil {
 		return
 	}
+	fmt.Println("notifying channel")
 	if unit.Writer != nil {
 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
 			// if unit.Error != nil {

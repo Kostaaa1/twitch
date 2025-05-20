@@ -35,7 +35,6 @@ func (p *Option) UnmarshalJSON(b []byte) error {
 	}{
 		Alias: (*Alias)(p),
 	}
-
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
 	}
@@ -86,9 +85,11 @@ func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit 
 	var units []downloader.Unit
 	for _, u := range inputUnits {
 		level(&u, &opt)
-		newUnit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
-		newUnit.Writer, newUnit.Error = NewFile(dl, newUnit, u.Output)
-		units = append(units, *newUnit)
+		unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
+		if unit.Error == nil {
+			unit.Writer, unit.Error = NewFile(dl, unit, u.Output)
+			units = append(units, *unit)
+		}
 	}
 
 	return units
@@ -114,8 +115,10 @@ func (opt Option) processFlagInput(dl *downloader.Downloader) []downloader.Unit 
 	var units []downloader.Unit
 	for _, input := range inputs {
 		unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
-		unit.Writer, unit.Error = NewFile(dl, unit, opt.Output)
-		units = append(units, *unit)
+		if unit.Error == nil {
+			unit.Writer, unit.Error = NewFile(dl, unit, opt.Output)
+			units = append(units, *unit)
+		}
 	}
 	return units
 }

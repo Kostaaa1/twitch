@@ -64,6 +64,12 @@ type helixEnvelope[T any] struct {
 	Data []T `json:"data"`
 }
 
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+}
+
 func (tw *Client) HelixRequest(
 	url string,
 	httpMethod string,
@@ -71,6 +77,14 @@ func (tw *Client) HelixRequest(
 	src interface{},
 ) error {
 	var retryCount int
+	var errResp ErrorResponse
+
+	decodeErr := func(r io.Reader) error {
+		if err := json.NewDecoder(r).Decode(&errResp); err != nil {
+			return err
+		}
+		return nil
+	}
 
 	for {
 		req, err := http.NewRequest(httpMethod, url, body)
@@ -84,7 +98,7 @@ func (tw *Client) HelixRequest(
 
 		resp, err := tw.httpClient.Do(req)
 		if err != nil {
-			return err
+			return fmt.Errorf("request failed: %v", err)
 		}
 		defer resp.Body.Close()
 
@@ -92,15 +106,21 @@ func (tw *Client) HelixRequest(
 			if retryCount >= 3 {
 				return fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
 			}
+			if err := decodeErr(resp.Body); err != nil {
+				return fmt.Errorf("failed to decode error response: %v", err)
+			}
 			if err := tw.RefetchAccesToken(); err != nil {
-				return fmt.Errorf("failed to refresh access token: %w", err)
+				return fmt.Errorf("failed to refresh access token: %v", err)
 			}
 			retryCount++
 			continue
 		}
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("invalid status code: url=%s | code=%d", url, resp.StatusCode)
+			if err := decodeErr(resp.Body); err != nil {
+				return fmt.Errorf("failed to decode error response: %v", err)
+			}
+			return fmt.Errorf("invalid status code: message=%s | code=%d", errResp.Message, resp.StatusCode)
 		}
 
 		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
@@ -108,7 +128,7 @@ func (tw *Client) HelixRequest(
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
-			return fmt.Errorf("failed to decode response: %w", err)
+			return fmt.Errorf("failed to decode response: %v", err)
 		}
 
 		return nil

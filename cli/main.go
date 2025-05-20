@@ -50,16 +50,16 @@ func init() {
 }
 
 func main() {
-	defer conf.Save()
+	defer func() {
+		conf.Save()
+	}()
 
 	client := twitch.NewClient(http.DefaultClient, &conf.Creds)
 
-	// authorize if prompted
 	if option.Authorize {
 		client.Authorize()
 	}
 
-	// start chat if no args
 	if len(os.Args) == 1 {
 		initChat(client)
 		return
@@ -73,12 +73,9 @@ func initDownloader(client *twitch.Client) {
 	defer cancel()
 
 	dl := downloader.New(ctx, client, conf.Downloader)
-	dl.SetThreads(option.Threads)
 
 	units := option.ProcessFlags(dl)
-
 	spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
-	dl.SetProgressChannel(spin.ProgChan())
 
 	var wg sync.WaitGroup
 
@@ -104,6 +101,8 @@ func initDownloader(client *twitch.Client) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			dl.SetProgressChannel(spin.ProgChan())
+			dl.SetThreads(option.Threads)
 			dl.BatchDownload(units)
 		}()
 	}
@@ -116,14 +115,23 @@ func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downlo
 	eventsub := event.NewClient(dl.TWApi)
 
 	eventsub.OnNotification = func(resp event.ResponseBody) {
-		fmt.Println("on notification response", resp)
-
 		if resp.Payload.Subscription != nil {
 			condition := resp.Payload.Subscription.Condition
-			if id, ok := condition["broadcaster_id"].(string); ok {
-				unit := downloader.NewUnit(id, downloader.Quality1080p60.String())
-				unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
-				go dl.Download(*unit)
+
+			if userID, ok := condition["broadcaster_user_id"].(string); ok {
+				user, _ := dl.TWApi.UserByID(userID)
+				unit := downloader.NewUnit(user.Login, downloader.Quality1080p60.String())
+				if unit.Error == nil {
+					unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
+					go func() {
+						fmt.Println("Starting to record the stream for: ", unit.ID)
+						if err := dl.Download(*unit); err != nil {
+							fmt.Println("error while recording the stream: ", err)
+							return
+						}
+						fmt.Println("Stream recording ended for: ", unit.ID)
+					}()
+				}
 			}
 		}
 	}
