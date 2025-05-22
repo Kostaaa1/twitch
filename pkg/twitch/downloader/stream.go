@@ -63,8 +63,6 @@ func (dl *Downloader) recordStream(mu Unit) error {
 	for {
 		select {
 		case <-dl.ctx.Done():
-			// msg := spinner.ChannelMessage{IsDone: true}
-			// mu.NotifyProgressChannel(msg, dl.progressCh)
 			return nil
 		case <-time.After(1 * time.Second):
 			b, err := dl.fetch(variant.URL)
@@ -78,13 +76,10 @@ func (dl *Downloader) recordStream(mu Unit) error {
 			for i := 0; i < len(lines)-1; i++ {
 				select {
 				case <-dl.ctx.Done():
-					// msg := spinner.ChannelMessage{IsDone: true}
-					// mu.NotifyProgressChannel(msg, dl.progressCh)
 					return nil
 				default:
 					line := lines[i]
 					if strings.HasPrefix(line, "#EXTINF") {
-						// skip writing ads
 						if strings.Contains(line, "Amazon") {
 							continue
 						}

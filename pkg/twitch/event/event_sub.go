@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -69,6 +70,7 @@ type EventSubClient struct {
 	OnReconnect    func(resp ResponseBody)
 	OnKeepAlive    func(resp ResponseBody)
 	OnNotification func(resp ResponseBody)
+	mu             sync.Mutex
 }
 
 func NewClient(tw *twitch.Client) *EventSubClient {

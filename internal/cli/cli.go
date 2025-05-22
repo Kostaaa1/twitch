@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -57,44 +58,6 @@ func (p *Option) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func level(main, fallback *Option) {
-	if main.Output == "" && fallback.Output != "" {
-		main.Output = fallback.Output
-	}
-	if main.Quality == "" && fallback.Quality != "" {
-		main.Quality = fallback.Quality
-	}
-}
-
-func (opt Option) processFileInput(dl *downloader.Downloader) []downloader.Unit {
-	_, err := os.Stat(opt.Input)
-	if os.IsNotExist(err) {
-		log.Fatal(err)
-	}
-
-	content, err := os.ReadFile(opt.Input)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var inputUnits []Option
-	if err := json.Unmarshal(content, &inputUnits); err != nil {
-		log.Fatal(err)
-	}
-
-	var units []downloader.Unit
-	for _, u := range inputUnits {
-		level(&u, &opt)
-		unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
-		if unit.Error == nil {
-			unit.Writer, unit.Error = NewFile(dl, unit, u.Output)
-			units = append(units, *unit)
-		}
-	}
-
-	return units
-}
-
 func NewFile(dl *downloader.Downloader, unit *downloader.Unit, output string) (*os.File, error) {
 	if output == "" {
 		return nil, errors.New("output path not provided")
@@ -110,19 +73,6 @@ func NewFile(dl *downloader.Downloader, unit *downloader.Unit, output string) (*
 	return fileutil.CreateFile(output, fileName, ext)
 }
 
-func (opt Option) processFlagInput(dl *downloader.Downloader) []downloader.Unit {
-	inputs := strings.Split(opt.Input, ",")
-	var units []downloader.Unit
-	for _, input := range inputs {
-		unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
-		if unit.Error == nil {
-			unit.Writer, unit.Error = NewFile(dl, unit, opt.Output)
-			units = append(units, *unit)
-		}
-	}
-	return units
-}
-
 func EventsFromUnits(dl *downloader.Downloader, units []downloader.Unit) ([]event.Event, error) {
 	var events []event.Event
 	for _, unit := range units {
@@ -132,7 +82,8 @@ func EventsFromUnits(dl *downloader.Downloader, units []downloader.Unit) ([]even
 		if unit.Type == downloader.TypeLivestream {
 			user, err := dl.TWApi.UserByChannelName(unit.ID)
 			if err != nil {
-				return nil, err
+				fmt.Println(err.Error())
+				continue
 			}
 			events = append(events, event.StreamOnlineEvent(user.ID))
 		}
@@ -140,16 +91,67 @@ func EventsFromUnits(dl *downloader.Downloader, units []downloader.Unit) ([]even
 	return events, nil
 }
 
-func (opts Option) ProcessFlags(dl *downloader.Downloader) []downloader.Unit {
+func level(main, fallback *Option) {
+	if main.Output == "" && fallback.Output != "" {
+		main.Output = fallback.Output
+	}
+	if main.Quality == "" && fallback.Quality != "" {
+		main.Quality = fallback.Quality
+	}
+}
+
+func (opt Option) processFileInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+	_, err := os.Stat(opt.Input)
+	if os.IsNotExist(err) {
+		log.Fatal(err)
+	}
+	content, err := os.ReadFile(opt.Input)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var inputUnits []Option
+	if err := json.Unmarshal(content, &inputUnits); err != nil {
+		log.Fatal(err)
+	}
+
+	units := make([]downloader.Unit, len(inputUnits))
+
+	for i, u := range inputUnits {
+		level(&u, &opt)
+		unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
+		if unit.Error == nil && withWriter {
+			unit.Writer, unit.Error = NewFile(dl, unit, u.Output)
+			units[i] = *unit
+		}
+	}
+	return units
+}
+
+func (opt Option) processFlagInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+	inputs := strings.Split(opt.Input, ",")
+	units := make([]downloader.Unit, len(inputs))
+
+	for i, input := range inputs {
+		unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
+		if withWriter && unit.Error == nil {
+			unit.Writer, unit.Error = NewFile(dl, unit, opt.Output)
+		}
+		units[i] = *unit
+	}
+
+	return units
+}
+
+func (opts Option) ProcessFlags(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
 	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
 	var units []downloader.Unit
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		units = opts.processFlagInput(dl)
+		units = opts.processFlagInput(dl, withWriter)
 	} else {
-		units = opts.processFileInput(dl)
+		units = opts.processFileInput(dl, withWriter)
 	}
 	return units
 }

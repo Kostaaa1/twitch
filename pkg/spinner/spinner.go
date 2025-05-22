@@ -13,8 +13,6 @@ import (
 
 type errMsg error
 
-type quitMsg struct{}
-
 type ChannelMessage struct {
 	Text    string
 	Message string
@@ -52,10 +50,6 @@ type model struct {
 var (
 	units      = []string{"B", "KB", "MB", "GB", "TB"}
 	spinnerMap = map[string]spinner.Spinner{
-		"dot": {
-			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
-			FPS:    time.Second / 10,
-		},
 		"meter":     spinner.Meter,
 		"line":      spinner.Line,
 		"pulse":     spinner.Pulse,
@@ -67,6 +61,10 @@ var (
 		"minidot":   spinner.MiniDot,
 		"monkey":    spinner.Monkey,
 		"moon":      spinner.Moon,
+		"dot": {
+			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
+			FPS:    time.Second / 10,
+		},
 	}
 )
 
@@ -226,6 +224,7 @@ func errorMsg(err error) string {
 	return fmt.Sprintf("❌ %s", err.Error())
 }
 
+// Unit can be whatever satisfies UnitProvider interface
 func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.CancelFunc) *model {
 	progChan := make(chan ChannelMessage, len(units))
 	su := make([]unit, len(units))

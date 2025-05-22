@@ -74,9 +74,6 @@ func initDownloader(client *twitch.Client) {
 
 	dl := downloader.New(ctx, client, conf.Downloader)
 
-	units := option.ProcessFlags(dl)
-	spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
-
 	var wg sync.WaitGroup
 
 	if option.Subscribe {
@@ -87,11 +84,18 @@ func initDownloader(client *twitch.Client) {
 			ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 			defer cancel()
 
-			if err := initEventSub(ctx, dl, units); err != nil {
+			if err := initEventSub(ctx, dl); err != nil {
 				log.Fatal(err)
 			}
 		}()
+		wg.Wait()
 	} else {
+		units := option.ProcessFlags(dl, true)
+		spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
+
+		dl.SetProgressChannel(spin.ProgChan())
+		dl.SetThreads(option.Threads)
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -101,17 +105,21 @@ func initDownloader(client *twitch.Client) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			dl.SetProgressChannel(spin.ProgChan())
-			dl.SetThreads(option.Threads)
 			dl.BatchDownload(units)
 		}()
-	}
 
-	wg.Wait()
-	close(spin.ProgChan())
+		wg.Wait()
+		close(spin.ProgChan())
+	}
 }
 
-func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downloader.Unit) error {
+func initEventSub(ctx context.Context, dl *downloader.Downloader) error {
+	units := option.ProcessFlags(dl, false)
+	events, err := cli.EventsFromUnits(dl, units)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	eventsub := event.NewClient(dl.TWApi)
 
 	eventsub.OnNotification = func(resp event.ResponseBody) {
@@ -121,12 +129,17 @@ func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downlo
 			if userID, ok := condition["broadcaster_user_id"].(string); ok {
 				user, _ := dl.TWApi.UserByID(userID)
 				unit := downloader.NewUnit(user.Login, downloader.Quality1080p60.String())
+
 				if unit.Error == nil {
 					unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
 					go func() {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
+						unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
 						if err := dl.Download(*unit); err != nil {
-							fmt.Println("error while recording the stream: ", err)
+							isLive, _ := dl.TWApi.IsChannelLive(user.Login)
+							if !isLive {
+								fmt.Println("Stream went offline!")
+							}
 							return
 						}
 						fmt.Println("Stream recording ended for: ", unit.ID)
@@ -134,11 +147,6 @@ func initEventSub(ctx context.Context, dl *downloader.Downloader, units []downlo
 				}
 			}
 		}
-	}
-
-	events, err := cli.EventsFromUnits(dl, units)
-	if err != nil {
-		return err
 	}
 
 	if err := eventsub.DialWS(ctx, events); err != nil {

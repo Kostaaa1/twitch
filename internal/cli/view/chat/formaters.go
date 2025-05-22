@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
@@ -78,7 +79,7 @@ func wrapText(s string, limit, padding int) string {
 func (m model) FormatMessage(message chat.Message, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
 	if message.Metadata.Color == "" {
-		message.Metadata.Color = string(rand.Intn(257))
+		message.Metadata.Color = fmt.Sprintf("%d", rand.Intn(257))
 	}
 
 	var msgStr strings.Builder
@@ -90,7 +91,7 @@ func (m model) FormatMessage(message chat.Message, width int) string {
 	msgStyle := lipgloss.NewStyle()
 
 	if !message.Metadata.IsFirstMessage {
-		timestampMsg := fmt.Sprintf("[%s]", message.Metadata.Timestamp)
+		timestampMsg := fmt.Sprintf("[%s]", time.Now().Format("15:04"))
 		timestamp := msgStyle.Faint(true).Render(timestampMsg)
 		msg := wrapText(msgStr.String(), width-6, len(timestampMsg)+1)
 		return fmt.Sprintf("%s %s", timestamp, strings.TrimSpace(msg))
@@ -103,9 +104,9 @@ func (m model) FormatMessage(message chat.Message, width int) string {
 }
 
 func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
-	// if message.Metadata.Color == "" {
-	// 	message.Metadata.Color = string(rand.Intn(257))
-	// }
+	if message.Metadata.Color == "" {
+		message.Metadata.Color = fmt.Sprintf("%d", rand.Intn(257))
+	}
 	msg := fmt.Sprintf(" ✯ %s", message.Metadata.SystemMsg)
 
 	subColor := m.conf.Chat.Colors.Messages.Sub
@@ -118,9 +119,9 @@ func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 
 func (m model) FormatRaidMessage(message chat.RaidNotice, width int) string {
 	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
-	// if message.Metadata.Color == "" {
-	// 	message.Metadata.Color = string(rand.Intn(257))
-	// }
+	if message.Metadata.Color == "" {
+		message.Metadata.Color = fmt.Sprintf("%d", rand.Intn(257))
+	}
 	msg := fmt.Sprintf(
 		"%s %s ✯ %s",
 		icon,

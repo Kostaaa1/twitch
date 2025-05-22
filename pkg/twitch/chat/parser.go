@@ -139,27 +139,27 @@ func parseSubNotice(pairs []string, notice *SubNotice) {
 		}
 	}
 }
+func parseBaseMetadata(m *Metadata, key, value, pair string, notUsedValues *[]string) {
+	switch key {
+	case "color":
+		m.Color = value
+	case "display-name":
+		m.DisplayName = value
+	case "mod":
+		m.IsMod = value == "1"
+	case "subscriber":
+		m.IsSubscriber = value == "1"
+	case "user-type":
+		m.UserType = value
+	default:
+		if value != "" {
+			*notUsedValues = append(*notUsedValues, pair)
+		}
+	}
+}
 
 func parseMetadata(metadata interface{}, pairs []string) []string {
 	var notUsedValues []string
-	parseBaseMetadata := func(m *Metadata, key, value, pair string) {
-		switch key {
-		case "color":
-			m.Color = value
-		case "display-name":
-			m.DisplayName = value
-		case "mod":
-			m.IsMod = value == "1"
-		case "subscriber":
-			m.IsSubscriber = value == "1"
-		case "user-type":
-			m.UserType = value
-		default:
-			if value != "" {
-				notUsedValues = append(notUsedValues, pair)
-			}
-		}
-	}
 	for _, pair := range pairs {
 		kv := strings.Split(pair, "=")
 		if len(kv) > 1 {
@@ -167,9 +167,9 @@ func parseMetadata(metadata interface{}, pairs []string) []string {
 			value := kv[1]
 			switch m := metadata.(type) {
 			case *RoomMetadata:
-				parseBaseMetadata(&m.Metadata, key, value, pair)
+				parseBaseMetadata(&m.Metadata, key, value, pair, &notUsedValues)
 			case *NoticeMetadata:
-				parseBaseMetadata(&m.Metadata, key, value, pair)
+				parseBaseMetadata(&m.Metadata, key, value, pair, &notUsedValues)
 				switch key {
 				case "msg-id":
 					m.MsgID = value
@@ -178,18 +178,16 @@ func parseMetadata(metadata interface{}, pairs []string) []string {
 				case "system-msg":
 					m.SystemMsg = strings.Join(strings.Split(value, `\s`), " ")
 				case "tmi-sent-ts":
-					// m.Timestamp = utils.ParseTimestamp(value)
 					m.Timestamp = value
 				case "user-id":
 					m.UserID = value
 				}
 			case *MessageMetadata:
-				parseBaseMetadata(&m.Metadata, key, value, pair)
+				parseBaseMetadata(&m.Metadata, key, value, pair, &notUsedValues)
 				switch key {
 				case "room-id":
 					m.RoomID = value
 				case "tmi-sent-ts":
-					// m.Timestamp = utils.ParseTimestamp(value)
 					m.Timestamp = value
 				}
 			}

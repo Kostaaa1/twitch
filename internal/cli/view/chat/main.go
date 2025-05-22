@@ -297,8 +297,8 @@ func (m *model) newMessage(newChat *Chat) chat.Message {
 				IsSubscriber: newChat.Room.Metadata.IsSubscriber,
 				UserType:     newChat.Room.Metadata.UserType,
 			},
-			RoomID:    newChat.Room.RoomID,
-			Timestamp: time.Now().Format("15:04"),
+			RoomID: newChat.Room.RoomID,
+			// Timestamp: time.Now().Format("15:04"),
 		},
 	}
 	return newMessage
@@ -322,9 +322,8 @@ func (m *model) sendMessage() {
 	if !strings.HasPrefix(input, "/") {
 		chat := m.getActiveChat()
 		if chat != nil {
-			newMessage := m.newMessage(chat)
 			m.ws.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
-			chat.Messages = append(chat.Messages, m.FormatMessage(newMessage, m.width))
+			chat.Messages = append(chat.Messages, m.FormatMessage(m.newMessage(chat), m.width))
 			m.updateChatViewport(chat)
 		}
 	} else {

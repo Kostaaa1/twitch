@@ -81,24 +81,21 @@ func (mu Unit) GetError() error {
 
 func (mu Unit) GetTitle() string {
 	if f, ok := mu.Writer.(*os.File); ok && f != nil {
-		// if mu.Error != nil {
-		// 	os.Remove(f.Name())
-		// }
 		return f.Name()
 	}
 	return mu.ID
 }
 
-func (unit Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
+func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
 	if progressCh == nil {
 		return
 	}
-	fmt.Println("notifying channel")
 	if unit.Writer != nil {
 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
-			// if unit.Error != nil {
-			// 	os.Remove(file.Name())
-			// }
+			if unit.Error != nil {
+				os.Remove(file.Name())
+				unit.Writer = nil
+			}
 			l := msg
 			l.Text = file.Name()
 			progressCh <- l
