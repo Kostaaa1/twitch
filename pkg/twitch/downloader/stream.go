@@ -89,6 +89,11 @@ func (dl *Downloader) recordStream(mu Unit) error {
 							continue
 						}
 
+						// if segmentURL has 2394-unmuted.ts, this will give 403
+						// if strings.Contains(segURL, "unmuted") {
+						// 	segURL = strings.Replace(segURL, "unmuted", "muted", 1)
+						// }
+
 						segmentBytes, err := dl.fetch(segURL)
 						if err != nil {
 							return err

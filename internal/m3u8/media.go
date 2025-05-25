@@ -1,11 +1,15 @@
 package m3u8
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
 )
+
+type Segment struct {
+	URL      string
+	Duration time.Duration
+}
 
 type MediaPlaylist struct {
 	Version         int64
@@ -15,28 +19,55 @@ type MediaPlaylist struct {
 	ElapsedSecs     float64
 	TotalSecs       float64
 	SegmentDuration time.Duration
-	Segments        []string
+	Segments        []Segment
 }
 
-func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) error {
-	segmentDuration := 10 // this is hardcoded value for VOD segments, maybe some segments are longer
-	s := int(start.Seconds() / float64(segmentDuration))
-	e := int(end.Seconds() / float64(segmentDuration))
-
-	if s > len(mp.Segments) || e > len(mp.Segments) {
-		totalSeconds := len(mp.Segments) * segmentDuration
-		total := time.Duration(time.Second) * time.Duration(totalSeconds)
-		return fmt.Errorf("invalid start/end parameters. You've choosen %s/%s but the video duration is %s", start, end, total)
+func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) {
+	if start < 0 || end < 0 || start == end || start > end {
+		return
 	}
 
-	if e == 0 {
-		mp.Segments = mp.Segments[s:]
-	} else {
-		mp.Segments = mp.Segments[s:e]
+	// figure out the way to skip first portion of segments based on start, maybe use
+	total := time.Duration(0)
+	startIndex := 0
+	endIndex := 0
+
+	for i, seg := range mp.Segments {
+		if total <= start {
+			total += seg.Duration
+			startIndex = i
+			continue
+		}
+		if total <= end {
+			total += seg.Duration
+			endIndex = i
+			continue
+		}
+		break
 	}
 
-	return nil
+	mp.Segments = mp.Segments[startIndex : endIndex+1]
+
+	return
 }
+
+// func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) error {
+// 	segmentDuration := 10
+// 	// this is hardcoded value for VOD segments, maybe some segments are longer
+// 	s := int(start.Seconds() / float64(segmentDuration))
+// 	e := int(end.Seconds() / float64(segmentDuration))
+// 	if s > len(mp.Segments) || e > len(mp.Segments) {
+// 		totalSeconds := len(mp.Segments) * segmentDuration
+// 		total := time.Duration(time.Second) * time.Duration(totalSeconds)
+// 		return fmt.Errorf("invalid start/end parameters. You've choosen %s/%s but the video duration is %s", start, end, total)
+// 	}
+// 	if e == 0 {
+// 		mp.Segments = mp.Segments[s:]
+// 	} else {
+// 		mp.Segments = mp.Segments[s:e]
+// 	}
+// 	return nil
+// }
 
 func ParseMediaPlaylist(list []byte) MediaPlaylist {
 	var mediaList MediaPlaylist
@@ -71,7 +102,12 @@ func ParseMediaPlaylist(list []byte) MediaPlaylist {
 		case "#ID3-EQUIV-TDTG":
 			mediaList.Timestamp = v
 		case "#EXTINF":
-			mediaList.Segments = append(mediaList.Segments, lines[i+1])
+			// trim ',' from the end
+			trimmed := v[:len(v)-1]
+			seconds, _ := strconv.ParseFloat(trimmed, 64)
+			duration := time.Duration(seconds * float64(time.Second))
+			seg := Segment{URL: lines[i+1], Duration: duration}
+			mediaList.Segments = append(mediaList.Segments, seg)
 			i++
 		}
 	}

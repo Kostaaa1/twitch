@@ -30,9 +30,8 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	if err != nil {
 		return err
 	}
-	if err := playlist.TruncateSegments(mu.Start, mu.End); err != nil {
-		return err
-	}
+
+	playlist.TruncateSegments(mu.Start, mu.End)
 
 	jobsChan := make(chan segmentJob)
 	resultsChan := make(chan segmentJob)
@@ -73,16 +72,16 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	}
 
 	go func() {
-		for i, segment := range playlist.Segments {
-			if strings.HasSuffix(segment, ".ts") {
+		for i, seg := range playlist.Segments {
+			if strings.HasSuffix(seg.URL, ".ts") {
 				lastIndex := strings.LastIndex(variant.URL, "/")
-				segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
+				fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
 				select {
 				case <-dl.ctx.Done():
 					return
 				case jobsChan <- segmentJob{
 					index: i,
-					url:   segmentURL,
+					url:   fullSegURL,
 				}:
 				}
 			}
@@ -101,7 +100,7 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	for {
 		select {
 		case <-dl.ctx.Done():
-			return dl.ctx.Err()
+			return nil
 		case result, ok := <-resultsChan:
 			if !ok {
 				return nil
@@ -142,17 +141,15 @@ func (mu Unit) StreamVOD(dl *Downloader) error {
 		return err
 	}
 
-	if err := playlist.TruncateSegments(mu.Start, mu.End); err != nil {
-		return err
-	}
+	playlist.TruncateSegments(mu.Start, mu.End)
 
-	for _, segment := range playlist.Segments {
-		if strings.HasSuffix(segment, ".ts") {
+	for _, seg := range playlist.Segments {
+		if strings.HasSuffix(seg.URL, ".ts") {
 			lastIndex := strings.LastIndex(variant.URL, "/")
-			segmentURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], segment)
-			n, err := dl.download(segmentURL, mu.Writer)
+			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
+			n, err := dl.download(fullSegURL, mu.Writer)
 			if err != nil {
-				fmt.Printf("error downloading segment %s: %v\n", segmentURL, err)
+				fmt.Printf("error downloading segment %s: %v\n", fullSegURL, err)
 				return err
 			}
 			msg := spinner.ChannelMessage{Bytes: n}

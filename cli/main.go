@@ -73,6 +73,7 @@ func initDownloader(client *twitch.Client) {
 	defer cancel()
 
 	dl := downloader.New(ctx, client, conf.Downloader)
+	dl.SetThreads(option.Threads)
 
 	var wg sync.WaitGroup
 
@@ -91,16 +92,18 @@ func initDownloader(client *twitch.Client) {
 		wg.Wait()
 	} else {
 		units := option.ProcessFlags(dl, true)
-		spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
 
-		dl.SetProgressChannel(spin.ProgChan())
-		dl.SetThreads(option.Threads)
+		if conf.Downloader.ShowSpinner {
+			spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
+			defer close(spin.ProgChan())
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			spin.Run()
-		}()
+			dl.SetProgressChannel(spin.ProgChan())
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				spin.Run()
+			}()
+		}
 
 		wg.Add(1)
 		go func() {
@@ -109,7 +112,6 @@ func initDownloader(client *twitch.Client) {
 		}()
 
 		wg.Wait()
-		close(spin.ProgChan())
 	}
 }
 

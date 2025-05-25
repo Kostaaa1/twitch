@@ -102,6 +102,7 @@ func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broad
 		} else {
 			URL = fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, previewURL.Host, vodId, key)
 		}
+
 		// if URL == "" {
 		// 	continue
 		// }

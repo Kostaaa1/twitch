@@ -56,10 +56,6 @@ func (dl *Downloader) Download(u Unit) error {
 	return u.Error
 }
 
-func (dl *Downloader) Record(unit Unit) error {
-	return dl.recordStream(unit)
-}
-
 func (dl *Downloader) BatchDownload(units []Unit) {
 	var sem chan struct{}
 	if dl.threads > 0 {
