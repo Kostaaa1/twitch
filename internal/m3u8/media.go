@@ -47,27 +47,7 @@ func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) {
 	}
 
 	mp.Segments = mp.Segments[startIndex : endIndex+1]
-
-	return
 }
-
-// func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) error {
-// 	segmentDuration := 10
-// 	// this is hardcoded value for VOD segments, maybe some segments are longer
-// 	s := int(start.Seconds() / float64(segmentDuration))
-// 	e := int(end.Seconds() / float64(segmentDuration))
-// 	if s > len(mp.Segments) || e > len(mp.Segments) {
-// 		totalSeconds := len(mp.Segments) * segmentDuration
-// 		total := time.Duration(time.Second) * time.Duration(totalSeconds)
-// 		return fmt.Errorf("invalid start/end parameters. You've choosen %s/%s but the video duration is %s", start, end, total)
-// 	}
-// 	if e == 0 {
-// 		mp.Segments = mp.Segments[s:]
-// 	} else {
-// 		mp.Segments = mp.Segments[s:e]
-// 	}
-// 	return nil
-// }
 
 func ParseMediaPlaylist(list []byte) MediaPlaylist {
 	var mediaList MediaPlaylist

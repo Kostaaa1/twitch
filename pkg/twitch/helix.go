@@ -106,12 +106,15 @@ func (tw *Client) HelixRequest(
 			if retryCount >= 3 {
 				return fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
 			}
+
 			if err := decodeErr(resp.Body); err != nil {
 				return fmt.Errorf("failed to decode error response: %v", err)
 			}
+
 			if err := tw.RefetchAccesToken(); err != nil {
 				return fmt.Errorf("failed to refresh access token: %v", err)
 			}
+
 			retryCount++
 			continue
 		}

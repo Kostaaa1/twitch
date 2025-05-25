@@ -105,6 +105,30 @@ func (dl *Downloader) fetch(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create request with context: %v", err)
+	}
+
+	resp, err := dl.TWApi.HTTPClient().Do(req)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get response: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp.StatusCode, nil, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return http.StatusOK, b, err
+}
+
 func (dl *Downloader) download(url string, w io.Writer) (int64, error) {
 	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
 	if err != nil {

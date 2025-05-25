@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -93,13 +92,4 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 		return err
 	}
 	return nil
-}
-
-func (tw *Client) buildTokenRefetchValues() url.Values {
-	return url.Values{
-		"client_id":     {tw.creds.ClientID},
-		"client_secret": {tw.creds.ClientSecret},
-		"refresh_token": {tw.creds.RefreshToken},
-		"grant_type":    {"refresh_token"},
-	}
 }

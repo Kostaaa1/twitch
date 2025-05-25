@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -9,11 +10,10 @@ import (
 )
 
 type segmentJob struct {
-	index     int
-	url       string
-	data      []byte
-	err       error
-	bytesRead int64
+	index int
+	url   string
+	data  []byte
+	err   error
 }
 
 // Concurrent ordered download. Segments needs to be in order so it can be written to file. Instead of doing this sequentally (one-by-one), this is downloading them concurrently.
@@ -47,19 +47,21 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 				select {
 				case <-dl.ctx.Done():
 					return
-				case job, ok := <-jobsChan:
-					if !ok {
-						return
+				case job := <-jobsChan:
+					status, data, err := dl.fetchWithStatus(job.url)
+					if status == http.StatusForbidden {
+						switch {
+						case strings.Contains(job.url, "unmuted"):
+							job.url = strings.Replace(job.url, "-unmuted", "", 1)
+							data, err = dl.fetch(job.url)
+						case strings.Contains(job.url, "muted"):
+							job.url = strings.Replace(job.url, "-muted", "", 1)
+							data, err = dl.fetch(job.url)
+						}
 					}
-					data, err := dl.fetch(job.url)
-					job.data = data
-					job.err = err
 
-					if err == nil {
-						job.bytesRead = int64(len(data))
-						msg := spinner.ChannelMessage{Bytes: job.bytesRead}
-						mu.NotifyProgressChannel(msg, dl.progressCh)
-					}
+					job.err = err
+					job.data = data
 
 					select {
 					case <-dl.ctx.Done():
@@ -113,12 +115,16 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 
 			for {
 				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
-					_, err := mu.Writer.Write(job.data)
+					n, err := mu.Writer.Write(job.data)
 					if err != nil {
 						return fmt.Errorf("error writing segment %d: %v", nextIndexToWrite, err)
 					}
+
 					delete(segmentBuffer, nextIndexToWrite)
 					nextIndexToWrite++
+
+					msg := spinner.ChannelMessage{Bytes: int64(n)}
+					mu.NotifyProgressChannel(msg, dl.progressCh)
 				} else {
 					break
 				}

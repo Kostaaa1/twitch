@@ -23,23 +23,29 @@ type Creds struct {
 	Scope        []string `json:"scope"`
 }
 
-// func (tw *Client) Creds() *Creds {
-// 	return tw.creds
-// }
-// func (tw *Client) SetCreds(creds *Creds) {
-// 	tw.creds = creds
-// }
-
 func (tw *Client) GetBearerToken() string {
 	return fmt.Sprintf("Bearer %s", tw.creds.AccessToken)
 }
 
 func (tw *Client) RefetchAccesToken() error {
-	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", tw.buildTokenRefetchValues())
+	values := url.Values{
+		"client_id":     {tw.creds.ClientID},
+		"client_secret": {tw.creds.ClientSecret},
+		"refresh_token": {tw.creds.RefreshToken},
+		"grant_type":    {"refresh_token"},
+	}
+
+	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", values)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("token refresh failed: status %d\nresponse: %s", resp.StatusCode, body)
+	}
+
 	err = json.NewDecoder(resp.Body).Decode(&tw.creds)
 	return err
 }
