@@ -35,7 +35,7 @@ type model struct {
 	height              int
 	msgChan             chan interface{}
 	chats               []Chat
-	displayCommands     bool
+	showHelpMenu        bool
 	commandsWindowWidth int
 	notifyMsg           string
 }
@@ -69,7 +69,6 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 	t.CharLimit = 500
 	t.Placeholder = "Send a message"
 	t.Prompt = " ▶ "
-	t.Width = 50
 	t.Focus()
 
 	msgChan := make(chan interface{})
@@ -102,7 +101,7 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 		labelBox:            NewBoxWithLabel(cfg.Chat.Colors.Primary),
 		viewport:            vp,
 		textinput:           t,
-		displayCommands:     false,
+		showHelpMenu:        false,
 		commandsWindowWidth: 32,
 	}
 
@@ -170,6 +169,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Width = w
 		m.viewport.Height = h
 		m.width = w
+		m.textinput.Width = w
 		m.height = h
 		m.viewport.Style = lipgloss.
 			NewStyle().
@@ -198,36 +198,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlShiftLeft:
 			m.moveTabBack()
 		case tea.KeyCtrlW:
-			// if len(m.chats) > 1 {
 			m.removeActiveChatAndDisconnect()
-			// }
 		case tea.KeyCtrlO:
-			go func() { // check if safe
-				chat := m.getActiveChat()
-				if chat != nil {
-					// master, err := m.twitch.GetStreamMasterPlaylist(chat.Channel)
-					// if err != nil {
-					// 	m.msgChan <- notifyMsg(err.Error())
-					// 	return
-					// }
-					// list, err := master.GetVariantPlaylistByQuality("best")
-					// if err != nil {
-					// 	m.msgChan <- notifyMsg(err.Error())
-					// 	return
-					// }
-					// cmd := exec.Command("vlc", list.URL)
-					// if err := cmd.Run(); err != nil {
-					// 	m.msgChan <- notifyMsg(err.Error())
-					// 	return
-					// }
-					// cmd.Wait()
-					m.msgChan <- notifyMsg("VLC closed")
-				}
-			}()
 		case tea.KeyTab:
-			m.displayCommands = !m.displayCommands
-			if m.displayCommands {
+			m.showHelpMenu = !m.showHelpMenu
+			if m.showHelpMenu {
 				m.viewport.Width = m.width - m.commandsWindowWidth
+				m.textinput.Width = m.width - m.commandsWindowWidth + 10
 			} else {
 				m.viewport.Width = m.width
 			}
@@ -275,14 +252,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var b strings.Builder
+
 	main := m.labelBox.SetWidth(m.viewport.Width).RenderBoxWithTabs(m.chats, m.viewport.View())
-	if !m.displayCommands {
+
+	if !m.showHelpMenu {
 		b.WriteString(main)
 	} else {
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0.5), main, components.RenderCommands(m.commandsWindowWidth, m.height)))
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0.5), main, components.RenderHelpMenu(m.commandsWindowWidth, m.height)))
 	}
-	b.WriteString("\n" + lipgloss.JoinHorizontal(lipgloss.Position(0), m.renderRoomState(), m.textinput.View()))
-	b.WriteString(m.renderError())
+
+	b.WriteString("\nTESTTTTT")
+	b.WriteString("\nTESTTTTT")
+	b.WriteString("\nTESTTTTT")
+
+	// b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0), m.renderRoomState(), m.textinput.View()))
+	// b.WriteString(m.renderError())
 	return b.String()
 }
 
@@ -305,13 +289,10 @@ func (m *model) newMessage(newChat *Chat) chat.Message {
 }
 
 func (m *model) renderError() string {
-	var b strings.Builder
 	if m.notifyMsg != "" {
-		b.WriteString(fmt.Sprintf("\n\n[ERROR] - %s", m.notifyMsg))
-	} else {
-		b.WriteString("")
+		return fmt.Sprintf("\n\n[ERROR] - %s", m.notifyMsg)
 	}
-	return b.String()
+	return ""
 }
 
 func (m *model) sendMessage() {
@@ -340,6 +321,10 @@ func (m *model) handleInputCommand(cmd string) {
 
 	switch parts[0] {
 	case "/add":
+		if len(parts[1]) >= 25 {
+			m.msgChan <- notifyMsg("Channel name is too long. Limit is 25 characters.")
+			return
+		}
 		m.addChat(parts[1])
 	case "/info":
 		fmt.Println(parts[1])

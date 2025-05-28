@@ -75,15 +75,25 @@ func GetVideoType(s string) VideoType {
 }
 
 // needed for spinner interface
-func (mu Unit) GetError() error {
-	return mu.Error
+func (u Unit) GetError() error {
+	return u.Error
 }
 
-func (mu Unit) GetTitle() string {
-	if f, ok := mu.Writer.(*os.File); ok && f != nil {
+func (u Unit) GetTitle() string {
+	if f, ok := u.Writer.(*os.File); ok && f != nil {
 		return f.Name()
 	}
-	return mu.ID
+	return u.ID
+}
+
+func (u *Unit) CloseWriter() error {
+	if f, ok := u.Writer.(*os.File); ok && f != nil {
+		if u.Error != nil {
+			os.Remove(f.Name())
+		}
+		return f.Close()
+	}
+	return nil
 }
 
 func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {

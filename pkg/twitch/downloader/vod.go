@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -36,6 +37,24 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	jobsChan := make(chan segmentJob)
 	resultsChan := make(chan segmentJob)
 
+	go func() {
+		for i, seg := range playlist.Segments {
+			if strings.HasSuffix(seg.URL, ".ts") {
+				lastIndex := strings.LastIndex(variant.URL, "/")
+				fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
+				select {
+				case <-dl.ctx.Done():
+					return
+				case jobsChan <- segmentJob{
+					index: i,
+					url:   fullSegURL,
+				}:
+				}
+			}
+		}
+		close(jobsChan)
+	}()
+
 	const maxWorkers = 8
 	var wg sync.WaitGroup
 
@@ -47,7 +66,10 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 				select {
 				case <-dl.ctx.Done():
 					return
-				case job := <-jobsChan:
+				case job, ok := <-jobsChan:
+					if !ok {
+						return
+					}
 					status, data, err := dl.fetchWithStatus(job.url)
 					if status == http.StatusForbidden {
 						switch {
@@ -72,24 +94,6 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 			}
 		}()
 	}
-
-	go func() {
-		for i, seg := range playlist.Segments {
-			if strings.HasSuffix(seg.URL, ".ts") {
-				lastIndex := strings.LastIndex(variant.URL, "/")
-				fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
-				select {
-				case <-dl.ctx.Done():
-					return
-				case jobsChan <- segmentJob{
-					index: i,
-					url:   fullSegURL,
-				}:
-				}
-			}
-		}
-		close(jobsChan)
-	}()
 
 	go func() {
 		wg.Wait()
@@ -155,7 +159,7 @@ func (mu Unit) StreamVOD(dl *Downloader) error {
 			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
 			n, err := dl.download(fullSegURL, mu.Writer)
 			if err != nil {
-				fmt.Printf("error downloading segment %s: %v\n", fullSegURL, err)
+				log.Fatal(err)
 				return err
 			}
 			msg := spinner.ChannelMessage{Bytes: n}

@@ -43,6 +43,10 @@ func (dl *Downloader) SetProgressChannel(progressCh chan spinner.ChannelMessage)
 }
 
 func (dl *Downloader) Download(u Unit) error {
+	defer func() {
+		u.CloseWriter()
+	}()
+
 	if u.Error == nil {
 		switch u.Type {
 		case TypeVOD:

@@ -7,9 +7,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func RenderCommands(w, h int) string {
-	return lipgloss.NewStyle().Width(w - 2).Height(h).
-		Padding(1).
+func RenderHelpMenu(w, h int) string {
+	return lipgloss.NewStyle().
+		Width(w - 2).
+		Height(h).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("3")).
 		Render(prepareCommands(w))
@@ -30,7 +31,6 @@ func prepareCommands(w int) string {
 		{cmdType: "key", cmd: "tab", help: "open/close commands (this) window"},
 		{cmdType: "key", cmd: "ctrl+o", help: "opens livestream in media player"},
 		{cmdType: "key", cmd: "ctrl+i", help: "opens window with followed livestreams"},
-
 		{cmdType: "input", cmd: "/follow", help: "follows the active channel"},
 		{cmdType: "input", cmd: "/add [channel]", help: "adds new chat tab"},
 	}
