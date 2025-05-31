@@ -108,6 +108,7 @@ func initDownloader(client *twitch.Client) {
 			defer close(spin.ProgChan())
 
 			dl.SetProgressChannel(spin.ProgChan())
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

@@ -43,9 +43,7 @@ func (dl *Downloader) SetProgressChannel(progressCh chan spinner.ChannelMessage)
 }
 
 func (dl *Downloader) Download(u Unit) error {
-	defer func() {
-		u.CloseWriter()
-	}()
+	defer u.CloseWriter()
 
 	if u.Error == nil {
 		switch u.Type {
@@ -57,6 +55,7 @@ func (dl *Downloader) Download(u Unit) error {
 			u.Error = dl.recordStream(u)
 		}
 	}
+
 	return u.Error
 }
 

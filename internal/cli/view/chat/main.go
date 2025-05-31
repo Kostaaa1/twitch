@@ -234,9 +234,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if chanMsg.Err != nil {
 				m.msgChan <- notifyMsg(chanMsg.SystemMsg)
 				m.msgChan <- notifyMsg(chanMsg.Err.Error())
-			}
-
-			if chanMsg.Err != nil {
 				m.ws.Conn.Close()
 			}
 
@@ -261,12 +258,8 @@ func (m model) View() string {
 		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0.5), main, components.RenderHelpMenu(m.commandsWindowWidth, m.height)))
 	}
 
-	b.WriteString("\nTESTTTTT")
-	b.WriteString("\nTESTTTTT")
-	b.WriteString("\nTESTTTTT")
-
-	// b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0), m.renderRoomState(), m.textinput.View()))
-	// b.WriteString(m.renderError())
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0), m.renderRoomState(), m.textinput.View()))
+	b.WriteString(m.renderError())
 	return b.String()
 }
 

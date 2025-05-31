@@ -1,6 +1,9 @@
 package downloader
 
 import (
+	"fmt"
+	"io"
+	"os/exec"
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
@@ -20,7 +23,7 @@ func (dl *Downloader) downloadClip(mu Unit) error {
 
 	var writtenBytes int64
 	if mu.Quality == QualityAudioOnly {
-		// writtenBytes, err = extractAudio(usherURL, mu.Writer)
+		writtenBytes, err = extractAudio(usherURL, mu.Writer)
 	} else {
 		writtenBytes, err = dl.download(usherURL, mu.Writer)
 	}
@@ -71,23 +74,24 @@ func (dl *Downloader) ClipVideoURL(clip twitch.Clip, quality string) (string, er
 	return usherURL, nil
 }
 
-// func extractAudio(segmentURL string, w io.Writer) (int64, error) {
-// 	cmd := exec.Command("ffmpeg", "-i", segmentURL, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
-// 	cmd.Stdout = nil
-// 	cmd.Stderr = nil
-// 	stdout, err := cmd.StdoutPipe()
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-// 	}
-// 	if err := cmd.Start(); err != nil {
-// 		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
-// 	}
-// 	n, err := io.Copy(w, stdout)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to copy audio data: %w", err)
-// 	}
-// 	if err := cmd.Wait(); err != nil {
-// 		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
-// 	}
-// 	return n, nil
-// }
+// uses ffmpeg for getting the audio from a segment
+func extractAudio(url string, w io.Writer) (int64, error) {
+	cmd := exec.Command("ffmpeg", "-i", url, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
+	}
+	n, err := io.Copy(w, stdout)
+	if err != nil {
+		return 0, fmt.Errorf("failed to copy audio data: %w", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
+	}
+	return n, nil
+}

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	_ "embed"
+
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 )
