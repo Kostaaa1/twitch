@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func RenderHelpMenu(w, h int) string {
+func RenderHelperMenu(w, h int) string {
 	return lipgloss.NewStyle().
 		Width(w - 2).
 		Height(h).
@@ -45,5 +45,5 @@ func prepareCommands(w int) string {
 		}
 		b.WriteString(fmt.Sprintf("%d) %s - %s\n", i+1, cmd.cmd, cmd.help))
 	}
-	return lipgloss.NewStyle().Width(w - 6).Faint(true).Render(b.String())
+	return lipgloss.NewStyle().Width(w-6).Faint(true).Padding(0, 1).Render(b.String())
 }

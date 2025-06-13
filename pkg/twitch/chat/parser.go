@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -232,14 +231,6 @@ func parseUSERNOTICE(rawMsg string, msgChan chan interface{}) {
 }
 
 func parseNOTICE(rawMsg string) Notice {
-	// :tmi.twitch.tv NOTICE * :Login authentication failed
-	fmt.Println("RAW MESSAGE: ", rawMsg)
-	fmt.Println("RAW MESSAGE: ", rawMsg)
-	fmt.Println("RAW MESSAGE: ", rawMsg)
-	fmt.Println("RAW MESSAGE: ", rawMsg)
-	fmt.Println("RAW MESSAGE: ", rawMsg)
-	fmt.Println("RAW MESSAGE: ", rawMsg)
-
 	var notice Notice
 	parts := strings.Split(rawMsg[1:], " :")
 

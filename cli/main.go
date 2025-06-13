@@ -28,6 +28,7 @@ var (
 
 func init() {
 	var err error
+
 	conf, err = config.Get()
 	if err != nil {
 		panic(err)
@@ -43,8 +44,8 @@ func init() {
 	flag.StringVar(&option.Category, "category", "", "Twitch category name.")
 	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name.")
 
+	flag.BoolVar(&option.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input to automatically download streams when they go live. Useful for auto-recordings of the livestreams that happens in background (e.g., with systemd).")
 	flag.BoolVar(&option.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
-	flag.BoolVar(&option.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input to automatically download streams when they go live. Useful for automation (e.g., with systemd).")
 
 	flag.Parse()
 }

@@ -25,19 +25,18 @@ type Chat struct {
 }
 
 type model struct {
-	twitch              *twitch.Client
-	ws                  *chat.WSClient
-	conf                *config.Config
-	viewport            viewport.Model
-	labelBox            BoxWithLabel
-	textinput           textinput.Model
-	width               int
-	height              int
-	msgChan             chan interface{}
-	chats               []Chat
-	showHelpMenu        bool
-	commandsWindowWidth int
-	notifyMsg           string
+	ws              *chat.WSClient
+	conf            *config.Config
+	viewport        viewport.Model
+	labelBox        BoxWithLabel
+	width           int
+	height          int
+	msgChan         chan interface{}
+	chats           []Chat
+	showHelpMenu    bool
+	helperMenuWidth int
+	notifyMsg       string
+	footer          footer
 }
 
 type notifyMsg string
@@ -47,24 +46,22 @@ func ConnectWithRetry(ws *chat.WSClient, tw *twitch.Client, cfg *config.Config) 
 	if err == nil {
 		return nil
 	}
-
 	if errors.Is(err, chat.ErrAuthFailed) {
 		if err := tw.RefetchAccesToken(); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}
-		// config.Save(tw.())
 		if err := ws.Connect(); err != nil {
 			return fmt.Errorf("retry connect failed: %w", err)
 		}
 		return nil
 	}
-
 	return fmt.Errorf("connect failed: %w", err)
 }
 
 func Open(tw *twitch.Client, cfg *config.Config) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
+
 	t := textinput.New()
 	t.CharLimit = 500
 	t.Placeholder = "Send a message"
@@ -91,34 +88,22 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 	}
 
 	m := model{
-		conf:                cfg,
-		twitch:              tw,
-		ws:                  ws,
-		chats:               chats,
-		width:               0,
-		height:              0,
-		msgChan:             msgChan,
-		labelBox:            NewBoxWithLabel(cfg.Chat.Colors.Primary),
-		viewport:            vp,
-		textinput:           t,
-		showHelpMenu:        false,
-		commandsWindowWidth: 32,
+		conf:            cfg,
+		ws:              ws,
+		chats:           chats,
+		width:           0,
+		height:          0,
+		msgChan:         msgChan,
+		labelBox:        NewBoxWithLabel(cfg.Chat.Colors.Primary),
+		viewport:        vp,
+		showHelpMenu:    false,
+		helperMenuWidth: 32,
+		footer:          NewFooter(t, 2),
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
-	}
-}
-
-func createNewChat(channel string, isActive bool) Chat {
-	return Chat{
-		IsActive: isActive,
-		Messages: []string{
-			lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Welcome to %s channel", channel)),
-		},
-		Room:    chat.Room{},
-		Channel: channel,
 	}
 }
 
@@ -150,7 +135,7 @@ func (m model) waitForMsg() tea.Cmd {
 	}
 }
 
-func (m *model) showNoMessage() {
+func (m *model) showNoActiveChatsMessage() {
 	msg := "No active chats. Use '/add <channel_name>' to join channel."
 	m.viewport.SetContent(lipgloss.NewStyle().Faint(true).Render(msg))
 }
@@ -159,7 +144,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		tiCmd tea.Cmd
 	)
-	m.textinput, tiCmd = m.textinput.Update(msg)
+
+	m.footer.textinput, tiCmd = m.footer.textinput.Update(msg)
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -167,9 +153,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h := msg.Height - 8
 		m.labelBox.SetWidth(w)
 		m.viewport.Width = w
-		m.viewport.Height = h
+		m.viewport.Height = h - m.footer.height
 		m.width = w
-		m.textinput.Width = w
 		m.height = h
 		m.viewport.Style = lipgloss.
 			NewStyle().
@@ -179,7 +164,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.chats) > 0 && m.chats[0].IsActive {
 			m.updateChatViewport(&m.chats[0])
 		} else if len(m.chats) == 0 {
-			m.showNoMessage()
+			m.showNoActiveChatsMessage()
 		}
 
 	case tea.KeyMsg:
@@ -203,10 +188,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyTab:
 			m.showHelpMenu = !m.showHelpMenu
 			if m.showHelpMenu {
-				m.viewport.Width = m.width - m.commandsWindowWidth
-				m.textinput.Width = m.width - m.commandsWindowWidth + 10
+				newWidth := m.width - m.helperMenuWidth
+				m.viewport.Width = newWidth
+				m.footer.textinput.Width = newWidth - m.footer.roomState.Len() - 4
 			} else {
 				m.viewport.Width = m.width
+				m.footer.textinput.Width = m.width - m.footer.roomState.Len() - 4
 			}
 		}
 
@@ -248,37 +235,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	var b strings.Builder
+	if m.width == 0 {
+		return ""
+	}
+
+	mainContentWidth := m.width
+	if m.showHelpMenu {
+		mainContentWidth -= m.helperMenuWidth
+	}
+	m.viewport.Width = mainContentWidth
 
 	main := m.labelBox.SetWidth(m.viewport.Width).RenderBoxWithTabs(m.chats, m.viewport.View())
 
+	mainArea := strings.Builder{}
+	mainArea.WriteString(main)
+	mainArea.WriteString(m.footer.Render(m))
+	mainArea.WriteString(m.renderError())
+
 	if !m.showHelpMenu {
-		b.WriteString(main)
-	} else {
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0.5), main, components.RenderHelpMenu(m.commandsWindowWidth, m.height)))
+		return mainArea.String()
 	}
 
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Position(0), m.renderRoomState(), m.textinput.View()))
-	b.WriteString(m.renderError())
-	return b.String()
-}
+	helpMenu := components.RenderHelperMenu(m.helperMenuWidth, m.viewport.Height+m.footer.height+2)
+	fullView := lipgloss.JoinHorizontal(
+		lipgloss.Position(1),
+		mainArea.String(),
+		helpMenu,
+	)
 
-func (m *model) newMessage(newChat *Chat) chat.Message {
-	newMessage := chat.Message{
-		Message: m.textinput.Value(),
-		Metadata: chat.MessageMetadata{
-			Metadata: chat.Metadata{
-				Color:        newChat.Room.Metadata.Color,
-				DisplayName:  newChat.Room.Metadata.DisplayName,
-				IsMod:        newChat.Room.Metadata.IsMod,
-				IsSubscriber: newChat.Room.Metadata.IsSubscriber,
-				UserType:     newChat.Room.Metadata.UserType,
-			},
-			RoomID: newChat.Room.RoomID,
-			// Timestamp: time.Now().Format("15:04"),
-		},
-	}
-	return newMessage
+	return fullView
 }
 
 func (m *model) renderError() string {
@@ -288,11 +273,30 @@ func (m *model) renderError() string {
 	return ""
 }
 
+func (m *model) newMessage(newChat *Chat) chat.Message {
+	newMessage := chat.Message{
+		Message: m.footer.textinput.Value(),
+		Metadata: chat.MessageMetadata{
+			Metadata: chat.Metadata{
+				Color:        newChat.Room.Metadata.Color,
+				DisplayName:  newChat.Room.Metadata.DisplayName,
+				IsMod:        newChat.Room.Metadata.IsMod,
+				IsSubscriber: newChat.Room.Metadata.IsSubscriber,
+				UserType:     newChat.Room.Metadata.UserType,
+			},
+			RoomID: newChat.Room.RoomID,
+		},
+	}
+	return newMessage
+}
+
 func (m *model) sendMessage() {
-	if m.textinput.Value() == "" {
+	if m.footer.textinput.Value() == "" {
 		return
 	}
-	input := m.textinput.Value()
+
+	input := m.footer.textinput.Value()
+
 	if !strings.HasPrefix(input, "/") {
 		chat := m.getActiveChat()
 		if chat != nil {
@@ -303,7 +307,8 @@ func (m *model) sendMessage() {
 	} else {
 		m.handleInputCommand(input)
 	}
-	m.textinput.Reset()
+
+	m.footer.textinput.Reset()
 }
 
 func (m *model) handleInputCommand(cmd string) {
@@ -326,13 +331,23 @@ func (m *model) handleInputCommand(cmd string) {
 	}
 }
 
+func createNewChat(channel string, isActive bool) Chat {
+	return Chat{
+		IsActive: isActive,
+		Messages: []string{
+			lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Welcome to %s channel", channel)),
+		},
+		Room:    chat.Room{},
+		Channel: channel,
+	}
+}
+
 func (m *model) addChat(channelName string) {
 	newChat := createNewChat(channelName, true)
 	m.chats = append(m.chats, newChat)
 	m.ws.ConnectToChannel(newChat.Channel)
 	m.updateChatViewport(&newChat)
 
-	// For config
 	chats := []string{}
 	for i := range m.chats {
 		if m.chats[i].Channel != newChat.Channel {
@@ -341,16 +356,6 @@ func (m *model) addChat(channelName string) {
 		chats = append(chats, m.chats[i].Channel)
 	}
 	m.conf.Chat.OpenedChats = chats
-}
-
-func (m *model) addRoomToChat(chanMsg chat.Room) {
-	for i := range m.chats {
-		c := &(m.chats)[i]
-		if c.Channel == chanMsg.Metadata.Channel {
-			c.Room = chanMsg
-			break
-		}
-	}
 }
 
 func (m *model) removeActiveChatAndDisconnect() {
@@ -376,7 +381,7 @@ func (m *model) removeActiveChatAndDisconnect() {
 		chat := chats[newActiveId]
 		m.updateChatViewport(&chat)
 	} else {
-		m.showNoMessage()
+		m.showNoActiveChatsMessage()
 	}
 
 	m.conf.Chat.OpenedChats = openedChats
@@ -398,56 +403,6 @@ func (m *model) updateChatViewport(chat *Chat) {
 	m.viewport.GotoBottom()
 }
 
-func (m *model) moveTabForward() {
-	openedChats := make([]string, len(m.chats))
-	for i := len(m.chats) - 1; i >= 0; i-- {
-		if i > 0 && m.chats[i-1].IsActive {
-			m.chats[i], m.chats[i-1] = m.chats[i-1], m.chats[i]
-		}
-		openedChats[i] = m.chats[i].Channel
-	}
-	m.conf.Chat.OpenedChats = openedChats
-}
-
-func (m *model) moveTabBack() {
-	openedChats := make([]string, len(m.chats))
-	for i := range m.chats {
-		if i < len(m.chats)-1 && m.chats[i+1].IsActive {
-			m.chats[i], m.chats[i+1] = m.chats[i+1], m.chats[i]
-		}
-		openedChats[i] = m.chats[i].Channel
-	}
-	m.conf.Chat.OpenedChats = openedChats
-}
-
-func (m *model) nextTab() {
-	var activeIndex int
-	for i, chat := range m.chats {
-		if chat.IsActive {
-			activeIndex = i
-			break
-		}
-	}
-	(m.chats)[activeIndex].IsActive = false
-	nextIndex := (activeIndex + 1) % len(m.chats)
-	(m.chats)[nextIndex].IsActive = true
-	m.updateChatViewport(&(m.chats)[nextIndex])
-}
-
-func (m *model) prevTab() {
-	var activeIndex int
-	for i, c := range m.chats {
-		if c.IsActive {
-			activeIndex = i
-			break
-		}
-	}
-	(m.chats)[activeIndex].IsActive = false
-	prevIndex := (activeIndex - 1 + len(m.chats)) % len(m.chats)
-	(m.chats)[prevIndex].IsActive = true
-	m.updateChatViewport(&(m.chats)[prevIndex])
-}
-
 func (m model) getActiveChat() *Chat {
 	for i := range m.chats {
 		if (m.chats)[i].IsActive {
@@ -464,23 +419,4 @@ func (m model) getChat(roomID string) *Chat {
 		}
 	}
 	return nil
-}
-
-func (m model) renderRoomState() string {
-	chat := m.getActiveChat()
-	if chat == nil {
-		return ""
-	}
-
-	style := lipgloss.NewStyle().Faint(true)
-	switch {
-	case chat.Room.FollowersOnly != "-1":
-		return style.Render("[Followers-Only Chat]")
-	case chat.Room.IsSubsOnly:
-		return style.Render("[Subscriber-Only Chat]")
-	case chat.Room.IsEmoteOnly:
-		return style.Render("[Emote-Only Chat]")
-	default:
-		return ""
-	}
 }
