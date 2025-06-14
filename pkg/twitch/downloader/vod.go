@@ -31,7 +31,6 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	if err != nil {
 		return err
 	}
-
 	playlist.TruncateSegments(mu.Start, mu.End)
 
 	jobsChan := make(chan segmentJob)
@@ -70,11 +69,12 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 					if !ok {
 						return
 					}
+
 					status, data, err := dl.fetchWithStatus(job.url)
 					if status == http.StatusForbidden {
 						switch {
 						case strings.Contains(job.url, "unmuted"):
-							job.url = strings.Replace(job.url, "-unmuted", "", 1)
+							job.url = strings.Replace(job.url, "-unmuted", "-muted", 1)
 							data, err = dl.fetch(job.url)
 						case strings.Contains(job.url, "muted"):
 							job.url = strings.Replace(job.url, "-muted", "", 1)
