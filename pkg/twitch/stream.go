@@ -8,6 +8,50 @@ import (
 	"github.com/Kostaaa1/twitch/internal/m3u8"
 )
 
+type UseLiveBroadcast struct {
+	ID            string `json:"id"`
+	LastBroadcast struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Game  struct {
+			ID          string `json:"id"`
+			Slug        string `json:"slug"`
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
+		} `json:"game"`
+	} `json:"lastBroadcast"`
+}
+
+func (tw *Client) UseLiveBroadcast(channelName string) (*UseLiveBroadcast, error) {
+	gqlPl := `{
+		"operationName": "UseLiveBroadcast",
+		"variables": {
+			"channelLogin": "%s"
+		},
+		"extensions": {
+			"persistedQuery": {
+			"version": 1,
+			"sha256Hash": "0b47cc6d8c182acd2e78b81c8ba5414a5a38057f2089b1bbcfa6046aae248bd2"
+			}
+		}
+	}`
+
+	type payload struct {
+		Data struct {
+			User UseLiveBroadcast `json:"user"`
+		} `json:"data"`
+	}
+
+	var resp payload
+
+	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
+	if err := tw.sendGqlLoadAndDecode(body, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp.Data.User, nil
+}
+
 type StreamMetadata struct {
 	ID                string `json:"id"`
 	BroadcastSettings struct {
@@ -22,6 +66,10 @@ type StreamMetadata struct {
 			DisplayName string `json:"displayName"`
 		} `json:"game"`
 	} `json:"stream"`
+}
+
+type envelope[T any] struct {
+	Data T `json:"data"`
 }
 
 func (tw *Client) StreamMetadata(channelName string) (*StreamMetadata, error) {
@@ -44,19 +92,16 @@ func (tw *Client) StreamMetadata(channelName string) (*StreamMetadata, error) {
 	}`
 
 	type payload struct {
-		Data struct {
-			Stream StreamMetadata `json:"user"`
-		} `json:"data"`
+		User StreamMetadata `json:"user"`
 	}
-
-	var resp payload
+	var resp envelope[payload]
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
 	if err := tw.sendGqlLoadAndDecode(body, &resp); err != nil {
 		return nil, err
 	}
 
-	return &resp.Data.Stream, nil
+	return &resp.Data.User, nil
 }
 
 func (tw *Client) streamCreds(id string) (string, string, error) {

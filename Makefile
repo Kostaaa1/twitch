@@ -9,7 +9,7 @@ all: clean build
 build:
 	@echo "Building Twitch CLI..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/twitch ./cli/downloader/main.go
+	@go build -o $(BIN_DIR)/twitch ./cli/main.go
 	@echo "Twitch CLI built successfully."
 
 clean:

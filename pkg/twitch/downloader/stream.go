@@ -45,10 +45,12 @@ func (dl *Downloader) recordStream(mu Unit) error {
 	if !isLive {
 		return fmt.Errorf("%s is offline", mu.ID)
 	}
+
 	master, err := dl.TWApi.MasterPlaylistStream(mu.ID)
 	if err != nil {
 		return err
 	}
+
 	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
 	if err != nil {
 		return err

@@ -88,7 +88,7 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 	// 	client.UnsubscribeToAll()
 	// }
 
-	conn, resp, err := websocket.DefaultDialer.Dial("wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30", nil)
+	conn, resp, err := websocket.DefaultDialer.Dial("wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=10", nil)
 	if err != nil {
 		return fmt.Errorf("failed to dial eventsub.wss: %v", err)
 	}

@@ -146,12 +146,15 @@ func (opts Option) ProcessFlags(dl *downloader.Downloader, withWriter bool) []do
 	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
+
 	var units []downloader.Unit
+
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
 		units = opts.processFlagInput(dl, withWriter)
 	} else {
 		units = opts.processFileInput(dl, withWriter)
 	}
+
 	return units
 }

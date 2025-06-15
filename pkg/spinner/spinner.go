@@ -180,39 +180,73 @@ func (m model) View() string {
 	}
 	var str strings.Builder
 	for i := 0; i < len(m.units); i++ {
-		str.WriteString(m.wrapText(m.formatMessage(m.units[i])) + "\n")
+		fullMsg := m.formatMessage(m.units[i])
+		str.WriteString(fullMsg)
+		str.WriteString("\n")
 	}
 	return str.String()
 }
 
-func (m model) wrapText(text string) string {
-	return lipgloss.NewStyle().Width(m.width - 5).Render(text)
+func wrapText(s string, limit int) string {
+	if limit <= 0 || len(s) < limit {
+		return s
+	}
+
+	indexes := []int{}
+	for i := 0; i < len(s); i++ {
+		if i > 0 && i%limit == 0 {
+			indexes = append(indexes, i)
+		}
+	}
+
+	parts := []string{}
+	for i, index := range indexes {
+		if len(parts) == 0 {
+			parts = append(parts, s[0:index])
+		}
+		if len(indexes)-1 == i {
+			parts = append(parts, s[index:])
+			break
+		}
+		parts = append(parts, s[index:indexes[i+1]])
+	}
+
+	return strings.Join(parts, "\n")
 }
 
 func (m model) formatMessage(u unit) string {
 	if u.Err != nil {
-		return errorMsg(u.Err)
+		return wrapText(errorMsg(u.Err), m.width-4)
 	}
 
 	var str strings.Builder
+
 	progress := getProgress(u.TotalBytes, u.ElapsedTime)
 	if u.IsDone {
-		str.WriteString(successMsg(u.Title, progress))
+		str.WriteString(wrapText(successMsg(u.Title, progress), m.width-4))
 	} else {
-		str.WriteString(fmt.Sprintf(" %s %s %s %s", m.spinner.View(), u.Title, progress, u.Message))
+		parts := []string{
+			m.spinner.View(),
+			strings.Join([]string{wrapText(u.Title, m.width-4), progress, u.Message}, " "),
+		}
+		str.WriteString(strings.Join(parts, " "))
 	}
+
 	return str.String()
 }
 
 func getProgress(total float64, elapsed time.Duration) string {
 	totalConverted := total
 	i := 0
+
 	for totalConverted >= 1024 && i < len(units)-1 {
 		totalConverted /= 1024
 		i++
 	}
+
 	speed := downloadSpeedMBs(total, elapsed)
 	msg := fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, units[i], speed, elapsed.Truncate(time.Second))
+
 	return msg
 }
 

@@ -150,6 +150,7 @@ func initEventSub(ctx context.Context, dl *downloader.Downloader) error {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
 						unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
 						if err := dl.Download(*unit); err != nil {
+							fmt.Println("error occured: ", err)
 							isLive, _ := dl.TWApi.IsChannelLive(user.Login)
 							if !isLive {
 								fmt.Println("Stream went offline!")

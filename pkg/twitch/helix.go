@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -143,13 +142,16 @@ func (tw *Client) UserByChannelName(channelName string) (*User, error) {
 	if channelName != "" {
 		url += "?login=" + channelName
 	}
+
 	var body helixEnvelope[User]
 	if err := tw.HelixRequest(url, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+
 	if len(body.Data) > 0 {
 		return &body.Data[0], nil
 	}
+
 	return nil, fmt.Errorf("failed to get user data for: %s", channelName)
 }
 
@@ -200,13 +202,9 @@ func (tw *Client) Stream(userId string) (*[]Stream, error) {
 
 // remove decapi - handle this with graphql
 func (tw *Client) IsChannelLive(channelName string) (bool, error) {
-	u := fmt.Sprintf("%s/%s", "https://decapi.me/twitch/uptime", channelName)
-	b, err := tw.fetch(u)
+	data, err := tw.StreamMetadata(channelName)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
 	}
-	if strings.HasPrefix(string(b), "[Error from Twitch Client]") {
-		return false, fmt.Errorf("[Error from Twitch Client]")
-	}
-	return !strings.Contains(string(b), "offline"), nil
+	return len(data.Stream.ID) > 0, nil
 }
