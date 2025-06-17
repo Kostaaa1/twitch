@@ -306,7 +306,7 @@ button,
 input,
 optgroup,
 select,
-textarea {
+textinput {
   font-family: inherit;
   /* 1 */
   font-feature-settings: inherit;
@@ -474,10 +474,10 @@ dialog {
 }
 
 /*
-Prevent resizing textareas horizontally by default.
+Prevent resizing textinputs horizontally by default.
 */
 
-textarea {
+textinput {
   resize: vertical;
 }
 
@@ -486,7 +486,7 @@ textarea {
 2. Set the default placeholder color to the user's configured gray 400 color.
 */
 
-input::-moz-placeholder, textarea::-moz-placeholder {
+input::-moz-placeholder, textinput::-moz-placeholder {
   opacity: 1;
   /* 1 */
   color: #9ca3af;
@@ -494,7 +494,7 @@ input::-moz-placeholder, textarea::-moz-placeholder {
 }
 
 input::placeholder,
-textarea::placeholder {
+textinput::placeholder {
   opacity: 1;
   /* 1 */
   color: #9ca3af;

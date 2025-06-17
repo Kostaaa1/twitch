@@ -1,21 +1,21 @@
 package chat
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type footer struct {
 	roomState *roomState
-	textinput textinput.Model
+	textarea  textarea.Model
 	width     int
 	height    int
 }
 
-func NewFooter(t textinput.Model, height int) footer {
+func NewFooter(t textarea.Model, height int) footer {
 	return footer{
 		roomState: new(roomState),
-		textinput: t,
+		textarea:  t,
 		height:    height,
 	}
 }
@@ -23,13 +23,28 @@ func NewFooter(t textinput.Model, height int) footer {
 func (footer footer) Render(m model) string {
 	m.renderRoomState()
 
-	footerContent := lipgloss.JoinHorizontal(lipgloss.Position(0), footer.roomState.render, footer.textinput.View())
 	style := lipgloss.NewStyle().
 		Width(m.viewport.Width).
 		Height(footer.height).
-		Border(lipgloss.RoundedBorder())
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(m.conf.Chat.Colors.Primary))
 
-	return style.Render(footerContent)
+	return style.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			footer.roomState.render,
+			footer.textarea.View(),
+		),
+	)
+
+	// style := lipgloss.NewStyle().
+	// 	Width(m.viewport.Width).
+	// 	Height(footer.height).
+	// 	Border(lipgloss.RoundedBorder()).
+	// 	BorderForeground(lipgloss.Color(m.conf.Chat.Colors.Primary))
+
+	// label := footer.roomState.render
+	// return style.Render(label + "\n" + footer.textarea.View())
 }
 
 type roomState struct {

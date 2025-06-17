@@ -11,7 +11,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -62,10 +62,18 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 
-	t := textinput.New()
+	t := textarea.New()
 	t.CharLimit = 500
 	t.Placeholder = "Send a message"
-	t.Prompt = " ▶ "
+	t.Prompt = ""
+	// t.Prompt = " ▶ "
+	// t.Prompt = "┃ "
+	t.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	t.ShowLineNumbers = false
+	t.SetWidth(0)
+	t.SetHeight(3)
+	t.Cursor.Blink = true
+
 	t.Focus()
 
 	msgChan := make(chan interface{})
@@ -145,7 +153,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tiCmd tea.Cmd
 	)
 
-	m.footer.textinput, tiCmd = m.footer.textinput.Update(msg)
+	m.footer.textarea, tiCmd = m.footer.textarea.Update(msg)
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -153,9 +161,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h := msg.Height - 8
 		m.labelBox.SetWidth(w)
 		m.viewport.Width = w
-		m.viewport.Height = h - m.footer.height
 		m.width = w
 		m.height = h
+		m.viewport.Height = h - m.footer.height
+		m.footer.textarea.SetWidth(w)
 		m.viewport.Style = lipgloss.
 			NewStyle().
 			Width(m.viewport.Width).
@@ -190,10 +199,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.showHelpMenu {
 				newWidth := m.width - m.helperMenuWidth
 				m.viewport.Width = newWidth
-				m.footer.textinput.Width = newWidth - m.footer.roomState.Len() - 4
+				// m.footer.textarea.Width = newWidth - m.footer.roomState.Len() - 4
 			} else {
 				m.viewport.Width = m.width
-				m.footer.textinput.Width = m.width - m.footer.roomState.Len() - 4
+				// m.footer.textarea.Width = m.width - m.footer.roomState.Len() - 4
 			}
 		}
 
@@ -256,7 +265,7 @@ func (m model) View() string {
 		return mainArea.String()
 	}
 
-	helpMenu := components.RenderHelperMenu(m.helperMenuWidth, m.viewport.Height+m.footer.height+2)
+	helpMenu := components.RenderHelperMenu(m.helperMenuWidth, m.viewport.Height+m.footer.height+4)
 	fullView := lipgloss.JoinHorizontal(
 		lipgloss.Position(1),
 		mainArea.String(),
@@ -275,7 +284,7 @@ func (m *model) renderError() string {
 
 func (m *model) newMessage(newChat *Chat) chat.Message {
 	newMessage := chat.Message{
-		Message: m.footer.textinput.Value(),
+		Message: m.footer.textarea.Value(),
 		Metadata: chat.MessageMetadata{
 			Metadata: chat.Metadata{
 				Color:        newChat.Room.Metadata.Color,
@@ -291,11 +300,11 @@ func (m *model) newMessage(newChat *Chat) chat.Message {
 }
 
 func (m *model) sendMessage() {
-	if m.footer.textinput.Value() == "" {
+	if m.footer.textarea.Value() == "" {
 		return
 	}
 
-	input := m.footer.textinput.Value()
+	input := m.footer.textarea.Value()
 
 	if !strings.HasPrefix(input, "/") {
 		chat := m.getActiveChat()
@@ -308,7 +317,7 @@ func (m *model) sendMessage() {
 		m.handleInputCommand(input)
 	}
 
-	m.footer.textinput.Reset()
+	m.footer.textarea.Reset()
 }
 
 func (m *model) handleInputCommand(cmd string) {
