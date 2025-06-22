@@ -65,6 +65,7 @@ func main() {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
+
 	client := twitch.NewClient(httpClient, &conf.Creds)
 
 	if option.Authorize {
@@ -88,6 +89,7 @@ func initDownloader(client *twitch.Client) {
 
 	var wg sync.WaitGroup
 
+	// eventsub downloader
 	if option.Subscribe {
 		wg.Add(1)
 		go func() {
@@ -102,7 +104,7 @@ func initDownloader(client *twitch.Client) {
 		}()
 		wg.Wait()
 	} else {
-		units := option.ProcessFlags(dl, true)
+		units := option.GetUnitsFromInput(dl, true)
 
 		if conf.Downloader.ShowSpinner {
 			spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
@@ -128,7 +130,7 @@ func initDownloader(client *twitch.Client) {
 }
 
 func initEventSub(ctx context.Context, dl *downloader.Downloader) error {
-	units := option.ProcessFlags(dl, false)
+	units := option.GetUnitsFromInput(dl, false)
 	events, err := cli.EventsFromUnits(dl, units)
 	if err != nil {
 		log.Fatal(err)

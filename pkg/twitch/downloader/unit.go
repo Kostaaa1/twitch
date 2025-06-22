@@ -48,6 +48,33 @@ type Unit struct {
 	Error   error
 }
 
+// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
+func NewUnit(input, quality string, opts ...UnitOption) *Unit {
+	unit := &Unit{}
+
+	unit.ID, unit.Type, unit.Error = parseVideoType(input)
+	if unit.Error != nil {
+		return unit
+	}
+
+	if unit.Type == TypeVOD {
+		if unit.Error = parseVodParams(input, unit); unit.Error != nil {
+			return unit
+		}
+	}
+
+	unit.Quality, unit.Error = qualityFromInput(quality)
+	if unit.Error != nil {
+		return unit
+	}
+
+	for _, opt := range opts {
+		opt(unit)
+	}
+
+	return unit
+}
+
 func (v VideoType) String() string {
 	switch v {
 	case TypeClip:
@@ -165,33 +192,6 @@ func parseVideoType(input string) (string, VideoType, error) {
 	default:
 		return id, TypeLivestream, nil
 	}
-}
-
-// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
-func NewUnit(input, quality string, opts ...UnitOption) *Unit {
-	unit := &Unit{}
-
-	unit.ID, unit.Type, unit.Error = parseVideoType(input)
-	if unit.Error != nil {
-		return unit
-	}
-
-	if unit.Type == TypeVOD {
-		if unit.Error = parseVodParams(input, unit); unit.Error != nil {
-			return unit
-		}
-	}
-
-	unit.Quality, unit.Error = qualityFromInput(quality)
-	if unit.Error != nil {
-		return unit
-	}
-
-	for _, opt := range opts {
-		opt(unit)
-	}
-
-	return unit
 }
 
 func parseVodParams(input string, unit *Unit) error {
