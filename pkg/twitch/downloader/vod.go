@@ -119,14 +119,13 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 
 			for {
 				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
-					n, err := mu.Writer.Write(job.data)
-					if err != nil {
-						return fmt.Errorf("error writing segment %d: %v", nextIndexToWrite, err)
-					}
-
 					delete(segmentBuffer, nextIndexToWrite)
 					nextIndexToWrite++
 
+					n, err := mu.Writer.Write(job.data)
+					if err != nil {
+						return fmt.Errorf("error writing segment: %v", err)
+					}
 					msg := spinner.ChannelMessage{Bytes: int64(n)}
 					mu.NotifyProgressChannel(msg, dl.progressCh)
 				} else {

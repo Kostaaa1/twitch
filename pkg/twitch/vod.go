@@ -53,6 +53,7 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, token, sig)
 
 	b, code, err := tw.fetchWithCode(m3u8Url)
@@ -85,7 +86,6 @@ func (tw *Client) FetchAndParseMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u
 	return &parsed, nil
 }
 
-// Getting the sub VOD playlist
 type VideoMetadata struct {
 	User struct {
 		ID              string `json:"id"`
@@ -141,23 +141,21 @@ func (tw *Client) VideoMetadata(id string) (VideoMetadata, error) {
 }
 
 type Video struct {
-	ID                  string    `json:"id"`
-	Title               string    `json:"title"`
-	PreviewThumbnailURL string    `json:"previewThumbnailURL"`
-	PublishedAt         time.Time `json:"publishedAt"`
-	ViewCount           int64     `json:"viewCount"`
-	LengthSeconds       int64     `json:"lengthSeconds"`
-	AnimatedPreviewURL  string    `json:"animatedPreviewURL"`
-	// ResourceRestriction interface{}   `json:"resourceRestriction"`
-	ContentTags []interface{} `json:"contentTags"`
-	CreatedAt   time.Time     `json:"created_at"`
-	Self        struct {
+	ID                  string        `json:"id"`
+	Title               string        `json:"title"`
+	PreviewThumbnailURL string        `json:"previewThumbnailURL"`
+	PublishedAt         time.Time     `json:"publishedAt"`
+	ViewCount           int64         `json:"viewCount"`
+	LengthSeconds       int64         `json:"lengthSeconds"`
+	AnimatedPreviewURL  string        `json:"animatedPreviewURL"`
+	ContentTags         []interface{} `json:"contentTags"`
+	CreatedAt           time.Time     `json:"created_at"`
+	Self                struct {
 		IsRestricted   bool `json:"isRestricted"`
 		ViewingHistory struct {
 			Position int    `json:"position"`
 			Typename string `json:"__typename"`
 		} `json:"viewingHistory"`
-		// Typename string `json:"__typename"`
 	} `json:"self"`
 	Game struct {
 		ID          string `json:"id"`
@@ -165,7 +163,6 @@ type Video struct {
 		BoxArtURL   string `json:"boxArtURL"`
 		DisplayName string `json:"displayName"`
 		Name        string `json:"name"`
-		// Typename    string `json:"__typename"`
 	} `json:"game"`
 	Owner struct {
 		ID              string `json:"id"`
@@ -173,9 +170,7 @@ type Video struct {
 		Login           string `json:"login"`
 		ProfileImageURL string `json:"profileImageURL"`
 		PrimaryColorHex string `json:"primaryColorHex"`
-		// Typename        string `json:"__typename"`
 	} `json:"owner"`
-	// Typename string `json:"__typename"`
 }
 
 type FilterableVideoTower_Videos struct {
@@ -229,11 +224,8 @@ func (tw *Client) GetVideosByChannelName(channelName string, limit int) ([]Video
 					} `json:"edges"`
 					PageInfo struct {
 						HasNextPage bool `json:"hasNextPage"`
-						// Typename    string `json:"__typename"`
 					} `json:"pageInfo"`
-					// Typename string `json:"__typename"`
 				} `json:"videos"`
-				// Typename string `json:"__typename"`
 			} `json:"user"`
 		} `json:"data"`
 	}

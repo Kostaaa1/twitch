@@ -110,6 +110,7 @@ func main() {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
+
 	client := twitch.NewClient(httpClient, &conf.Creds)
 
 	if option.Authorize {
@@ -133,6 +134,7 @@ func initDownloader(client *twitch.Client) {
 
 	var wg sync.WaitGroup
 
+	// eventsub downloader
 	if option.Subscribe {
 		wg.Add(1)
 		go func() {
