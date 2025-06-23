@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -20,7 +21,7 @@ type DownloadUnit struct {
 	MasterURL *string
 	Playlist  *m3u8.MediaPlaylist
 
-	Writer *os.File
+	Writer io.Writer
 
 	Quality string
 	Start   time.Duration
@@ -35,18 +36,17 @@ func (unit *DownloadUnit) NotifyProgressChannel(msg spinner.ChannelMessage, ch c
 }
 
 func (u *DownloadUnit) GetTitle() string {
-	return u.Writer.Name()
-	// if f, ok := u.Writer.(*os.File); ok && f != nil {
-	// 	return f.Name()
-	// }
-	// return "no title"
+	if f, ok := u.Writer.(*os.File); ok && f != nil {
+		return f.Name()
+	}
+	return "no title"
 }
 
 func (unit *DownloadUnit) GetError() error {
 	return unit.Error
 }
 
-func (c *Client) NewUnit(channel, vodID, filepath, quality string, start, end time.Duration) (*DownloadUnit, error) {
+func (c *Client) NewUnit(w io.Writer, channel, vodID, quality string, start, end time.Duration) (*DownloadUnit, error) {
 	masterURL, err := c.GetMasterPlaylistURL(channel, vodID)
 	if err != nil {
 		return nil, err
@@ -57,15 +57,10 @@ func (c *Client) NewUnit(channel, vodID, filepath, quality string, start, end ti
 		return nil, err
 	}
 
-	file, err := os.Open(filepath)
-	if err != nil {
-		return nil, err
-	}
-
 	return &DownloadUnit{
 		MasterURL: &masterURL,
 		Playlist:  playlist,
-		Writer:    file,
+		Writer:    w,
 		Quality:   quality,
 		Start:     start,
 		End:       end,
@@ -73,8 +68,7 @@ func (c *Client) NewUnit(channel, vodID, filepath, quality string, start, end ti
 }
 
 func (unit *DownloadUnit) Close() error {
-	// return unit.Writer.(io.Closer).Close()
-	return unit.Writer.Close()
+	return unit.Writer.(io.Closer).Close()
 }
 
 type segmentJob struct {
@@ -89,17 +83,15 @@ func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
 		return errors.New("masterURL is not set. It is used for extracting base URL for building segment URLs")
 	}
 
-	log.Println(*unit.MasterURL)
-	log.Println(*unit.Playlist)
-	log.Println(unit.Writer.Name())
+	jobsChan := make(chan segmentJob, 16)
+	resultsChan := make(chan segmentJob, 16)
 
-	jobsChan := make(chan segmentJob)
-	resultsChan := make(chan segmentJob)
+	basePath := strings.TrimSuffix(*unit.MasterURL, "master.m3u8")
 
 	go func() {
 		for i, seg := range unit.Playlist.Segments {
 			if strings.HasSuffix(seg.URL, ".ts") {
-				fullSegURL, _ := url.JoinPath(*unit.MasterURL, unit.Quality, seg.URL)
+				fullSegURL, _ := url.JoinPath(basePath, unit.Quality, seg.URL)
 				select {
 				case <-ctx.Done():
 					return
@@ -130,18 +122,23 @@ func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
 						return
 					}
 
-					resp, err := c.client.Get(job.url)
+					req, err := http.NewRequestWithContext(ctx, "GET", job.url, nil)
+					if err != nil {
+						job.err = err
+					}
+					resp, err := c.client.Do(req)
 					if err != nil {
 						job.err = err
 					}
 
 					b, err := io.ReadAll(resp.Body)
+					resp.Body.Close()
 					if err != nil {
 						job.err = err
 					}
-					defer resp.Body.Close()
 
 					job.data = b
+					job.err = nil
 
 					select {
 					case <-ctx.Done():
@@ -179,10 +176,13 @@ func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
 				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
 					delete(segmentBuffer, nextIndexToWrite)
 					nextIndexToWrite++
-					n, _ := unit.Writer.Write(job.data)
-					fmt.Print("written: ", n)
 
-					unit.NotifyProgressChannel(spinner.ChannelMessage{Bytes: int64(n)}, c.progressCh)
+					n, err := unit.Writer.Write(job.data)
+					if err != nil {
+						log.Fatal(err)
+					}
+					msg := spinner.ChannelMessage{Bytes: int64(n)}
+					unit.NotifyProgressChannel(msg, c.progressCh)
 				} else {
 					break
 				}
@@ -190,5 +190,3 @@ func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
 		}
 	}
 }
-
-// func (c *Client) Record(ctx context.Context, downloadUnit DownloadUnit) error { }
