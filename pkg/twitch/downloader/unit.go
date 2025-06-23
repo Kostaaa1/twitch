@@ -38,7 +38,6 @@ func WithTimestamps(start, end time.Duration) UnitOption {
 }
 
 type Unit struct {
-	// Vod id, clip slug or channel name
 	ID      string
 	Type    VideoType
 	Quality QualityType
@@ -113,7 +112,7 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh c
 	}
 }
 
-func qualityFromInput(quality string) (QualityType, error) {
+func getQuality(quality string) (QualityType, error) {
 	switch {
 	case quality == "" || quality == "best" || strings.HasPrefix(quality, "1080"):
 		return Quality1080p60, nil
@@ -132,7 +131,7 @@ func qualityFromInput(quality string) (QualityType, error) {
 	}
 }
 
-func parseVideoType(input string) (string, VideoType, error) {
+func getIDAndType(input string) (string, VideoType, error) {
 	if input == "" {
 		return "", 0, errors.New("input cannot be empty")
 	}
@@ -171,18 +170,19 @@ func parseVideoType(input string) (string, VideoType, error) {
 func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	unit := &Unit{}
 
-	unit.ID, unit.Type, unit.Error = parseVideoType(input)
+	unit.ID, unit.Type, unit.Error = getIDAndType(input)
 	if unit.Error != nil {
 		return unit
 	}
 
-	if unit.Type == TypeVOD {
-		if unit.Error = parseVodParams(input, unit); unit.Error != nil {
+	parsedURL, err := url.Parse(input)
+	if err == nil && unit.Type == TypeVOD {
+		if unit.Error = parseVodParams(parsedURL, unit); unit.Error != nil {
 			return unit
 		}
 	}
 
-	unit.Quality, unit.Error = qualityFromInput(quality)
+	unit.Quality, unit.Error = getQuality(quality)
 	if unit.Error != nil {
 		return unit
 	}
@@ -194,18 +194,14 @@ func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	return unit
 }
 
-func parseVodParams(input string, unit *Unit) error {
-	parsedURL, err := url.Parse(input)
-	if err != nil {
-		return err
-	}
+func parseVodParams(u *url.URL, unit *Unit) error {
 	if unit.Start == 0 {
-		if t := parsedURL.Query().Get("t"); t != "" {
+		if t := u.Query().Get("t"); t != "" {
 			unit.Start, _ = time.ParseDuration(t)
 		}
 	}
 	if unit.Start > unit.End {
-		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, input)
+		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
 	}
 	return nil
 }

@@ -17,7 +17,7 @@ type segmentJob struct {
 	err   error
 }
 
-// Concurrent ordered download. Segments needs to be in order so it can be written to file. Instead of doing this sequentally (one-by-one), this is downloading them concurrently.
+// TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
 func (dl *Downloader) downloadVOD(mu Unit) error {
 	master, err := dl.TWApi.MasterPlaylistVOD(mu.ID)
 	if err != nil {

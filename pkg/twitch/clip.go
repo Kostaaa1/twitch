@@ -119,11 +119,11 @@ type Clip struct {
 	Typename               string `json:"__typename"`
 }
 
-func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
+func (client *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
-func (c *Client) ClipMetadata(slug string) (Clip, error) {
+func (client *Client) ClipMetadata(slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {
@@ -144,7 +144,7 @@ func (c *Client) ClipMetadata(slug string) (Clip, error) {
 	}
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-	if err := c.sendGqlLoadAndDecode(body, &result); err != nil {
+	if err := client.sendGqlLoadAndDecode(body, &result); err != nil {
 		return Clip{}, err
 	}
 

@@ -332,7 +332,8 @@ func (m *model) handleInputCommand(cmd string) {
 			m.msgChan <- notifyMsg("Channel name is too long. Limit is 25 characters.")
 			return
 		}
-		m.addChat(parts[1])
+		channelName := strings.TrimSpace(parts[1])
+		m.addChat(channelName)
 	case "/info":
 		fmt.Println(parts[1])
 	default:

@@ -292,7 +292,7 @@ func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.Canc
 	}
 }
 
-func (m *model) ProgChan() chan ChannelMessage {
+func (m *model) ProgressChan() chan ChannelMessage {
 	return m.progChan
 }
 

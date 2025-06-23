@@ -1,6 +1,8 @@
 package chat
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -29,22 +31,14 @@ func (footer footer) Render(m model) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(m.conf.Chat.Colors.Primary))
 
-	return style.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			footer.roomState.render,
-			footer.textarea.View(),
-		),
-	)
+	var str strings.Builder
+	if footer.roomState.Len() > 0 {
+		str.WriteString(footer.roomState.render)
+		str.WriteString("\n")
+	}
+	str.WriteString(footer.textarea.View())
 
-	// style := lipgloss.NewStyle().
-	// 	Width(m.viewport.Width).
-	// 	Height(footer.height).
-	// 	Border(lipgloss.RoundedBorder()).
-	// 	BorderForeground(lipgloss.Color(m.conf.Chat.Colors.Primary))
-
-	// label := footer.roomState.render
-	// return style.Render(label + "\n" + footer.textarea.View())
+	return style.Render(str.String())
 }
 
 type roomState struct {

@@ -15,10 +15,12 @@ import (
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
+	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/Kostaaa1/twitch/pkg/twitch/event"
+	"github.com/google/uuid"
 )
 
 var (
@@ -51,6 +53,49 @@ func init() {
 }
 
 func main() {
+	c := kick.NewClient()
+
+	channel := "asmongold"
+	videos, _ := c.GetVideos(channel)
+
+	newFilePath := fmt.Sprintf("/mnt/c/Users/Kosta/Downloads/Clips/%s.mp4", uuid.New().String())
+	newFile, _ := os.Create(newFilePath)
+	defer newFile.Close()
+
+	unit, _ := c.NewUnit(channel, videos[0].Video.UUID, newFilePath, "1080p60", 0, 0)
+	units := []*kick.DownloadUnit{unit}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	spin := spinner.New(units, "dot", cancel)
+	defer close(spin.ProgressChan())
+	c.SetProgressChannel(spin.ProgressChan())
+
+	spin.ProgressChan() <- spinner.ChannelMessage{
+		Text:    "Starting download...",
+		Message: "urrrr",
+		Bytes:   5902,
+		IsDone:  false,
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		spin.Run()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.Download(ctx, unit)
+	}()
+
+	wg.Wait()
+	return
+
 	defer func() {
 		conf.Save()
 	}()
@@ -102,13 +147,13 @@ func initDownloader(client *twitch.Client) {
 		}()
 		wg.Wait()
 	} else {
-		units := option.ProcessFlags(dl, true)
+		units := option.GetUnitsFromInput(dl, true)
 
 		if conf.Downloader.ShowSpinner {
 			spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
-			defer close(spin.ProgChan())
+			defer close(spin.ProgressChan())
 
-			dl.SetProgressChannel(spin.ProgChan())
+			dl.SetProgressChannel(spin.ProgressChan())
 
 			wg.Add(1)
 			go func() {
@@ -128,7 +173,7 @@ func initDownloader(client *twitch.Client) {
 }
 
 func initEventSub(ctx context.Context, dl *downloader.Downloader) error {
-	units := option.ProcessFlags(dl, false)
+	units := option.GetUnitsFromInput(dl, false)
 	events, err := cli.EventsFromUnits(dl, units)
 	if err != nil {
 		log.Fatal(err)

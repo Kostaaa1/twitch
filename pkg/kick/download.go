@@ -1,0 +1,194 @@
+package kick
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/url"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/Kostaaa1/twitch/internal/m3u8"
+	"github.com/Kostaaa1/twitch/pkg/spinner"
+)
+
+type DownloadUnit struct {
+	MasterURL *string
+	Playlist  *m3u8.MediaPlaylist
+
+	Writer *os.File
+
+	Quality string
+	Start   time.Duration
+	End     time.Duration
+	Error   error
+}
+
+func (unit *DownloadUnit) NotifyProgressChannel(msg spinner.ChannelMessage, ch chan spinner.ChannelMessage) {
+	if ch != nil {
+		ch <- msg
+	}
+}
+
+func (u *DownloadUnit) GetTitle() string {
+	return u.Writer.Name()
+	// if f, ok := u.Writer.(*os.File); ok && f != nil {
+	// 	return f.Name()
+	// }
+	// return "no title"
+}
+
+func (unit *DownloadUnit) GetError() error {
+	return unit.Error
+}
+
+func (c *Client) NewUnit(channel, vodID, filepath, quality string, start, end time.Duration) (*DownloadUnit, error) {
+	masterURL, err := c.GetMasterPlaylistURL(channel, vodID)
+	if err != nil {
+		return nil, err
+	}
+
+	playlist, err := c.GetMediaPlaylist(masterURL, quality)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DownloadUnit{
+		MasterURL: &masterURL,
+		Playlist:  playlist,
+		Writer:    file,
+		Quality:   quality,
+		Start:     start,
+		End:       end,
+	}, nil
+}
+
+func (unit *DownloadUnit) Close() error {
+	// return unit.Writer.(io.Closer).Close()
+	return unit.Writer.Close()
+}
+
+type segmentJob struct {
+	index int
+	url   string
+	data  []byte
+	err   error
+}
+
+func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
+	if unit.MasterURL == nil {
+		return errors.New("masterURL is not set. It is used for extracting base URL for building segment URLs")
+	}
+
+	log.Println(*unit.MasterURL)
+	log.Println(*unit.Playlist)
+	log.Println(unit.Writer.Name())
+
+	jobsChan := make(chan segmentJob)
+	resultsChan := make(chan segmentJob)
+
+	go func() {
+		for i, seg := range unit.Playlist.Segments {
+			if strings.HasSuffix(seg.URL, ".ts") {
+				fullSegURL, _ := url.JoinPath(*unit.MasterURL, unit.Quality, seg.URL)
+				select {
+				case <-ctx.Done():
+					return
+				case jobsChan <- segmentJob{
+					index: i,
+					url:   fullSegURL,
+				}:
+				}
+			}
+		}
+		close(jobsChan)
+	}()
+
+	const maxWorkers = 8
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case job, ok := <-jobsChan:
+					if !ok {
+						return
+					}
+
+					resp, err := c.client.Get(job.url)
+					if err != nil {
+						job.err = err
+					}
+
+					b, err := io.ReadAll(resp.Body)
+					if err != nil {
+						job.err = err
+					}
+					defer resp.Body.Close()
+
+					job.data = b
+
+					select {
+					case <-ctx.Done():
+						return
+					case resultsChan <- job:
+					}
+				}
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	segmentBuffer := make(map[int]segmentJob)
+	nextIndexToWrite := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case result, ok := <-resultsChan:
+			if !ok {
+				return nil
+			}
+			if result.err != nil {
+				return fmt.Errorf("error downloading segment %s: %v", result.url, result.err)
+			}
+
+			segmentBuffer[result.index] = result
+
+			for {
+				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
+					delete(segmentBuffer, nextIndexToWrite)
+					nextIndexToWrite++
+					n, _ := unit.Writer.Write(job.data)
+					fmt.Print("written: ", n)
+
+					unit.NotifyProgressChannel(spinner.ChannelMessage{Bytes: int64(n)}, c.progressCh)
+				} else {
+					break
+				}
+			}
+		}
+	}
+}
+
+// func (c *Client) Record(ctx context.Context, downloadUnit DownloadUnit) error { }

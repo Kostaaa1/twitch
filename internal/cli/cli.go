@@ -100,15 +100,17 @@ func level(main, fallback *Option) {
 	}
 }
 
-func (opt Option) processFileInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+func (opt Option) getUnitsFromFileInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
 	_, err := os.Stat(opt.Input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
 	}
+
 	content, err := os.ReadFile(opt.Input)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	var inputUnits []Option
 	if err := json.Unmarshal(content, &inputUnits); err != nil {
 		log.Fatal(err)
@@ -124,10 +126,11 @@ func (opt Option) processFileInput(dl *downloader.Downloader, withWriter bool) [
 			units[i] = *unit
 		}
 	}
+
 	return units
 }
 
-func (opt Option) processFlagInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+func (opt Option) getUnitsFromFlagInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
 	inputs := strings.Split(opt.Input, ",")
 	units := make([]downloader.Unit, len(inputs))
 
@@ -142,7 +145,7 @@ func (opt Option) processFlagInput(dl *downloader.Downloader, withWriter bool) [
 	return units
 }
 
-func (opts Option) ProcessFlags(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+func (opts Option) GetUnitsFromInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
 	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
@@ -151,9 +154,9 @@ func (opts Option) ProcessFlags(dl *downloader.Downloader, withWriter bool) []do
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		units = opts.processFlagInput(dl, withWriter)
+		units = opts.getUnitsFromFlagInput(dl, withWriter)
 	} else {
-		units = opts.processFileInput(dl, withWriter)
+		units = opts.getUnitsFromFileInput(dl, withWriter)
 	}
 
 	return units

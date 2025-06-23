@@ -220,10 +220,12 @@ func (conf *Config) AuthorizeAndSaveUserData(client *twitch.Client) error {
 	if err := client.Authorize(); err != nil {
 		return err
 	}
+
 	user, err := client.UserByChannelName("")
 	if err != nil {
 		return fmt.Errorf("failed to get the user data: %v", err)
 	}
+
 	conf.User = User{
 		BroadcasterType: user.BroadcasterType,
 		CreatedAt:       user.CreatedAt,
@@ -235,6 +237,8 @@ func (conf *Config) AuthorizeAndSaveUserData(client *twitch.Client) error {
 		ProfileImageURL: user.ProfileImageURL,
 		Type:            user.Type,
 	}
+
 	conf.Save()
+
 	return nil
 }
