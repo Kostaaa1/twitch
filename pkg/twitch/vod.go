@@ -11,7 +11,6 @@ import (
 )
 
 type VideoCredResponse struct {
-	Typename  string `json:"__typename"`
 	Signature string `json:"signature"`
 	Value     string `json:"value"`
 }
@@ -95,14 +94,11 @@ type VideoMetadata struct {
 		LastBroadcast   struct {
 			ID        string    `json:"id"`
 			StartedAt time.Time `json:"startedAt"`
-			Typename  string    `json:"__typename"`
 		} `json:"lastBroadcast"`
 		Stream    any `json:"stream"`
 		Followers struct {
-			TotalCount int    `json:"totalCount"`
-			Typename   string `json:"__typename"`
+			TotalCount int `json:"totalCount"`
 		} `json:"followers"`
-		Typename string `json:"__typename"`
 	} `json:"user"`
 	CurrentUser any   `json:"currentUser"`
 	Video       Video `json:"video"`
@@ -149,12 +145,10 @@ type Video struct {
 	LengthSeconds       int64         `json:"lengthSeconds"`
 	AnimatedPreviewURL  string        `json:"animatedPreviewURL"`
 	ContentTags         []interface{} `json:"contentTags"`
-	CreatedAt           time.Time     `json:"created_at"`
 	Self                struct {
 		IsRestricted   bool `json:"isRestricted"`
 		ViewingHistory struct {
-			Position int    `json:"position"`
-			Typename string `json:"__typename"`
+			Position int `json:"position"`
 		} `json:"viewingHistory"`
 	} `json:"self"`
 	Game struct {
@@ -179,17 +173,13 @@ type FilterableVideoTower_Videos struct {
 			ID     string `json:"id"`
 			Videos struct {
 				Edges []struct {
-					Cursor   interface{} `json:"cursor"`
-					Node     Video       `json:"node"`
-					Typename string      `json:"__typename"`
+					Cursor interface{} `json:"cursor"`
+					Node   Video       `json:"node"`
 				} `json:"edges"`
 				PageInfo struct {
-					HasNextPage bool   `json:"hasNextPage"`
-					Typename    string `json:"__typename"`
+					HasNextPage bool `json:"hasNextPage"`
 				} `json:"pageInfo"`
-				Typename string `json:"__typename"`
 			} `json:"videos"`
-			Typename string `json:"__typename"`
 		} `json:"user"`
 	} `json:"data"`
 }
@@ -218,9 +208,8 @@ func (tw *Client) GetVideosByChannelName(channelName string, limit int) ([]Video
 				ID     string `json:"id"`
 				Videos struct {
 					Edges []struct {
-						Cursor   interface{} `json:"cursor"`
-						Node     Video       `json:"node"`
-						Typename string      `json:"__typename"`
+						Cursor interface{} `json:"cursor"`
+						Node   Video       `json:"node"`
 					} `json:"edges"`
 					PageInfo struct {
 						HasNextPage bool `json:"hasNextPage"`

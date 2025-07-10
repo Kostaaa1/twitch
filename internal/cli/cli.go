@@ -15,14 +15,20 @@ import (
 )
 
 type Option struct {
-	Input     string        `json:"input"`
-	Output    string        `json:"output"`
-	Quality   string        `json:"quality"`
-	Start     time.Duration `json:"start"`
-	End       time.Duration `json:"end"`
-	Threads   int
-	Category  string
-	Channel   string
+	Input   string        `json:"input"`
+	Output  string        `json:"output"`
+	Quality string        `json:"quality"`
+	Start   time.Duration `json:"start"`
+	End     time.Duration `json:"end"`
+
+	Threads  int
+	Category string
+	Channel  string
+
+	Videos     bool
+	Clips      bool
+	Highlights bool
+
 	Authorize bool
 	Subscribe bool
 }
@@ -145,7 +151,7 @@ func (opt Option) getUnitsFromFlagInput(dl *downloader.Downloader, withWriter bo
 	return units
 }
 
-func (opts Option) GetUnitsFromInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+func (opts Option) GetUnitsFromInputWithWriter(dl *downloader.Downloader) []downloader.Unit {
 	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
@@ -154,9 +160,26 @@ func (opts Option) GetUnitsFromInput(dl *downloader.Downloader, withWriter bool)
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		units = opts.getUnitsFromFlagInput(dl, withWriter)
+		units = opts.getUnitsFromFlagInput(dl, true)
 	} else {
-		units = opts.getUnitsFromFileInput(dl, withWriter)
+		units = opts.getUnitsFromFileInput(dl, true)
+	}
+
+	return units
+}
+
+func (opts Option) GetUnitsFromInput(dl *downloader.Downloader) []downloader.Unit {
+	if opts.Input == "" {
+		log.Fatalf("Input was not provided.")
+	}
+
+	var units []downloader.Unit
+
+	_, err := os.Stat(opts.Input)
+	if os.IsNotExist(err) {
+		units = opts.getUnitsFromFlagInput(dl, false)
+	} else {
+		units = opts.getUnitsFromFileInput(dl, false)
 	}
 
 	return units

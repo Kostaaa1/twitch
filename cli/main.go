@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -41,10 +42,9 @@ func init() {
 	flag.DurationVar(&option.End, "end", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs.")
 	flag.IntVar(&option.Threads, "threads", 0, "Number of parallel downloads (batch mode only).")
 
-	flag.StringVar(&option.Category, "category", "", "Twitch category name.")
 	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name.")
 
-	flag.BoolVar(&option.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input to automatically download streams when they go live. Useful for auto-recordings of the livestreams that happens in background (e.g., with systemd).")
+	flag.BoolVar(&option.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
 	flag.BoolVar(&option.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
 
 	flag.Parse()
@@ -70,6 +70,16 @@ func main() {
 
 	if option.Authorize {
 		client.Authorize()
+	}
+
+	if option.Channel != "" {
+		videos, err := client.GetVideosByChannelName(option.Channel, 100)
+		if err != nil {
+			log.Fatal(err)
+		}
+		b, _ := json.MarshalIndent(videos, "", "  ")
+		fmt.Println(string(b))
+		return
 	}
 
 	if len(os.Args) == 1 {
@@ -104,12 +114,11 @@ func initDownloader(client *twitch.Client) {
 		}()
 		wg.Wait()
 	} else {
-		units := option.GetUnitsFromInput(dl, true)
+		units := option.GetUnitsFromInputWithWriter(dl)
 
 		if conf.Downloader.ShowSpinner {
 			spin := spinner.New(units, conf.Downloader.SpinnerModel, cancel)
 			defer close(spin.ProgressChan())
-
 			dl.SetProgressChannel(spin.ProgressChan())
 
 			wg.Add(1)
@@ -130,7 +139,8 @@ func initDownloader(client *twitch.Client) {
 }
 
 func initEventSub(ctx context.Context, dl *downloader.Downloader) error {
-	units := option.GetUnitsFromInput(dl, false)
+	units := option.GetUnitsFromInput(dl)
+
 	events, err := cli.EventsFromUnits(dl, units)
 	if err != nil {
 		log.Fatal(err)
@@ -150,9 +160,11 @@ func initEventSub(ctx context.Context, dl *downloader.Downloader) error {
 					unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
 					go func() {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
+
 						unit.Writer, unit.Error = cli.NewFile(dl, unit, option.Output)
 						if err := dl.Download(*unit); err != nil {
 							fmt.Println("error occured: ", err)
+
 							isLive, _ := dl.TWApi.IsChannelLive(user.Login)
 							if !isLive {
 								fmt.Println("Stream went offline!")

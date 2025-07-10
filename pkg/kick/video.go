@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -30,7 +29,7 @@ func (c *Client) GetMasterPlaylistURL(channel, vodID string) (string, error) {
 
 func (c *Client) GetMediaPlaylist(masterURL, quality string) (*m3u8.MediaPlaylist, error) {
 	mediaURL := strings.Replace(masterURL, "master.m3u8", fmt.Sprintf("%s/%s", quality, "playlist.m3u8"), 1)
-	log.Println(mediaURL)
+	fmt.Println(mediaURL)
 
 	resp, err := c.client.Get(mediaURL)
 	if err != nil {
@@ -58,7 +57,7 @@ func (c *Client) GetVideos(channel string) ([]VideoMetadata, error) {
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		log.Printf("Request failed: %v\n", err)
+		fmt.Printf("Request failed: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -99,7 +98,6 @@ func (c *Client) GetVideoByID(id string) (interface{}, error) {
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		log.Printf("Request failed: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()

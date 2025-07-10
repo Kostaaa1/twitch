@@ -17,7 +17,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
-type DownloadUnit struct {
+type Unit struct {
 	MasterURL *string
 	Playlist  *m3u8.MediaPlaylist
 
@@ -29,24 +29,36 @@ type DownloadUnit struct {
 	Error   error
 }
 
-func (unit *DownloadUnit) NotifyProgressChannel(msg spinner.ChannelMessage, ch chan spinner.ChannelMessage) {
-	if ch != nil {
-		ch <- msg
+func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progCh chan spinner.ChannelMessage) {
+	if progCh == nil {
+		return
+	}
+	if unit.Writer != nil {
+		if file, ok := unit.Writer.(*os.File); ok && file != nil {
+			if unit.Error != nil {
+				os.Remove(file.Name())
+				unit.Writer = nil
+			}
+
+			l := msg
+			l.Text = file.Name()
+			progCh <- l
+		}
 	}
 }
 
-func (u *DownloadUnit) GetTitle() string {
-	if f, ok := u.Writer.(*os.File); ok && f != nil {
+func (unit *Unit) GetTitle() string {
+	if f, ok := unit.Writer.(*os.File); ok && f != nil {
 		return f.Name()
 	}
 	return "no title"
 }
 
-func (unit *DownloadUnit) GetError() error {
+func (unit *Unit) GetError() error {
 	return unit.Error
 }
 
-func (c *Client) NewUnit(w io.Writer, channel, vodID, quality string, start, end time.Duration) (*DownloadUnit, error) {
+func (c *Client) NewUnit(w io.Writer, channel, vodID, quality string, start, end time.Duration) (*Unit, error) {
 	masterURL, err := c.GetMasterPlaylistURL(channel, vodID)
 	if err != nil {
 		return nil, err
@@ -57,7 +69,7 @@ func (c *Client) NewUnit(w io.Writer, channel, vodID, quality string, start, end
 		return nil, err
 	}
 
-	return &DownloadUnit{
+	return &Unit{
 		MasterURL: &masterURL,
 		Playlist:  playlist,
 		Writer:    w,
@@ -67,7 +79,7 @@ func (c *Client) NewUnit(w io.Writer, channel, vodID, quality string, start, end
 	}, nil
 }
 
-func (unit *DownloadUnit) Close() error {
+func (unit Unit) Close() error {
 	return unit.Writer.(io.Closer).Close()
 }
 
@@ -78,7 +90,7 @@ type segmentJob struct {
 	err   error
 }
 
-func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
+func (c *Client) Download(ctx context.Context, unit *Unit) error {
 	if unit.MasterURL == nil {
 		return errors.New("masterURL is not set. It is used for extracting base URL for building segment URLs")
 	}
@@ -126,6 +138,7 @@ func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
 					if err != nil {
 						job.err = err
 					}
+
 					resp, err := c.client.Do(req)
 					if err != nil {
 						job.err = err
@@ -182,7 +195,7 @@ func (c *Client) Download(ctx context.Context, unit *DownloadUnit) error {
 						log.Fatal(err)
 					}
 					msg := spinner.ChannelMessage{Bytes: int64(n)}
-					unit.NotifyProgressChannel(msg, c.progressCh)
+					unit.NotifyProgressChannel(msg, c.progCh)
 				} else {
 					break
 				}

@@ -91,5 +91,6 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	if err := tw.decodeJSONResponse(resp, &v); err != nil {
 		return err
 	}
+
 	return nil
 }
