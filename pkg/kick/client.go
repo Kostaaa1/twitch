@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
@@ -68,7 +69,7 @@ type VideoMetadata struct {
 	SessionTitle string      `json:"session_title"`
 	Slug         string      `json:"slug"`
 	Source       string      `json:"source"`
-	StartTime    time.Time   `json:"start_time"`
+	StartTime    Datetime    `json:"start_time"`
 	Tags         []string    `json:"tags"`
 	Thumbnail    struct {
 		Src    string `json:"src"`
@@ -78,6 +79,21 @@ type VideoMetadata struct {
 	Video         Video       `json:"video"`
 	ViewerCount   int         `json:"viewer_count"`
 	Views         int         `json:"views"`
+}
+
+type Datetime struct {
+	time.Time
+}
+
+func (d *Datetime) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	layout := "2006-01-02 15:04:05"
+	t, err := time.Parse(layout, s)
+	if err != nil {
+		return err
+	}
+	d.Time = t
+	return nil
 }
 
 func setDefaultHeaders(req *http.Request) {

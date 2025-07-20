@@ -1,7 +1,6 @@
 package kick
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,8 +17,8 @@ import (
 )
 
 type Unit struct {
-	MasterURL *string
-	Playlist  *m3u8.MediaPlaylist
+	MasterURL string
+	Playlist  m3u8.MediaPlaylist
 
 	Writer io.Writer
 
@@ -90,7 +89,7 @@ type segmentJob struct {
 	err   error
 }
 
-func (c *Client) Download(ctx context.Context, unit *Unit) error {
+func (c *Client) Download() error {
 	if unit.MasterURL == nil {
 		return errors.New("masterURL is not set. It is used for extracting base URL for building segment URLs")
 	}
@@ -98,12 +97,14 @@ func (c *Client) Download(ctx context.Context, unit *Unit) error {
 	jobsChan := make(chan segmentJob, 16)
 	resultsChan := make(chan segmentJob, 16)
 
-	basePath := strings.TrimSuffix(*unit.MasterURL, "master.m3u8")
+	masterURL := "https://stream.kick.com/ivs/v1/196233775518/BqIVEMfsiezg/2025/7/12/19/40/Xozj3KO8N7BW/media/hls/master.m3u8"
+	c.client.Get(masterURL)
+	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
 
 	go func() {
 		for i, seg := range unit.Playlist.Segments {
 			if strings.HasSuffix(seg.URL, ".ts") {
-				fullSegURL, _ := url.JoinPath(basePath, unit.Quality, seg.URL)
+				fullSegURL, _ := url.JoinPath(basePath, "1080", seg.URL)
 				select {
 				case <-ctx.Done():
 					return

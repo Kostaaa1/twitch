@@ -79,33 +79,22 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 				}
 				channelData = data
 			}
-
-			if channelData != nil {
-				// video.StartTime //
-				// video.StartTime.Year()
-				// video.StartTime.Year()
-				// // https://stream.kick.com/ivs/v1/196233775518/BqIVEMfsiezg/2025/7/18/20/21/Bq7iAn01hQIX/media/hls/master.m3u8
-				// // filepath.Join("", channelData.CustomerID, video.StartTime.Year())
-				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8", channelData.CustomerID, video.StartTime.Year(), video.StartTime.Month(), video.StartTime.Day(), video.StartTime.Hour(), video.StartTime.Minute(), channelData.ContentID)
-				fmt.Println("URL: ", video.Source)
+			if channelData != nil && video.Thumbnail.Src != "" {
+				vodSig := getVideoSignature(video.Thumbnail.Src)
+				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8", channelData.CustomerID, channelData.ContentID, video.StartTime.Year(), video.StartTime.Month(), video.StartTime.Day(), video.StartTime.Hour(), video.StartTime.Minute(), vodSig)
 			}
+			fmt.Println(video.Source)
 		}
 	}
 
 	return videos, nil
 }
 
-// func (c *Client) handleVodSource(channel string, videos []*VideoMetadata) {
-// 	channel, err := c.Channel(channel)
-// 	for _, video := range videos {
-// 		if video.Source == "" {
-// 		}
-// 	}
-// }
-
-// func getUserVideoIDs() (contentId, customerId string) {
-// url := "http://kick.com/api/v2/"
-// }
+func getVideoSignature(thumbnailURL string) string {
+	parsed, _ := url.Parse(thumbnailURL)
+	parts := strings.Split(parsed.Path, "/")
+	return parts[len(parts)-2]
+}
 
 type Video struct {
 	CreatedAt         time.Time   `json:"created_at"`
@@ -259,7 +248,7 @@ func (c *Client) Channel(channel string) (*Channel, error) {
 	}
 
 	if data.PlaybackURL != "" {
-		data.ContentID, data.CustomerID = getChannelPlaybackSignatures(data.PlaybackURL)
+		data.CustomerID, data.ContentID = getChannelPlaybackSignatures(data.PlaybackURL)
 	}
 
 	return &data, nil
