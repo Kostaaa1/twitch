@@ -21,6 +21,7 @@ type Option struct {
 	Start   time.Duration `json:"start"`
 	End     time.Duration `json:"end"`
 
+	Set      bool
 	Threads  int
 	Category string
 	Channel  string

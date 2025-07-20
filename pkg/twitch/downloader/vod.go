@@ -126,6 +126,7 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 					if err != nil {
 						return fmt.Errorf("error writing segment: %v", err)
 					}
+
 					msg := spinner.ChannelMessage{Bytes: int64(n)}
 					mu.NotifyProgressChannel(msg, dl.progressCh)
 				} else {

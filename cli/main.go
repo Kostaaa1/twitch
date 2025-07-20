@@ -41,6 +41,7 @@ func init() {
 	flag.DurationVar(&option.Start, "start", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs.")
 	flag.DurationVar(&option.End, "end", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs.")
 	flag.IntVar(&option.Threads, "threads", 0, "Number of parallel downloads (batch mode only).")
+	flag.BoolVar(&option.Set, "set", false, "Set a config field: key=value. (e.g. -set output=your_path")
 
 	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name.")
 
@@ -67,6 +68,11 @@ func main() {
 	}
 
 	client := twitch.NewClient(httpClient, &conf.Creds)
+
+	// setting config fields
+	if option.Set {
+		conf.Downloader.Output = option.Output
+	}
 
 	if option.Authorize {
 		client.Authorize()

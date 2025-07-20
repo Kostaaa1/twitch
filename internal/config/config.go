@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -139,24 +140,27 @@ func initConfigData() Config {
 	}
 }
 
-// TODO: improve this
 func getConfigPath() (string, error) {
-	configPath := os.Getenv("TWITCH_CONFIG_PATH")
+	filename := "config.json"
 
-	if configPath == "" {
-		execPath, err := os.Executable()
-		if err != nil || strings.HasPrefix(execPath, "/tmp") {
-			wd, err := os.Getwd()
-			if err != nil {
-				return "", err
-			}
-			return filepath.Join(wd, "twitch_config.json"), err
+	execPath, err := os.Executable()
+	if err == nil && strings.HasPrefix(execPath, os.TempDir()) {
+		if wd, err := os.Getwd(); err == nil {
+			return filepath.Join(wd, filename), nil
 		}
-		execDir := filepath.Dir(execPath)
-		configPath = filepath.Join(execDir, "twitch_config.json")
 	}
 
-	return configPath, nil
+	configDir, err := os.UserConfigDir()
+	if err == nil {
+		cfgPath := filepath.Join(configDir, "twitch", filename)
+		return cfgPath, nil
+	}
+
+	if envPath := os.Getenv("TWITCH_CONFIG"); envPath != "" {
+		return envPath, nil
+	}
+
+	return "", errors.New("config file path not found")
 }
 
 func (conf *Config) Save() error {
@@ -168,10 +172,12 @@ func (conf *Config) Save() error {
 	if _, err := os.Stat(fpath); err != nil {
 		return err
 	}
+
 	b, err := json.MarshalIndent(conf, "", " ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config bytes: %v\n", err)
 	}
+
 	return os.WriteFile(fpath, b, 0644)
 }
 
@@ -209,6 +215,7 @@ func Get() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}

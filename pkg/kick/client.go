@@ -19,6 +19,8 @@ func (c *Client) SetProgressChannel(progCh chan spinner.ChannelMessage) {
 	c.progCh = progCh
 }
 
+// thumbnail-sh
+
 func NewClient() *Client {
 	transport := &http.Transport{
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -66,7 +68,7 @@ type VideoMetadata struct {
 	SessionTitle string      `json:"session_title"`
 	Slug         string      `json:"slug"`
 	Source       string      `json:"source"`
-	StartTime    string      `json:"start_time"`
+	StartTime    time.Time   `json:"start_time"`
 	Tags         []string    `json:"tags"`
 	Thumbnail    struct {
 		Src    string `json:"src"`

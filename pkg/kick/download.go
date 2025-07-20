@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/m3u8"
+	"github.com/Kostaaa1/twitch/pkg/m3u8"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
