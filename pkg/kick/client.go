@@ -2,6 +2,7 @@ package kick
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -14,9 +15,11 @@ import (
 type Client struct {
 	client *http.Client
 	progCh chan spinner.ChannelMessage
+	ctx    context.Context
 }
 
 func (c *Client) SetProgressChannel(progCh chan spinner.ChannelMessage) {
+	fmt.Println("setting progress channel")
 	c.progCh = progCh
 }
 

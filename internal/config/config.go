@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	_ "embed"
 
@@ -143,22 +142,23 @@ func initConfigData() Config {
 func getConfigPath() (string, error) {
 	filename := "config.json"
 
-	execPath, err := os.Executable()
-	if err == nil && strings.HasPrefix(execPath, os.TempDir()) {
-		if wd, err := os.Getwd(); err == nil {
-			return filepath.Join(wd, filename), nil
-		}
+	// execPath, err := os.Executable()
+	// if err == nil && strings.HasPrefix(execPath, os.TempDir()) {
+	// if strings.HasPrefix(execPath, os.TempDir()) {
+	if wd, err := os.Getwd(); err == nil {
+		return filepath.Join(wd, filename), nil
 	}
+	// }
 
-	configDir, err := os.UserConfigDir()
-	if err == nil {
-		cfgPath := filepath.Join(configDir, "twitch", filename)
-		return cfgPath, nil
-	}
+	// configDir, err := os.UserConfigDir()
+	// if err == nil {
+	// 	cfgPath := filepath.Join(configDir, "twitch", filename)
+	// 	return cfgPath, nil
+	// }
 
-	if envPath := os.Getenv("TWITCH_CONFIG"); envPath != "" {
-		return envPath, nil
-	}
+	// if envPath := os.Getenv("TWITCH_CONFIG"); envPath != "" {
+	// 	return envPath, nil
+	// }
 
 	return "", errors.New("config file path not found")
 }

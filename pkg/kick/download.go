@@ -1,7 +1,7 @@
 package kick
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -17,69 +17,50 @@ import (
 )
 
 type Unit struct {
-	MasterURL string
-	Playlist  m3u8.MediaPlaylist
-
-	Writer io.Writer
-
-	Quality string
+	URL     string
+	W       io.Writer
 	Start   time.Duration
 	End     time.Duration
+	Quality string
 	Error   error
 }
 
-func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progCh chan spinner.ChannelMessage) {
-	if progCh == nil {
-		return
-	}
-	if unit.Writer != nil {
-		if file, ok := unit.Writer.(*os.File); ok && file != nil {
-			if unit.Error != nil {
-				os.Remove(file.Name())
-				unit.Writer = nil
-			}
-
-			l := msg
-			l.Text = file.Name()
-			progCh <- l
-		}
-	}
+func (u Unit) GetError() error {
+	return u.Error
 }
 
-func (unit *Unit) GetTitle() string {
-	if f, ok := unit.Writer.(*os.File); ok && f != nil {
+func (u Unit) GetTitle() string {
+	if f, ok := u.W.(*os.File); ok && f != nil {
 		return f.Name()
 	}
-	return "no title"
+	return ""
 }
 
-func (unit *Unit) GetError() error {
-	return unit.Error
-}
-
-func (c *Client) NewUnit(w io.Writer, channel, vodID, quality string, start, end time.Duration) (*Unit, error) {
-	masterURL, err := c.GetMasterPlaylistURL(channel, vodID)
-	if err != nil {
-		return nil, err
+func (u *Unit) CloseWriter() error {
+	if f, ok := u.W.(*os.File); ok && f != nil {
+		if u.Error != nil {
+			os.Remove(f.Name())
+		}
+		return f.Close()
 	}
-
-	playlist, err := c.GetMediaPlaylist(masterURL, quality)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Unit{
-		MasterURL: &masterURL,
-		Playlist:  playlist,
-		Writer:    w,
-		Quality:   quality,
-		Start:     start,
-		End:       end,
-	}, nil
+	return nil
 }
 
-func (unit Unit) Close() error {
-	return unit.Writer.(io.Closer).Close()
+func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
+	if progressCh == nil {
+		return
+	}
+	if unit.W != nil {
+		if file, ok := unit.W.(*os.File); ok && file != nil {
+			if unit.Error != nil {
+				os.Remove(file.Name())
+				unit.W = nil
+			}
+			l := msg
+			l.Text = file.Name()
+			progressCh <- l
+		}
+	}
 }
 
 type segmentJob struct {
@@ -89,22 +70,36 @@ type segmentJob struct {
 	err   error
 }
 
-func (c *Client) Download() error {
-	if unit.MasterURL == nil {
-		return errors.New("masterURL is not set. It is used for extracting base URL for building segment URLs")
+func (c *Client) Download(ctx context.Context, unit Unit) error {
+	masterURL, err := c.MasterPlaylistURL(unit.URL)
+	if err != nil {
+		return fmt.Errorf("failed to get m3u8 master URL: %s", err.Error())
 	}
+
+	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
+	playlistURL := basePath + unit.Quality + "/playlist.m3u8"
+
+	res, err := c.client.Get(playlistURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch media playlist: %s", err.Error())
+	}
+	defer res.Body.Close()
+
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to io.ReadAll(): %s", err.Error())
+	}
+
+	playlist := m3u8.ParseMediaPlaylist(b)
+	// playlist.TruncateSegments(start, end)
 
 	jobsChan := make(chan segmentJob, 16)
 	resultsChan := make(chan segmentJob, 16)
 
-	masterURL := "https://stream.kick.com/ivs/v1/196233775518/BqIVEMfsiezg/2025/7/12/19/40/Xozj3KO8N7BW/media/hls/master.m3u8"
-	c.client.Get(masterURL)
-	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
-
 	go func() {
-		for i, seg := range unit.Playlist.Segments {
+		for i, seg := range playlist.Segments {
 			if strings.HasSuffix(seg.URL, ".ts") {
-				fullSegURL, _ := url.JoinPath(basePath, "1080", seg.URL)
+				fullSegURL, _ := url.JoinPath(basePath, unit.Quality, seg.URL)
 				select {
 				case <-ctx.Done():
 					return
@@ -118,7 +113,7 @@ func (c *Client) Download() error {
 		close(jobsChan)
 	}()
 
-	const maxWorkers = 8
+	const maxWorkers = 16
 	var wg sync.WaitGroup
 
 	for i := 0; i < maxWorkers; i++ {
@@ -139,18 +134,19 @@ func (c *Client) Download() error {
 					if err != nil {
 						job.err = err
 					}
+					// setDefaultHeaders(req)
 
-					resp, err := c.client.Do(req)
+					res, err := c.client.Do(req)
 					if err != nil {
+						fmt.Println(err)
 						job.err = err
 					}
 
-					b, err := io.ReadAll(resp.Body)
-					resp.Body.Close()
+					b, err := io.ReadAll(res.Body)
+					res.Body.Close()
 					if err != nil {
 						job.err = err
 					}
-
 					job.data = b
 					job.err = nil
 
@@ -191,10 +187,11 @@ func (c *Client) Download() error {
 					delete(segmentBuffer, nextIndexToWrite)
 					nextIndexToWrite++
 
-					n, err := unit.Writer.Write(job.data)
+					n, err := unit.W.Write(job.data)
 					if err != nil {
 						log.Fatal(err)
 					}
+
 					msg := spinner.ChannelMessage{Bytes: int64(n)}
 					unit.NotifyProgressChannel(msg, c.progCh)
 				} else {

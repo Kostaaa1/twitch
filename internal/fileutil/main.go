@@ -64,5 +64,6 @@ func CreateFile(dir, filename, ext string) (*os.File, error) {
 		fmt.Println(err)
 		return nil, err
 	}
+
 	return f, nil
 }

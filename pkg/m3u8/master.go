@@ -27,7 +27,7 @@ func Master(fetchedPlaylist []byte) *MasterPlaylist {
 	master := &MasterPlaylist{
 		Serialized: string(fetchedPlaylist),
 	}
-	master.Parse()
+	master.parse()
 	return master
 }
 
@@ -159,7 +159,7 @@ func (m *MasterPlaylist) parseLineInfo(line string) {
 	}
 }
 
-func (m *MasterPlaylist) Parse() {
+func (m *MasterPlaylist) parse() {
 	lines := strings.Split(m.Serialized, "\n")
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])

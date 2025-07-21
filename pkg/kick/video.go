@@ -13,14 +13,26 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
 )
 
-func (c *Client) GetMasterPlaylistURL(channel, vodID string) (string, error) {
+func (c *Client) MasterPlaylistURL(vodURL string) (string, error) {
+	parsed, err := url.Parse(vodURL)
+	if err != nil {
+		return "", err
+	}
+
+	parts := strings.Split(parsed.Path, "/")
+
+	channel := parts[1]
+	// mediaType := parts[2]
+	vodUUID := parts[3]
+	// validate uuid
+
 	videos, err := c.Videos(channel)
 	if err != nil {
 		return "", err
 	}
 
 	for _, data := range videos {
-		if data.Video.UUID == vodID {
+		if data.Video.UUID == vodUUID {
 			return data.Source, nil
 		}
 	}
@@ -58,7 +70,7 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		fmt.Printf("Request failed: %v\n", err)
+		fmt.Printf("Request failed: %s\n", err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -81,9 +93,16 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 			}
 			if channelData != nil && video.Thumbnail.Src != "" {
 				vodSig := getVideoSignature(video.Thumbnail.Src)
-				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8", channelData.CustomerID, channelData.ContentID, video.StartTime.Year(), video.StartTime.Month(), video.StartTime.Day(), video.StartTime.Hour(), video.StartTime.Minute(), vodSig)
+				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8",
+					channelData.CustomerID,
+					channelData.ContentID,
+					video.StartTime.Year(),
+					video.StartTime.Month(),
+					video.StartTime.Day(),
+					video.StartTime.Hour(),
+					video.StartTime.Minute(),
+					vodSig)
 			}
-			fmt.Println(video.Source)
 		}
 	}
 

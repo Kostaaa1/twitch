@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
+	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/Kostaaa1/twitch/pkg/twitch/event"
 )
@@ -65,16 +67,12 @@ func (p *Option) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewFile(dl *downloader.Downloader, unit *downloader.Unit, output string) (*os.File, error) {
+func NewFile(fileName string, quality downloader.QualityType, output string) (*os.File, error) {
 	if output == "" {
 		return nil, errors.New("output path not provided")
 	}
-	fileName, err := dl.MediaTitle(unit.ID, unit.Type)
-	if err != nil {
-		return nil, err
-	}
 	ext := "mp4"
-	if strings.HasPrefix(unit.Quality.String(), "audio") {
+	if strings.HasPrefix(quality.String(), "audio") {
 		ext = "mp3"
 	}
 	return fileutil.CreateFile(output, fileName, ext)
@@ -107,7 +105,7 @@ func level(main, fallback *Option) {
 	}
 }
 
-func (opt Option) getUnitsFromFileInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+func (opt Option) getUnitsFromFileInput(dl *downloader.Downloader, withWriter bool) ([]downloader.Unit, []kick.Unit) {
 	_, err := os.Stat(opt.Input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
@@ -123,65 +121,79 @@ func (opt Option) getUnitsFromFileInput(dl *downloader.Downloader, withWriter bo
 		log.Fatal(err)
 	}
 
-	units := make([]downloader.Unit, len(inputUnits))
+	var twitchUnits []downloader.Unit
+	var kickUnits []kick.Unit
 
-	for i, u := range inputUnits {
+	for _, u := range inputUnits {
 		level(&u, &opt)
-		unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
-		if unit.Error == nil && withWriter {
-			unit.Writer, unit.Error = NewFile(dl, unit, u.Output)
-			units[i] = *unit
+
+		if strings.Contains(u.Input, "kick.com") {
+			kickUnit := kick.Unit{}
+			kickUnits = append(kickUnits, kickUnit)
+		} else {
+			unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
+			if unit.Error == nil && withWriter {
+				filename, err := dl.MediaTitle(unit.ID, unit.Type)
+				if err != nil {
+					log.Fatal(err)
+				}
+				unit.Writer, unit.Error = NewFile(filename, unit.Quality, u.Output)
+				twitchUnits = append(twitchUnits, *unit)
+				// units[i] = *unit
+			}
 		}
+
 	}
 
-	return units
+	return twitchUnits, kickUnits
 }
 
-func (opt Option) getUnitsFromFlagInput(dl *downloader.Downloader, withWriter bool) []downloader.Unit {
+func (opt Option) getUnitsFromFlagInput(dl *downloader.Downloader, withWriter bool) ([]downloader.Unit, []kick.Unit) {
 	inputs := strings.Split(opt.Input, ",")
-	units := make([]downloader.Unit, len(inputs))
+
+	var twitchUnits []downloader.Unit
+	var kickUnits []kick.Unit
 
 	for i, input := range inputs {
-		unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
-		if withWriter && unit.Error == nil {
-			unit.Writer, unit.Error = NewFile(dl, unit, opt.Output)
+		if strings.Contains(input, "kick.com") {
+			path := filepath.Join(opt.Output, fmt.Sprintf("%d.mp4", i))
+			f, err := os.Create(path)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			kickUnit := kick.Unit{URL: input, W: f, Quality: "1080p60"}
+			kickUnits = append(kickUnits, kickUnit)
+		} else {
+			unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
+			if withWriter && unit.Error == nil {
+				filename, err := dl.MediaTitle(unit.ID, unit.Type)
+				if err != nil {
+					log.Fatal(err)
+				}
+				unit.Writer, unit.Error = NewFile(filename, unit.Quality, opt.Output)
+			}
+			twitchUnits = append(twitchUnits, *unit)
 		}
-		units[i] = *unit
 	}
 
-	return units
+	return twitchUnits, kickUnits
 }
 
-func (opts Option) GetUnitsFromInputWithWriter(dl *downloader.Downloader) []downloader.Unit {
+func (opts Option) UnitsFromInput(dl *downloader.Downloader, createNewUnitWriter bool) ([]downloader.Unit, []kick.Unit) {
 	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
 
-	var units []downloader.Unit
+	var twitchUnits []downloader.Unit
+	var kickUnits []kick.Unit
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		units = opts.getUnitsFromFlagInput(dl, true)
+		twitchUnits, kickUnits = opts.getUnitsFromFlagInput(dl, createNewUnitWriter)
 	} else {
-		units = opts.getUnitsFromFileInput(dl, true)
+		twitchUnits, kickUnits = opts.getUnitsFromFileInput(dl, createNewUnitWriter)
 	}
 
-	return units
-}
-
-func (opts Option) GetUnitsFromInput(dl *downloader.Downloader) []downloader.Unit {
-	if opts.Input == "" {
-		log.Fatalf("Input was not provided.")
-	}
-
-	var units []downloader.Unit
-
-	_, err := os.Stat(opts.Input)
-	if os.IsNotExist(err) {
-		units = opts.getUnitsFromFlagInput(dl, false)
-	} else {
-		units = opts.getUnitsFromFileInput(dl, false)
-	}
-
-	return units
+	return twitchUnits, kickUnits
 }
