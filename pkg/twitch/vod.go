@@ -77,11 +77,19 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 }
 
 func (tw *Client) FetchAndParseMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
-	b, err := tw.fetch(variant.URL)
+	// b, err := tw.fetch(variant.URL)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	resp, err := tw.httpClient.Get(variant.URL)
 	if err != nil {
 		return nil, err
 	}
-	parsed := m3u8.ParseMediaPlaylist(b)
+	defer resp.Body.Close()
+
+	parsed := m3u8.ParseMediaPlaylist(resp.Body)
+
 	return &parsed, nil
 }
 

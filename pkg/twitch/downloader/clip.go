@@ -10,30 +10,35 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
-func (dl *Downloader) downloadClip(mu Unit) error {
-	clip, err := dl.TWApi.ClipMetadata(mu.ID)
+func (dl *Downloader) downloadClip(unit Unit) error {
+	clip, err := dl.twClient.ClipMetadata(unit.ID)
 	if err != nil {
 		return err
 	}
 
-	usherURL, err := dl.ClipVideoURL(clip, mu.Quality.String())
+	usherURL, err := dl.ClipVideoURL(clip, unit.Quality.String())
 	if err != nil {
 		return err
 	}
 
-	var writtenBytes int64
-	if mu.Quality == QualityAudioOnly {
-		writtenBytes, err = extractAudio(usherURL, mu.Writer)
+	var n int64
+	if unit.Quality == QualityAudioOnly {
+		n, err = extractAudio(usherURL, unit.Writer)
 	} else {
-		writtenBytes, err = dl.download(usherURL, mu.Writer)
+		res, err := dl.twClient.HTTPClient().Get(usherURL)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		n, err = io.Copy(unit.Writer, res.Body)
 	}
 
 	if err != nil {
 		return err
 	}
 
-	msg := spinner.ChannelMessage{Bytes: writtenBytes}
-	mu.NotifyProgressChannel(msg, dl.progressCh)
+	msg := spinner.ChannelMessage{Bytes: n}
+	unit.NotifyProgressChannel(msg, dl.progressCh)
 
 	return nil
 }
@@ -67,7 +72,7 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 
 func (dl *Downloader) ClipVideoURL(clip twitch.Clip, quality string) (string, error) {
 	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, quality)
-	usherURL, err := dl.TWApi.ConstructUsherURL(clip.PlaybackAccessToken, sourceURL)
+	usherURL, err := dl.twClient.ConstructUsherURL(clip.PlaybackAccessToken, sourceURL)
 	if err != nil {
 		return "", err
 	}

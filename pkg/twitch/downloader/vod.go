@@ -2,7 +2,7 @@ package downloader
 
 import (
 	"fmt"
-	"log"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,20 +18,20 @@ type segmentJob struct {
 }
 
 // TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
-func (dl *Downloader) downloadVOD(mu Unit) error {
-	master, err := dl.TWApi.MasterPlaylistVOD(mu.ID)
+func (dl *Downloader) downloadVOD(unit Unit) error {
+	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
 	if err != nil {
 		return err
 	}
-	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
+	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.TWApi.FetchAndParseMediaPlaylist(variant)
+	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant)
 	if err != nil {
 		return err
 	}
-	playlist.TruncateSegments(mu.Start, mu.End)
+	playlist.TruncateSegments(unit.Start, unit.End)
 
 	jobsChan := make(chan segmentJob)
 	resultsChan := make(chan segmentJob)
@@ -70,6 +70,7 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 						return
 					}
 
+					// TODO: test this.. 403 when fetching segments that have unmuted or muted...
 					status, data, err := dl.fetchWithStatus(job.url)
 					if status == http.StatusForbidden {
 						switch {
@@ -122,13 +123,13 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 					delete(segmentBuffer, nextIndexToWrite)
 					nextIndexToWrite++
 
-					n, err := mu.Writer.Write(job.data)
+					n, err := unit.Writer.Write(job.data)
 					if err != nil {
 						return fmt.Errorf("error writing segment: %v", err)
 					}
 
 					msg := spinner.ChannelMessage{Bytes: int64(n)}
-					mu.NotifyProgressChannel(msg, dl.progressCh)
+					unit.NotifyProgressChannel(msg, dl.progressCh)
 				} else {
 					break
 				}
@@ -137,33 +138,39 @@ func (dl *Downloader) downloadVOD(mu Unit) error {
 	}
 }
 
-func (mu Unit) StreamVOD(dl *Downloader) error {
-	master, err := dl.TWApi.MasterPlaylistVOD(mu.ID)
+func (unit Unit) StreamVOD(dl *Downloader) error {
+	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
 	if err != nil {
 		return err
 	}
-	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
+	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.TWApi.FetchAndParseMediaPlaylist(variant)
+	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant)
 	if err != nil {
 		return err
 	}
-
-	playlist.TruncateSegments(mu.Start, mu.End)
+	playlist.TruncateSegments(unit.Start, unit.End)
 
 	for _, seg := range playlist.Segments {
 		if strings.HasSuffix(seg.URL, ".ts") {
 			lastIndex := strings.LastIndex(variant.URL, "/")
 			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
-			n, err := dl.download(fullSegURL, mu.Writer)
+
+			resp, err := dl.twClient.HTTPClient().Get(fullSegURL)
 			if err != nil {
-				log.Fatal(err)
 				return err
 			}
+			defer resp.Body.Close()
+
+			n, err := io.Copy(unit.Writer, resp.Body)
+			if err != nil {
+				return err
+			}
+
 			msg := spinner.ChannelMessage{Bytes: n}
-			mu.NotifyProgressChannel(msg, dl.progressCh)
+			unit.NotifyProgressChannel(msg, dl.progressCh)
 		}
 	}
 

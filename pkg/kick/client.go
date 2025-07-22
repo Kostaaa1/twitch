@@ -2,7 +2,6 @@ package kick
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -19,11 +18,8 @@ type Client struct {
 }
 
 func (c *Client) SetProgressChannel(progCh chan spinner.ChannelMessage) {
-	fmt.Println("setting progress channel")
 	c.progCh = progCh
 }
-
-// thumbnail-sh
 
 func NewClient() *Client {
 	transport := &http.Transport{

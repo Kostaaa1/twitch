@@ -7,12 +7,10 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/Kostaaa1/twitch/web/server"
 	"github.com/Kostaaa1/twitch/web/views/components"
-	"github.com/dustin/go-humanize"
 	"github.com/gin-gonic/gin"
 )
 
@@ -67,79 +65,79 @@ func (s *Static) mediaInfo(c *gin.Context) {
 }
 
 func (s *Static) getVODData(slug string) (components.FormData, error) {
-	metadata, err := s.dl.TWApi.VideoMetadata(slug)
-	if err != nil {
-		return components.FormData{}, err
-	}
+	// metadata, err := s.dl.twClient.VideoMetadata(slug)
+	// if err != nil {
+	// 	return components.FormData{}, err
+	// }
 
-	master, err := s.dl.TWApi.MasterPlaylistVOD(slug)
-	if err != nil {
-		return components.FormData{}, err
-	}
+	// master, err := s.dl.twClient.MasterPlaylistVOD(slug)
+	// if err != nil {
+	// 	return components.FormData{}, err
+	// }
 
-	var qualities []components.Quality
-	for _, list := range master.Lists {
-		qualities = append(qualities, components.Quality{
-			Resolution: list.Resolution,
-			Value:      list.Video,
-		})
-	}
+	// var qualities []components.Quality
+	// for _, list := range master.Lists {
+	// 	qualities = append(qualities, components.Quality{
+	// 		Resolution: list.Resolution,
+	// 		Value:      list.Video,
+	// 	})
+	// }
 
-	duration := time.Duration(metadata.Video.LengthSeconds) * time.Second
+	// duration := time.Duration(metadata.Video.LengthSeconds) * time.Second
 
 	formData := components.FormData{
-		PreviewThumbnailURL: replaceImageDimension(metadata.Video.PreviewThumbnailURL, 1920, 1080),
-		ID:                  metadata.Video.ID,
-		Title:               metadata.Video.Title,
-		CreatedAt:           metadata.Video.CreatedAt,
-		Owner:               metadata.Video.Owner.DisplayName,
-		ViewCount:           humanize.Comma(metadata.Video.ViewCount),
-		Qualities:           qualities,
-		Duration:            duration.String(),
-		Type:                downloader.TypeVOD,
+		// PreviewThumbnailURL: replaceImageDimension(metadata.Video.PreviewThumbnailURL, 1920, 1080),
+		// ID:                  metadata.Video.ID,
+		// Title:               metadata.Video.Title,
+		// CreatedAt:           metadata.Video.CreatedAt,
+		// Owner:               metadata.Video.Owner.DisplayName,
+		// ViewCount:           humanize.Comma(metadata.Video.ViewCount),
+		// Qualities:           qualities,
+		// Duration:            duration.String(),
+		// Type:                downloader.TypeVOD,
 	}
 
 	return formData, nil
 }
 
 func (s *Static) getClipData(slug string) (components.FormData, error) {
-	clip, err := s.dl.TWApi.ClipMetadata(slug)
-	if err != nil {
-		return components.FormData{}, err
-	}
+	// clip, err := s.dl.twClient.ClipMetadata(slug)
+	// if err != nil {
+	// 	return components.FormData{}, err
+	// }
 
-	videoSrc, err := s.dl.ClipVideoURL(clip, "best")
-	if err != nil {
-		return components.FormData{}, err
-	}
+	// videoSrc, err := s.dl.ClipVideoURL(clip, "best")
+	// if err != nil {
+	// 	return components.FormData{}, err
+	// }
 
-	var qualities []components.Quality
-	for _, data := range clip.Assets[0].VideoQualities {
-		qualities = append(qualities, components.Quality{
-			Resolution: data.Quality,
-			Value:      data.Quality,
-		})
-	}
+	// var qualities []components.Quality
+	// for _, data := range clip.Assets[0].VideoQualities {
+	// 	qualities = append(qualities, components.Quality{
+	// 		Resolution: data.Quality,
+	// 		Value:      data.Quality,
+	// 	})
+	// }
 
-	qualities = append(qualities, components.Quality{
-		Resolution: "audio_only",
-		Value:      "audio_only",
-	})
+	// qualities = append(qualities, components.Quality{
+	// 	Resolution: "audio_only",
+	// 	Value:      "audio_only",
+	// })
 
-	duration := time.Duration(clip.DurationSeconds) * time.Second
+	// duration := time.Duration(clip.DurationSeconds) * time.Second
 
 	formData := components.FormData{
-		PreviewThumbnailURL: clip.Assets[0].ThumbnailURL,
-		VideoURL:            videoSrc,
-		ID:                  clip.Slug,
-		Title:               clip.Title,
-		CreatedAt:           clip.CreatedAt,
-		Owner:               clip.Broadcaster.DisplayName,
-		ViewCount:           humanize.Comma(clip.ViewCount),
-		Qualities:           qualities,
-		Duration:            duration.String(),
-		Curator:             clip.Curator,
-		Type:                downloader.TypeClip,
+		// 	PreviewThumbnailURL: clip.Assets[0].ThumbnailURL,
+		// 	VideoURL:            videoSrc,
+		// 	ID:                  clip.Slug,
+		// 	Title:               clip.Title,
+		// 	CreatedAt:           clip.CreatedAt,
+		// 	Owner:               clip.Broadcaster.DisplayName,
+		// 	ViewCount:           humanize.Comma(clip.ViewCount),
+		// 	Qualities:           qualities,
+		// 	Duration:            duration.String(),
+		// 	Curator:             clip.Curator,
+		// 	Type:                downloader.TypeClip,
 	}
 
 	return formData, nil

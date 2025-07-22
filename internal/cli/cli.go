@@ -12,8 +12,10 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/kick"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/Kostaaa1/twitch/pkg/twitch/event"
+	"github.com/google/uuid"
 )
 
 type Option struct {
@@ -78,14 +80,14 @@ func NewFile(fileName string, quality downloader.QualityType, output string) (*o
 	return fileutil.CreateFile(output, fileName, ext)
 }
 
-func EventsFromUnits(dl *downloader.Downloader, units []downloader.Unit) ([]event.Event, error) {
+func EventsFromUnits(tw *twitch.Client, units []downloader.Unit) ([]event.Event, error) {
 	var events []event.Event
 	for _, unit := range units {
 		if unit.Error != nil {
 			return nil, unit.Error
 		}
 		if unit.Type == downloader.TypeLivestream {
-			user, err := dl.TWApi.UserByChannelName(unit.ID)
+			user, err := tw.UserByChannelName(unit.ID)
 			if err != nil {
 				fmt.Println(err.Error())
 				continue
@@ -103,6 +105,10 @@ func level(main, fallback *Option) {
 	if main.Quality == "" && fallback.Quality != "" {
 		main.Quality = fallback.Quality
 	}
+}
+
+func isKick(input string) bool {
+	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
 func (opt Option) getUnitsFromFileInput(dl *downloader.Downloader, withWriter bool) ([]downloader.Unit, []kick.Unit) {
@@ -127,8 +133,14 @@ func (opt Option) getUnitsFromFileInput(dl *downloader.Downloader, withWriter bo
 	for _, u := range inputUnits {
 		level(&u, &opt)
 
-		if strings.Contains(u.Input, "kick.com") {
-			kickUnit := kick.Unit{}
+		if isKick(u.Input) {
+			kickUnit := kick.Unit{
+				URL:     u.Input,
+				Quality: downloader.Quality1080p60,
+				Start:   u.Start,
+				End:     u.End,
+			}
+			kickUnit.W, kickUnit.Error = NewFile(u.Input, kickUnit.Quality, u.Output)
 			kickUnits = append(kickUnits, kickUnit)
 		} else {
 			unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
@@ -155,14 +167,14 @@ func (opt Option) getUnitsFromFlagInput(dl *downloader.Downloader, withWriter bo
 	var kickUnits []kick.Unit
 
 	for i, input := range inputs {
-		if strings.Contains(input, "kick.com") {
+		if isKick(input) {
 			path := filepath.Join(opt.Output, fmt.Sprintf("%d.mp4", i))
 			f, err := os.Create(path)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			kickUnit := kick.Unit{URL: input, W: f, Quality: "1080p60"}
+			kickUnit := kick.Unit{URL: input, W: f, Quality: downloader.Quality1080p60}
 			kickUnits = append(kickUnits, kickUnit)
 		} else {
 			unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))

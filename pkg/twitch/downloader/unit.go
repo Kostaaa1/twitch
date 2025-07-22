@@ -38,6 +38,7 @@ func WithTimestamps(start, end time.Duration) UnitOption {
 }
 
 type Unit struct {
+	// ID can be: vod id, clip slug or channel name (livestream)
 	ID      string
 	Type    VideoType
 	Quality QualityType
@@ -209,19 +210,19 @@ func parseVodParams(u *url.URL, unit *Unit) error {
 func (dl *Downloader) MediaTitle(id string, vtype VideoType) (string, error) {
 	switch vtype {
 	case TypeVOD:
-		data, err := dl.TWApi.VideoMetadata(id)
+		data, err := dl.twClient.VideoMetadata(id)
 		if err != nil {
 			return "", err
 		}
 		return data.Video.Title, nil
 	case TypeClip:
-		data, err := dl.TWApi.ClipMetadata(id)
+		data, err := dl.twClient.ClipMetadata(id)
 		if err != nil {
 			return "", err
 		}
 		return data.Video.Title, nil
 	case TypeLivestream:
-		data, err := dl.TWApi.StreamMetadata(id)
+		data, err := dl.twClient.StreamMetadata(id)
 		if err != nil {
 			return "", err
 		}

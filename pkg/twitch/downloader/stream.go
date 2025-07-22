@@ -37,21 +37,22 @@ func (h *segmentHistory) Seen(url string) bool {
 	return false
 }
 
-func (dl *Downloader) recordStream(mu Unit) error {
-	isLive, err := dl.TWApi.IsChannelLive(mu.ID)
+func (dl *Downloader) recordStream(unit Unit) error {
+	isLive, err := dl.twClient.IsChannelLive(unit.ID)
 	if err != nil {
 		return err
 	}
+
 	if !isLive {
-		return fmt.Errorf("%s is offline", mu.ID)
+		return fmt.Errorf("%s is offline", unit.ID)
 	}
 
-	master, err := dl.TWApi.MasterPlaylistStream(mu.ID)
+	master, err := dl.twClient.MasterPlaylistStream(unit.ID)
 	if err != nil {
 		return err
 	}
 
-	variant, err := master.GetVariantPlaylistByQuality(mu.Quality.String())
+	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err
 	}
@@ -67,10 +68,11 @@ func (dl *Downloader) recordStream(mu Unit) error {
 		case <-dl.ctx.Done():
 			return nil
 		case <-time.After(1 * time.Second):
+			// TODO: improve this so it does not use io.ReadAll()
 			b, err := dl.fetch(variant.URL)
 			if err != nil {
 				msg := spinner.ChannelMessage{Error: errors.New("stream ended")}
-				mu.NotifyProgressChannel(msg, dl.progressCh)
+				unit.NotifyProgressChannel(msg, dl.progressCh)
 				return err
 			}
 
@@ -91,7 +93,7 @@ func (dl *Downloader) recordStream(mu Unit) error {
 							continue
 						}
 
-						// if segmentURL has 2394-unmuted.ts, this will give 403
+						// if segmentURL has *-unmuted.ts, this will give 403
 						// if strings.Contains(segURL, "unmuted") {
 						// 	segURL = strings.Replace(segURL, "unmuted", "muted", 1)
 						// }
@@ -101,13 +103,13 @@ func (dl *Downloader) recordStream(mu Unit) error {
 							return err
 						}
 
-						n, err := mu.Writer.Write(segmentBytes)
+						n, err := unit.Writer.Write(segmentBytes)
 						if err != nil {
 							log.Fatal(err)
 						}
 
 						msg := spinner.ChannelMessage{Bytes: int64(n)}
-						mu.NotifyProgressChannel(msg, dl.progressCh)
+						unit.NotifyProgressChannel(msg, dl.progressCh)
 						segHist.Add(segURL)
 					}
 				}

@@ -12,7 +12,7 @@ import (
 )
 
 type Downloader struct {
-	TWApi      *twitch.Client
+	twClient   *twitch.Client
 	progressCh chan spinner.ChannelMessage
 	config     Config
 	ctx        context.Context
@@ -28,9 +28,9 @@ type Config struct {
 
 func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader {
 	return &Downloader{
-		ctx:    ctx,
-		TWApi:  twClient,
-		config: conf,
+		ctx:      ctx,
+		twClient: twClient,
+		config:   conf,
 	}
 }
 
@@ -95,7 +95,7 @@ func (dl *Downloader) fetch(url string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
 
-	resp, err := dl.TWApi.HTTPClient().Do(req)
+	resp, err := dl.twClient.HTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get response: %w", err)
 	}
@@ -114,7 +114,7 @@ func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
 		return 0, nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
 
-	resp, err := dl.TWApi.HTTPClient().Do(req)
+	resp, err := dl.twClient.HTTPClient().Do(req)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to get response: %w", err)
 	}
@@ -132,21 +132,21 @@ func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
 	return http.StatusOK, b, err
 }
 
-func (dl *Downloader) download(url string, w io.Writer) (int64, error) {
-	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request with context: %v", err)
-	}
+// func (dl *Downloader) download(url string, w io.Writer) (int64, error) {
+// 	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to create request with context: %v", err)
+// 	}
 
-	resp, err := dl.TWApi.HTTPClient().Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get response: %w", err)
-	}
-	defer resp.Body.Close()
+// 	resp, err := dl.twClient.HTTPClient().Do(req)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to get response: %w", err)
+// 	}
+// 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
-	}
+// 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+// 		return 0, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
+// 	}
 
-	return io.Copy(w, resp.Body)
-}
+// 	return io.Copy(w, resp.Body)
+// }

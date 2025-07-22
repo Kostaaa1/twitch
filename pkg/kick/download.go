@@ -14,6 +14,20 @@ import (
 
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+)
+
+type QualityType int
+
+const (
+	QualityBest QualityType = iota
+	Quality1080p60
+	Quality720p60
+	Quality480p30
+	Quality360p30
+	Quality160p30
+	QualityWorst
+	QualityAudioOnly
 )
 
 type Unit struct {
@@ -21,7 +35,7 @@ type Unit struct {
 	W       io.Writer
 	Start   time.Duration
 	End     time.Duration
-	Quality string
+	Quality downloader.QualityType
 	Error   error
 }
 
@@ -63,6 +77,8 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh c
 	}
 }
 
+//////////////////
+
 type segmentJob struct {
 	index int
 	url   string
@@ -77,7 +93,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	}
 
 	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
-	playlistURL := basePath + unit.Quality + "/playlist.m3u8"
+	playlistURL := basePath + unit.Quality.String() + "/playlist.m3u8"
 
 	res, err := c.client.Get(playlistURL)
 	if err != nil {
@@ -85,13 +101,8 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	}
 	defer res.Body.Close()
 
-	b, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("failed to io.ReadAll(): %s", err.Error())
-	}
-
-	playlist := m3u8.ParseMediaPlaylist(b)
-	// playlist.TruncateSegments(start, end)
+	playlist := m3u8.ParseMediaPlaylist(res.Body)
+	playlist.TruncateSegments(unit.Start, unit.End)
 
 	jobsChan := make(chan segmentJob, 16)
 	resultsChan := make(chan segmentJob, 16)
@@ -99,7 +110,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	go func() {
 		for i, seg := range playlist.Segments {
 			if strings.HasSuffix(seg.URL, ".ts") {
-				fullSegURL, _ := url.JoinPath(basePath, unit.Quality, seg.URL)
+				fullSegURL, _ := url.JoinPath(basePath, unit.Quality.String(), seg.URL)
 				select {
 				case <-ctx.Done():
 					return
@@ -136,17 +147,18 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 					}
 					// setDefaultHeaders(req)
 
+					// TODO: bad?
 					res, err := c.client.Do(req)
 					if err != nil {
 						fmt.Println(err)
 						job.err = err
 					}
-
 					b, err := io.ReadAll(res.Body)
 					res.Body.Close()
 					if err != nil {
 						job.err = err
 					}
+
 					job.data = b
 					job.err = nil
 

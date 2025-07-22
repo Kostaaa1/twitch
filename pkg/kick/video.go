@@ -4,27 +4,33 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/m3u8"
+	"github.com/google/uuid"
 )
 
-func (c *Client) MasterPlaylistURL(vodURL string) (string, error) {
-	parsed, err := url.Parse(vodURL)
-	if err != nil {
-		return "", err
+func (c *Client) MasterPlaylistURL(input string) (string, error) {
+	channel, vodUUID := "", ""
+	// get channel name by input use /api/V1
+	if uuid.Validate(input) == nil {
+		data, err := c.V1Channel(input)
+		if err != nil {
+			return "", err
+		}
+		vodUUID = input
+		channel = data.Livestream.Channel.Slug
+	} else {
+		parsed, err := url.Parse(input)
+		if err != nil {
+			return "", err
+		}
+		parts := strings.Split(parsed.Path, "/")
+		channel = parts[1]
+		vodUUID = parts[3]
 	}
-
-	parts := strings.Split(parsed.Path, "/")
-
-	channel := parts[1]
-	// mediaType := parts[2]
-	vodUUID := parts[3]
-	// validate uuid
 
 	videos, err := c.Videos(channel)
 	if err != nil {
@@ -38,25 +44,6 @@ func (c *Client) MasterPlaylistURL(vodURL string) (string, error) {
 	}
 
 	return "", errors.New("master.m3u8 not found")
-}
-
-func (c *Client) GetMediaPlaylist(masterURL, quality string) (*m3u8.MediaPlaylist, error) {
-	mediaURL := strings.Replace(masterURL, "master.m3u8", fmt.Sprintf("%s/%s", quality, "playlist.m3u8"), 1)
-	fmt.Println(mediaURL)
-
-	resp, err := c.client.Get(mediaURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	playlist := m3u8.ParseMediaPlaylist(b)
-	return &playlist, nil
 }
 
 func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
@@ -280,4 +267,110 @@ func getChannelPlaybackSignatures(playbackURL string) (string, string) {
 		return parts[1], parts[3]
 	}
 	return "", ""
+}
+
+type V1Channel struct {
+	ID                int         `json:"id"`
+	LiveStreamID      int         `json:"live_stream_id"`
+	Slug              interface{} `json:"slug"`
+	Thumb             interface{} `json:"thumb"`
+	S3                interface{} `json:"s3"`
+	TradingPlatformID interface{} `json:"trading_platform_id"`
+	CreatedAt         time.Time   `json:"created_at"`
+	UpdatedAt         time.Time   `json:"updated_at"`
+	UUID              string      `json:"uuid"`
+	Views             int         `json:"views"`
+	DeletedAt         interface{} `json:"deleted_at"`
+	IsPruned          bool        `json:"is_pruned"`
+	IsPrivate         bool        `json:"is_private"`
+	Status            string      `json:"status"`
+	Source            string      `json:"source"`
+	Livestream        struct {
+		ID            int         `json:"id"`
+		Slug          string      `json:"slug"`
+		ChannelID     int         `json:"channel_id"`
+		CreatedAt     string      `json:"created_at"`
+		SessionTitle  string      `json:"session_title"`
+		IsLive        bool        `json:"is_live"`
+		RiskLevelID   interface{} `json:"risk_level_id"`
+		StartTime     time.Time   `json:"start_time"`
+		Source        interface{} `json:"source"`
+		TwitchChannel interface{} `json:"twitch_channel"`
+		Duration      int         `json:"duration"`
+		Language      string      `json:"language"`
+		IsMature      bool        `json:"is_mature"`
+		ViewerCount   int         `json:"viewer_count"`
+		Tags          []string    `json:"tags"`
+		Thumbnail     string      `json:"thumbnail"`
+		Channel       struct {
+			ID                  int         `json:"id"`
+			UserID              int         `json:"user_id"`
+			Slug                string      `json:"slug"`
+			IsBanned            bool        `json:"is_banned"`
+			PlaybackURL         string      `json:"playback_url"`
+			NameUpdatedAt       interface{} `json:"name_updated_at"`
+			VodEnabled          bool        `json:"vod_enabled"`
+			SubscriptionEnabled bool        `json:"subscription_enabled"`
+			IsAffiliate         bool        `json:"is_affiliate"`
+			FollowersCount      int         `json:"followersCount"`
+			User                struct {
+				Profilepic string `json:"profilepic"`
+				Bio        string `json:"bio"`
+				Twitter    string `json:"twitter"`
+				Facebook   string `json:"facebook"`
+				Instagram  string `json:"instagram"`
+				Youtube    string `json:"youtube"`
+				Discord    string `json:"discord"`
+				Tiktok     string `json:"tiktok"`
+				Username   string `json:"username"`
+			} `json:"user"`
+			CanHost  bool `json:"can_host"`
+			Verified struct {
+				ID        int       `json:"id"`
+				ChannelID int       `json:"channel_id"`
+				CreatedAt time.Time `json:"created_at"`
+				UpdatedAt time.Time `json:"updated_at"`
+			} `json:"verified"`
+		} `json:"channel"`
+		Categories []struct {
+			ID          int         `json:"id"`
+			CategoryID  int         `json:"category_id"`
+			Name        string      `json:"name"`
+			Slug        string      `json:"slug"`
+			Tags        []string    `json:"tags"`
+			Description interface{} `json:"description"`
+			DeletedAt   interface{} `json:"deleted_at"`
+			IsMature    bool        `json:"is_mature"`
+			IsPromoted  bool        `json:"is_promoted"`
+			Viewers     int         `json:"viewers"`
+			Category    struct {
+				ID   int    `json:"id"`
+				Name string `json:"name"`
+				Slug string `json:"slug"`
+				Icon string `json:"icon"`
+			} `json:"category"`
+		} `json:"categories"`
+	} `json:"livestream"`
+}
+
+func (c *Client) V1Channel(vodUUID string) (*V1Channel, error) {
+	url := fmt.Sprintf("https://kick.com/api/v1/video/%s", vodUUID)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	setDefaultHeaders(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var data V1Channel
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+
+	return &data, nil
 }
