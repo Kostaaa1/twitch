@@ -32,10 +32,6 @@ func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader 
 	}
 }
 
-// func (dl *Downloader) SetThreads(n int) {
-// 	dl.threads = n
-// }
-
 func (dl *Downloader) SetProgressChannel(progressCh chan spinner.ChannelMessage) {
 	dl.progressCh = progressCh
 }

@@ -2,6 +2,7 @@ package kick
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
@@ -32,11 +34,27 @@ const (
 
 type Unit struct {
 	URL     string
-	W       io.Writer
 	Start   time.Duration
 	End     time.Duration
 	Quality downloader.QualityType
-	Error   error
+	// used for file creation
+	Title string
+	W     io.Writer
+	Error error
+}
+
+func (u *Unit) CreateFile(output string) error {
+	if output == "" {
+		return errors.New("output path not provided")
+	}
+
+	ext := "mp4"
+	if strings.HasPrefix(u.Quality.String(), "audio") {
+		ext = "mp3"
+	}
+
+	u.W, u.Error = fileutil.CreateFile(output, u.Title, ext)
+	return nil
 }
 
 func (u Unit) GetError() error {

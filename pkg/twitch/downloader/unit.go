@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
@@ -60,8 +61,8 @@ type Unit struct {
 	// Used when wanting to download the part of the VOD
 	Start time.Duration
 	End   time.Duration
-	// used when building path to writer
-	// Title  string
+	// used as filename
+	Title  string
 	Writer io.Writer
 	Error  error
 }
@@ -75,6 +76,20 @@ func (u Unit) GetTitle() string {
 		return f.Name()
 	}
 	return u.ID
+}
+
+func (u *Unit) CreateFile(output string) error {
+	if output == "" {
+		return errors.New("output path not provided")
+	}
+
+	ext := "mp4"
+	if strings.HasPrefix(u.Quality.String(), "audio") {
+		ext = "mp3"
+	}
+
+	u.Writer, u.Error = fileutil.CreateFile(output, u.Title, ext)
+	return nil
 }
 
 func (u *Unit) CloseWriter() error {
@@ -123,7 +138,7 @@ func getQuality(quality string) (QualityType, error) {
 	}
 }
 
-func getVideoSigAndType(input string) (string, MediaType, error) {
+func getUnitSigAndType(input string) (string, MediaType, error) {
 	if input == "" {
 		return "", 0, errors.New("input cannot be empty")
 	}
@@ -164,6 +179,12 @@ func getVideoSigAndType(input string) (string, MediaType, error) {
 
 type UnitOption func(*Unit)
 
+func WithTitle(title string) UnitOption {
+	return func(u *Unit) {
+		u.Title = title
+	}
+}
+
 func WithWriter(w io.Writer) UnitOption {
 	return func(u *Unit) {
 		u.Writer = w
@@ -181,7 +202,7 @@ func WithTimestamps(start, end time.Duration) UnitOption {
 func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	unit := &Unit{}
 
-	unit.ID, unit.Type, unit.Error = getVideoSigAndType(input)
+	unit.ID, unit.Type, unit.Error = getUnitSigAndType(input)
 	if unit.Error != nil {
 		return unit
 	}

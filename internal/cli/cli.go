@@ -2,13 +2,11 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/google/uuid"
@@ -66,17 +64,6 @@ func (p *Option) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewFile(fileName string, quality downloader.QualityType, output string) (*os.File, error) {
-	if output == "" {
-		return nil, errors.New("output path not provided")
-	}
-	ext := "mp4"
-	if strings.HasPrefix(quality.String(), "audio") {
-		ext = "mp3"
-	}
-	return fileutil.CreateFile(output, fileName, ext)
-}
-
 func level(main, fallback *Option) {
 	if main.Output == "" && fallback.Output != "" {
 		main.Output = fallback.Output
@@ -87,6 +74,7 @@ func level(main, fallback *Option) {
 }
 
 func isKick(input string) bool {
+	// only kick vods have UUID
 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
@@ -113,13 +101,7 @@ func (opt Option) unitsFromFileInput() ([]downloader.Unit, []kick.Unit) {
 		level(&u, &opt)
 
 		if isKick(u.Input) {
-			kickUnit := kick.Unit{
-				URL:     u.Input,
-				Quality: downloader.Quality1080p60,
-				Start:   u.Start,
-				End:     u.End,
-			}
-			kickUnit.W, kickUnit.Error = NewFile(u.Input, kickUnit.Quality, u.Output)
+			kickUnit := kick.Unit{URL: u.Input, Quality: downloader.Quality1080p60, Start: u.Start, End: u.End}
 			unitsKick = append(unitsKick, kickUnit)
 		} else {
 			unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
@@ -138,22 +120,10 @@ func (opt Option) unitsFromFlagInput() ([]downloader.Unit, []kick.Unit) {
 
 	for _, input := range inputs {
 		if isKick(input) {
-			// path := filepath.Join(opt.Output, fmt.Sprintf("%d.mp4", i))
-			// f, err := os.Create(path)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			kickUnit := kick.Unit{URL: input, Quality: downloader.Quality1080p60}
+			kickUnit := kick.Unit{URL: input, Quality: downloader.Quality1080p60, Start: opt.Start, End: opt.End}
 			kickUnits = append(kickUnits, kickUnit)
 		} else {
 			unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
-			// if withWriter && unit.Error == nil {
-			// 	filename, err := dl.MediaTitle(unit.ID, unit.Type)
-			// 	if err != nil {
-			// 		log.Fatal(err)
-			// 	}
-			// 	unit.Writer, unit.Error = NewFile(filename, unit.Quality, opt.Output)
-			// }
 			twitchUnits = append(twitchUnits, *unit)
 		}
 	}
