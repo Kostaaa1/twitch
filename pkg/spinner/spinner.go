@@ -36,7 +36,7 @@ type UnitProvider interface {
 	GetError() error
 }
 
-type model struct {
+type Model struct {
 	cancelFunc context.CancelFunc
 	units      []unit
 	spinner    spinner.Model
@@ -77,17 +77,17 @@ func validateSpinnerModel(model string) spinner.Spinner {
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, m.waitForMsg())
 }
 
-func (m *model) waitForMsg() tea.Cmd {
+func (m *Model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
 		return <-m.progChan
 	}
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if len(m.units) == m.doneCount {
 		m.exit()
 		return m, tea.Quit
@@ -149,14 +149,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m *model) exit() {
+func (m *Model) exit() {
 	for i := 0; i < len(m.units); i++ {
 		m.units[i].IsDone = true
 	}
 	m.cancelFunc()
 }
 
-func (m *model) updateTime() {
+func (m *Model) updateTime() {
 	for i := range m.units {
 		if !m.units[i].IsDone && m.units[i].TotalBytes > 0 {
 			m.units[i].ElapsedTime = time.Since(m.units[i].StartTime)
@@ -174,7 +174,7 @@ func downloadSpeedMBs(bytes float64, elapsedTime time.Duration) float64 {
 	return kilobytesPerSecond
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
@@ -214,7 +214,7 @@ func wrapText(s string, limit int) string {
 	return strings.Join(parts, "\n")
 }
 
-func (m model) formatMessage(u unit) string {
+func (m Model) formatMessage(u unit) string {
 	if u.Err != nil {
 		return wrapText(errorMsg(u.Err), m.width-4)
 	}
@@ -259,7 +259,7 @@ func errorMsg(err error) string {
 }
 
 // Unit can be whatever satisfies UnitProvider interface
-func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.CancelFunc) *model {
+func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.CancelFunc) *Model {
 	progChan := make(chan ChannelMessage, len(units))
 	su := make([]unit, len(units))
 
@@ -283,7 +283,7 @@ func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.Canc
 	s.Spinner = validateSpinnerModel(spinnerModel)
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	return &model{
+	return &Model{
 		cancelFunc: cancelFunc,
 		units:      su,
 		spinner:    s,
@@ -292,11 +292,11 @@ func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.Canc
 	}
 }
 
-func (m *model) ProgressChan() chan ChannelMessage {
+func (m *Model) ProgressChan() chan ChannelMessage {
 	return m.progChan
 }
 
-func (m *model) Run() {
+func (m *Model) Run() {
 	m.program = tea.NewProgram(m)
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Error starting program: %v\n", err)
@@ -304,7 +304,7 @@ func (m *model) Run() {
 	}
 }
 
-func (m model) Quit() {
+func (m Model) Quit() {
 	if m.program != nil {
 		m.program.Quit()
 	}

@@ -1,5 +1,9 @@
 package event
 
+import (
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+)
+
 type Type string
 
 var (
@@ -96,4 +100,18 @@ func ChannelPollEndEvent(userID string) Event {
 		Type:      ChannelPollEnd,
 		Condition: map[string]interface{}{"broadcaster_user_id": userID},
 	}
+}
+
+// uses userID to
+func FromUnits(units []downloader.Unit) ([]Event, error) {
+	var events []Event
+	for _, unit := range units {
+		if unit.Error != nil {
+			return nil, unit.Error
+		}
+		if unit.Type == downloader.TypeLivestream {
+			// events = append(events, StreamOnlineEvent(unit.UserID))
+		}
+	}
+	return events, nil
 }

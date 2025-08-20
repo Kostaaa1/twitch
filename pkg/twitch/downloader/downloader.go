@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -16,7 +15,6 @@ type Downloader struct {
 	progressCh chan spinner.ChannelMessage
 	config     Config
 	ctx        context.Context
-	threads    int
 }
 
 type Config struct {
@@ -34,9 +32,9 @@ func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader 
 	}
 }
 
-func (dl *Downloader) SetThreads(n int) {
-	dl.threads = n
-}
+// func (dl *Downloader) SetThreads(n int) {
+// 	dl.threads = n
+// }
 
 func (dl *Downloader) SetProgressChannel(progressCh chan spinner.ChannelMessage) {
 	dl.progressCh = progressCh
@@ -59,35 +57,35 @@ func (dl *Downloader) Download(u Unit) error {
 	return u.Error
 }
 
-func (dl *Downloader) BatchDownload(units []Unit) {
-	var sem chan struct{}
-	if dl.threads > 0 {
-		sem = make(chan struct{}, dl.threads)
-	}
+// func (dl *Downloader) BatchDownload(units []Unit) {
+// 	var sem chan struct{}
+// 	if dl.threads > 0 {
+// 		sem = make(chan struct{}, dl.threads)
+// 	}
 
-	var wg sync.WaitGroup
+// 	var wg sync.WaitGroup
 
-	for _, unit := range units {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+// 	for _, unit := range units {
+// 		wg.Add(1)
+// 		go func() {
+// 			defer wg.Done()
 
-			if dl.threads > 0 {
-				sem <- struct{}{}
-				defer func() { <-sem }()
-			}
+// 			if dl.threads > 0 {
+// 				sem <- struct{}{}
+// 				defer func() { <-sem }()
+// 			}
 
-			if err := dl.Download(unit); err != nil {
-				unit.Error = err
-			}
+// 			if err := dl.Download(unit); err != nil {
+// 				unit.Error = err
+// 			}
 
-			msg := spinner.ChannelMessage{Error: unit.Error, IsDone: true}
-			unit.NotifyProgressChannel(msg, dl.progressCh)
-		}()
-	}
+// 			msg := spinner.ChannelMessage{Error: unit.Error, IsDone: true}
+// 			unit.NotifyProgressChannel(msg, dl.progressCh)
+// 		}()
+// 	}
 
-	wg.Wait()
-}
+// 	wg.Wait()
+// }
 
 func (dl *Downloader) fetch(url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)

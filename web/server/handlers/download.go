@@ -35,8 +35,7 @@ func (s *Static) downloadHandler(c *gin.Context) {
 	var unit downloader.Unit
 	unit.ID = c.Query("media_slug")
 
-	unit.Type = downloader.GetVideoType(mediaType)
-	// unit.Quality =
+	unit.Type = downloader.GetMediaType(mediaType)
 	unit.Writer = c.Writer
 
 	ext := "mp4"

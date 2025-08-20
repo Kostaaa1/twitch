@@ -18,6 +18,20 @@ const (
 	QualityWorst
 )
 
+func (qt *QualityType) Downgrade() {
+	if *qt == QualityWorst {
+		return
+	}
+	*qt += 1
+}
+
+func (qt *QualityType) Upgrade() {
+	if *qt == Quality1080p60 {
+		return
+	}
+	*qt -= 1
+}
+
 func (qt QualityType) String() string {
 	switch qt {
 	case Quality1080p60:

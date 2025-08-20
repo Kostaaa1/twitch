@@ -14,41 +14,15 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
-type VideoType int
+type MediaType int
 
 const (
-	TypeClip VideoType = iota
+	TypeClip MediaType = iota
 	TypeVOD
 	TypeLivestream
 )
 
-type UnitOption func(*Unit)
-
-func WithWriter(w io.Writer) UnitOption {
-	return func(u *Unit) {
-		u.Writer = w
-	}
-}
-
-func WithTimestamps(start, end time.Duration) UnitOption {
-	return func(u *Unit) {
-		u.Start = start
-		u.End = end
-	}
-}
-
-type Unit struct {
-	// ID can be: vod id, clip slug or channel name (livestream)
-	ID      string
-	Type    VideoType
-	Quality QualityType
-	Start   time.Duration
-	End     time.Duration
-	Writer  io.Writer
-	Error   error
-}
-
-func (v VideoType) String() string {
+func (v MediaType) String() string {
 	switch v {
 	case TypeClip:
 		return "clip"
@@ -61,7 +35,7 @@ func (v VideoType) String() string {
 	}
 }
 
-func GetVideoType(s string) VideoType {
+func GetMediaType(s string) MediaType {
 	switch s {
 	case "clip":
 		return TypeClip
@@ -74,7 +48,24 @@ func GetVideoType(s string) VideoType {
 	}
 }
 
-// needed for spinner interface
+type Unit struct {
+	// ID can be: vod id, clip slug or channel name (livestream)
+	ID string
+	// used when creating events
+	// UserID string
+	// Type can be VOD, Clip, Livestream
+	Type MediaType
+	// Quality of media - 1080p60, 720p60, 480p60 ....
+	Quality QualityType
+	// Used when wanting to download the part of the VOD
+	Start time.Duration
+	End   time.Duration
+	// used when building path to writer
+	// Title  string
+	Writer io.Writer
+	Error  error
+}
+
 func (u Unit) GetError() error {
 	return u.Error
 }
@@ -132,17 +123,21 @@ func getQuality(quality string) (QualityType, error) {
 	}
 }
 
-func getIDAndType(input string) (string, VideoType, error) {
+func getVideoSigAndType(input string) (string, MediaType, error) {
 	if input == "" {
 		return "", 0, errors.New("input cannot be empty")
 	}
+
+	// if its not URL
 	if !strings.Contains(input, "http://") && !strings.Contains(input, "https://") {
 		if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
 			return input, TypeVOD, nil
 		}
+
 		if len(input) >= 25 {
 			return input, TypeClip, nil
 		}
+
 		return input, TypeLivestream, nil
 	}
 
@@ -167,11 +162,26 @@ func getIDAndType(input string) (string, VideoType, error) {
 	}
 }
 
-// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.
+type UnitOption func(*Unit)
+
+func WithWriter(w io.Writer) UnitOption {
+	return func(u *Unit) {
+		u.Writer = w
+	}
+}
+
+func WithTimestamps(start, end time.Duration) UnitOption {
+	return func(u *Unit) {
+		u.Start = start
+		u.End = end
+	}
+}
+
+// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
 func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	unit := &Unit{}
 
-	unit.ID, unit.Type, unit.Error = getIDAndType(input)
+	unit.ID, unit.Type, unit.Error = getVideoSigAndType(input)
 	if unit.Error != nil {
 		return unit
 	}
@@ -201,33 +211,35 @@ func parseVodParams(u *url.URL, unit *Unit) error {
 			unit.Start, _ = time.ParseDuration(t)
 		}
 	}
+
 	if unit.Start > unit.End {
 		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
 	}
+
 	return nil
 }
 
-func (dl *Downloader) MediaTitle(id string, vtype VideoType) (string, error) {
-	switch vtype {
-	case TypeVOD:
-		data, err := dl.twClient.VideoMetadata(id)
-		if err != nil {
-			return "", err
-		}
-		return data.Video.Title, nil
-	case TypeClip:
-		data, err := dl.twClient.ClipMetadata(id)
-		if err != nil {
-			return "", err
-		}
-		return data.Video.Title, nil
-	case TypeLivestream:
-		data, err := dl.twClient.StreamMetadata(id)
-		if err != nil {
-			return "", err
-		}
-		return data.BroadcastSettings.Title, nil
-	default:
-		return "", errors.New("not found")
-	}
-}
+// func (dl *Downloader) MediaTitle(id string, vtype MediaType) (string, error) {
+// 	switch vtype {
+// 	case TypeVOD:
+// 		data, err := dl.twClient.VideoMetadata(id)
+// 		if err != nil {
+// 			return "", err
+// 		}
+// 		return data.Video.Title, nil
+// 	case TypeClip:
+// 		data, err := dl.twClient.ClipMetadata(id)
+// 		if err != nil {
+// 			return "", err
+// 		}
+// 		return data.Video.Title, nil
+// 	case TypeLivestream:
+// 		data, err := dl.twClient.StreamMetadata(id)
+// 		if err != nil {
+// 			return "", err
+// 		}
+// 		return data.BroadcastSettings.Title, nil
+// 	default:
+// 		return "", errors.New("not found")
+// 	}
+// }

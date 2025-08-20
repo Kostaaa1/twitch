@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -47,25 +48,63 @@ func (tw *Client) vodTokenAndSignature(id string) (string, string, error) {
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
+func (tw *Client) PlaybackAccessToken(login string) error {
+	gqlPayload := `{
+	    "operationName": "PlaybackAccessToken_Template",
+	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
+	    "variables": {
+			"isLive": true,
+			"login": "%s",
+			"isVod": false,
+			"vodID": "",
+			"playerType": "site",
+			"platform": "web"
+		}
+	}`
+
+	body := strings.NewReader(fmt.Sprintf(gqlPayload, login))
+	type payload struct {
+		Data struct {
+			VideoPlaybackAccessToken VideoCredResponse `json:"videoPlaybackAccessToken"`
+		} `json:"data"`
+	}
+	var p payload
+
+	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
+		return err
+	}
+
+	b, err := json.MarshalIndent(p, "", " ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf(string(b))
+
+	return nil
+}
+
 func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) {
-	token, sig, err := tw.vodTokenAndSignature(vodID)
+	value, sig, err := tw.vodTokenAndSignature(vodID)
 	if err != nil {
 		return nil, err
 	}
 
-	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, token, sig)
+	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, value, sig)
 
 	b, code, err := tw.fetchWithCode(m3u8Url)
 	if code == http.StatusForbidden {
-		// this means that you need to be subscribed to access the m3u8 master. In that case, creating fake playlist.
+		// 403 - you need to be subscribed to access the m3u8 master. In that case, we are creating fake playlist.
 		subVOD, err := tw.SubVodData(vodID)
 		if err != nil {
 			return nil, err
 		}
+
 		previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
 		if err != nil {
 			return nil, err
 		}
+
 		return m3u8.MasterPlaylistMock(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), nil
 	}
 
@@ -77,11 +116,6 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 }
 
 func (tw *Client) FetchAndParseMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
-	// b, err := tw.fetch(variant.URL)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	resp, err := tw.httpClient.Get(variant.URL)
 	if err != nil {
 		return nil, err
@@ -89,7 +123,6 @@ func (tw *Client) FetchAndParseMediaPlaylist(variant m3u8.VariantPlaylist) (*m3u
 	defer resp.Body.Close()
 
 	parsed := m3u8.ParseMediaPlaylist(resp.Body)
-
 	return &parsed, nil
 }
 

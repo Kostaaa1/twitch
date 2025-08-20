@@ -5,13 +5,15 @@ package components
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
+import (
+	"fmt"
+	"time"
 
-import "time"
-import "github.com/Kostaaa1/twitch/pkg/twitch"
-import "fmt"
-import "github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
+)
 
 type Quality struct {
 	Resolution string
@@ -28,7 +30,7 @@ type FormData struct {
 	CreatedAt           time.Time
 	Qualities           []Quality
 	Duration            string
-	Type                downloader.VideoType
+	Type                downloader.MediaType
 	Curator             twitch.Curator
 }
 
