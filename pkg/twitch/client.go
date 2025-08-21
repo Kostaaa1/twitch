@@ -21,10 +21,7 @@ const (
 	oauthURL    = "https://id.twitch.tv/oauth2"
 )
 
-func NewClient(httpClient *http.Client, creds *Creds) *Client {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
+func NewClient(creds *Creds) *Client {
 	return &Client{
 		httpClient: http.DefaultClient,
 		creds:      creds,
@@ -35,7 +32,7 @@ func (tw *Client) HTTPClient() *http.Client {
 	return tw.httpClient
 }
 
-func (tw *Client) SetHttpClient(c *http.Client) {
+func (tw *Client) SetHTTPClient(c *http.Client) {
 	tw.httpClient = c
 }
 

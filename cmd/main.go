@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,41 +18,22 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
-	"github.com/Kostaaa1/twitch/pkg/twitch/event"
+	"github.com/Kostaaa1/twitch/pkg/twitch/eventsub"
 	"golang.org/x/sync/errgroup"
 )
 
-var (
-	option cli.Option
-	conf   *config.Config
-)
-
-func init() {
-	var err error
-
-	conf, err = config.Get()
+func main() {
+	conf, err := config.Get()
 	if err != nil {
 		panic(err)
 	}
-
-	flag.StringVar(&option.Input, "input", "", "input can be twitch (URL, vod id or clip slug), kick (vod URL) or json file (check example.json). Multiple inputs can be comma-separated which will be downloaded concurrently")
-	flag.StringVar(&option.Output, "output", conf.Downloader.Output, "Destination path for downloaded files")
-	flag.StringVar(&option.Quality, "quality", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio")
-	flag.DurationVar(&option.Start, "start", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
-	flag.DurationVar(&option.End, "end", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
-	flag.IntVar(&option.Threads, "threads", 6, "Number of parallel downloads (batch mode only)")
-	flag.BoolVar(&option.Set, "set", false, "Set a config field: key=value. (e.g. -set output=your_path")
-	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name")
-	flag.BoolVar(&option.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
-	flag.BoolVar(&option.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
-
-	flag.Parse()
-}
-
-func main() {
 	defer func() {
 		conf.Save()
 	}()
+
+	option := ParseFlags(*conf)
+
+	twitch := twitch.NewClient(&conf.Creds)
 
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
@@ -65,21 +45,19 @@ func main() {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
-
-	twitch := twitch.NewClient(httpClient, &conf.Creds)
-
-	if option.Set {
-		conf.Downloader.Output = option.Output
-	}
+	twitch.SetHTTPClient(httpClient)
 
 	if option.Authorize {
-		twitch.Authorize()
+		if err := twitch.Authorize(); err != nil {
+			panic(err)
+		}
 	}
 
+	// handle printify
 	if option.Channel != "" {
 		videos, err := twitch.GetVideosByChannelName(option.Channel, 100)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 		b, _ := json.MarshalIndent(videos, "", "  ")
 		fmt.Println(string(b))
@@ -91,10 +69,10 @@ func main() {
 		return
 	}
 
-	initDownloader(twitch)
+	initDownloader(twitch, conf, option)
 }
 
-func initDownloader(tw *twitch.Client) {
+func initDownloader(tw *twitch.Client, conf *config.Config, option cli.Option) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -122,42 +100,20 @@ func initDownloader(tw *twitch.Client) {
 			}
 
 			if option.Subscribe {
-				g.Go(func() error {
-					return initEventSub(ctx, tw, dl)
-				})
-				return nil
+				return initTwitchEventSub(ctx, tw, dl, unitsTwitch)
 			} else {
-				batchGroup, _ := errgroup.WithContext(ctx)
-				batchGroup.SetLimit(option.Threads)
-
-				for _, unit := range unitsTwitch {
-					batchGroup.Go(func() error {
-						return dl.Download(unit)
-					})
-				}
-
-				return batchGroup.Wait()
+				return batchDownloadTwitchUnits(ctx, dl, option.Threads, unitsTwitch)
 			}
 		})
 	}
 
 	if len(unitsKick) > 0 {
 		g.Go(func() error {
-			batchGroup, _ := errgroup.WithContext(ctx)
-			batchGroup.SetLimit(option.Threads)
-
 			kick := kick.NewClient()
 			if spin != nil {
 				kick.SetProgressChannel(spin.ProgressChan())
 			}
-
-			for _, unit := range unitsKick {
-				batchGroup.Go(func() error {
-					return kick.Download(ctx, unit)
-				})
-			}
-
-			return batchGroup.Wait()
+			return batchDownloadKickUnits(ctx, kick, option.Threads, unitsKick)
 		})
 	}
 
@@ -166,21 +122,55 @@ func initDownloader(tw *twitch.Client) {
 	}
 }
 
-func initEventSub(ctx context.Context, tw *twitch.Client, dl *downloader.Downloader) error {
+func batchDownloadTwitchUnits(
+	ctx context.Context,
+	dl *downloader.Downloader,
+	threads int,
+	units []downloader.Unit,
+) error {
+	batchGroup, _ := errgroup.WithContext(ctx)
+	batchGroup.SetLimit(threads)
+	for _, unit := range units {
+		batchGroup.Go(func() error {
+			return dl.Download(unit)
+		})
+	}
+	return batchGroup.Wait()
+}
+
+func batchDownloadKickUnits(
+	ctx context.Context,
+	kick *kick.Client,
+	threads int,
+	units []kick.Unit,
+) error {
+	batchGroup, _ := errgroup.WithContext(ctx)
+	batchGroup.SetLimit(threads)
+	for _, unit := range units {
+		batchGroup.Go(func() error {
+			return kick.Download(ctx, unit)
+		})
+	}
+	return batchGroup.Wait()
+}
+
+func initTwitchEventSub(
+	ctx context.Context,
+	tw *twitch.Client,
+	dl *downloader.Downloader,
+	units []downloader.Unit,
+) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	units, _ := option.UnitsFromInput()
-	events, err := event.FromUnits(units)
+	events, err := eventsub.FromUnits(units)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
-	// events, err := cli.EventsFromUnits(tw, units)
+	event := eventsub.New(tw)
 
-	eventsub := event.NewClient(tw)
-
-	eventsub.OnNotification = func(resp event.ResponseBody) {
+	event.OnNotification = func(resp eventsub.ResponseBody) {
 		if resp.Payload.Subscription != nil {
 			condition := resp.Payload.Subscription.Condition
 
@@ -191,7 +181,6 @@ func initEventSub(ctx context.Context, tw *twitch.Client, dl *downloader.Downloa
 				if unit.Error == nil {
 					go func() {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
-						// unit.Writer, unit.Error = cli.NewFile(unit.GetTitle(), unit.Quality, option.Output)
 
 						if err := dl.Download(*unit); err != nil {
 							fmt.Println("error occured: ", err)
@@ -209,7 +198,7 @@ func initEventSub(ctx context.Context, tw *twitch.Client, dl *downloader.Downloa
 		}
 	}
 
-	if err := eventsub.DialWS(ctx, events); err != nil {
+	if err := event.DialWS(ctx, events); err != nil {
 		return err
 	}
 
@@ -218,7 +207,7 @@ func initEventSub(ctx context.Context, tw *twitch.Client, dl *downloader.Downloa
 
 func initChat(client *twitch.Client, conf *config.Config) {
 	if err := conf.AuthorizeAndSaveUserData(client); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	chat.Open(client, conf)
 }

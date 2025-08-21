@@ -1,4 +1,4 @@
-package event
+package eventsub
 
 type Transport struct {
 	Method             string `json:"method"`

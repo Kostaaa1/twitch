@@ -53,36 +53,6 @@ func (dl *Downloader) Download(u Unit) error {
 	return u.Error
 }
 
-// func (dl *Downloader) BatchDownload(units []Unit) {
-// 	var sem chan struct{}
-// 	if dl.threads > 0 {
-// 		sem = make(chan struct{}, dl.threads)
-// 	}
-
-// 	var wg sync.WaitGroup
-
-// 	for _, unit := range units {
-// 		wg.Add(1)
-// 		go func() {
-// 			defer wg.Done()
-
-// 			if dl.threads > 0 {
-// 				sem <- struct{}{}
-// 				defer func() { <-sem }()
-// 			}
-
-// 			if err := dl.Download(unit); err != nil {
-// 				unit.Error = err
-// 			}
-
-// 			msg := spinner.ChannelMessage{Error: unit.Error, IsDone: true}
-// 			unit.NotifyProgressChannel(msg, dl.progressCh)
-// 		}()
-// 	}
-
-// 	wg.Wait()
-// }
-
 func (dl *Downloader) fetch(url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -125,22 +95,3 @@ func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
 
 	return http.StatusOK, b, err
 }
-
-// func (dl *Downloader) download(url string, w io.Writer) (int64, error) {
-// 	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to create request with context: %v", err)
-// 	}
-
-// 	resp, err := dl.twClient.HTTPClient().Do(req)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to get response: %w", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-// 		return 0, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
-// 	}
-
-// 	return io.Copy(w, resp.Body)
-// }

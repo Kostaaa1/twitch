@@ -1,4 +1,4 @@
-package event
+package eventsub
 
 import (
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"

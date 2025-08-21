@@ -16,7 +16,11 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 		return err
 	}
 
-	usherURL, err := dl.ClipVideoURL(clip, unit.Quality.String())
+	usherURL, err := dl.ClipVideoURL(
+		clip.PlaybackAccessToken,
+		clip.Assets[0].VideoQualities,
+		unit.Quality.String(),
+	)
 	if err != nil {
 		return err
 	}
@@ -30,7 +34,11 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 			return err
 		}
 		defer res.Body.Close()
+
 		n, err = io.Copy(unit.Writer, res.Body)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err != nil {
@@ -50,6 +58,7 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 	if quality == "worst" {
 		return videoQualities[len(videoQualities)-1].SourceURL
 	}
+
 	for _, q := range videoQualities {
 		if strings.HasPrefix(quality, q.Quality) || strings.HasPrefix(q.Quality, quality) {
 			return q.SourceURL
@@ -70,9 +79,9 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 	}
 }
 
-func (dl *Downloader) ClipVideoURL(clip twitch.Clip, quality string) (string, error) {
-	sourceURL := extractClipSourceURL(clip.Assets[0].VideoQualities, quality)
-	usherURL, err := dl.twClient.ConstructUsherURL(clip.PlaybackAccessToken, sourceURL)
+func (dl *Downloader) ClipVideoURL(token twitch.PlaybackAccessToken, qualities []twitch.VideoQuality, quality string) (string, error) {
+	sourceURL := extractClipSourceURL(qualities, quality)
+	usherURL, err := dl.twClient.ConstructUsherURL(token, sourceURL)
 	if err != nil {
 		return "", err
 	}

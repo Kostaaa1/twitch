@@ -67,6 +67,17 @@ type Unit struct {
 	Error  error
 }
 
+func (u *Unit) CloseWriter() error {
+	if f, ok := u.Writer.(*os.File); ok && f != nil {
+		if u.Error != nil {
+			os.Remove(f.Name())
+		}
+		return f.Close()
+	}
+	return nil
+}
+
+// Implement spinner interface
 func (u Unit) GetError() error {
 	return u.Error
 }
@@ -76,30 +87,6 @@ func (u Unit) GetTitle() string {
 		return f.Name()
 	}
 	return u.ID
-}
-
-func (u *Unit) CreateFile(output string) error {
-	if output == "" {
-		return errors.New("output path not provided")
-	}
-
-	ext := "mp4"
-	if strings.HasPrefix(u.Quality.String(), "audio") {
-		ext = "mp3"
-	}
-
-	u.Writer, u.Error = fileutil.CreateFile(output, u.Title, ext)
-	return nil
-}
-
-func (u *Unit) CloseWriter() error {
-	if f, ok := u.Writer.(*os.File); ok && f != nil {
-		if u.Error != nil {
-			os.Remove(f.Name())
-		}
-		return f.Close()
-	}
-	return nil
 }
 
 func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
@@ -138,21 +125,18 @@ func getQuality(quality string) (QualityType, error) {
 	}
 }
 
-func getUnitSigAndType(input string) (string, MediaType, error) {
+func parseIDAndMediaType(input string) (string, MediaType, error) {
 	if input == "" {
 		return "", 0, errors.New("input cannot be empty")
 	}
 
-	// if its not URL
 	if !strings.Contains(input, "http://") && !strings.Contains(input, "https://") {
 		if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
 			return input, TypeVOD, nil
 		}
-
 		if len(input) >= 25 {
 			return input, TypeClip, nil
 		}
-
 		return input, TypeLivestream, nil
 	}
 
@@ -177,32 +161,25 @@ func getUnitSigAndType(input string) (string, MediaType, error) {
 	}
 }
 
-type UnitOption func(*Unit)
-
-func WithTitle(title string) UnitOption {
-	return func(u *Unit) {
-		u.Title = title
+func parseVodParams(u *url.URL, unit *Unit) error {
+	if unit.Start == 0 {
+		if t := u.Query().Get("t"); t != "" {
+			unit.Start, _ = time.ParseDuration(t)
+		}
 	}
-}
 
-func WithWriter(w io.Writer) UnitOption {
-	return func(u *Unit) {
-		u.Writer = w
+	if unit.Start > unit.End {
+		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
 	}
-}
 
-func WithTimestamps(start, end time.Duration) UnitOption {
-	return func(u *Unit) {
-		u.Start = start
-		u.End = end
-	}
+	return nil
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
 func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	unit := &Unit{}
 
-	unit.ID, unit.Type, unit.Error = getUnitSigAndType(input)
+	unit.ID, unit.Type, unit.Error = parseIDAndMediaType(input)
 	if unit.Error != nil {
 		return unit
 	}
@@ -226,41 +203,21 @@ func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	return unit
 }
 
-func parseVodParams(u *url.URL, unit *Unit) error {
-	if unit.Start == 0 {
-		if t := u.Query().Get("t"); t != "" {
-			unit.Start, _ = time.ParseDuration(t)
+type UnitOption func(*Unit)
+
+func WithWriter(dir string) UnitOption {
+	return func(u *Unit) {
+		ext := "mp4"
+		if strings.HasPrefix(u.Quality.String(), "audio") {
+			ext = "mp3"
 		}
+		u.Writer, u.Error = fileutil.CreateFile(dir, u.Title, ext)
 	}
-
-	if unit.Start > unit.End {
-		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
-	}
-
-	return nil
 }
 
-// func (dl *Downloader) MediaTitle(id string, vtype MediaType) (string, error) {
-// 	switch vtype {
-// 	case TypeVOD:
-// 		data, err := dl.twClient.VideoMetadata(id)
-// 		if err != nil {
-// 			return "", err
-// 		}
-// 		return data.Video.Title, nil
-// 	case TypeClip:
-// 		data, err := dl.twClient.ClipMetadata(id)
-// 		if err != nil {
-// 			return "", err
-// 		}
-// 		return data.Video.Title, nil
-// 	case TypeLivestream:
-// 		data, err := dl.twClient.StreamMetadata(id)
-// 		if err != nil {
-// 			return "", err
-// 		}
-// 		return data.BroadcastSettings.Title, nil
-// 	default:
-// 		return "", errors.New("not found")
-// 	}
-// }
+func WithTimestamps(start, end time.Duration) UnitOption {
+	return func(u *Unit) {
+		u.Start = start
+		u.End = end
+	}
+}

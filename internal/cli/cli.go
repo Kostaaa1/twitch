@@ -12,6 +12,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type Category int
+
+const (
+	Latest Category = iota
+	MostPopular
+)
+
 type Option struct {
 	Input   string        `json:"input"`
 	Output  string        `json:"output"`
@@ -19,17 +26,14 @@ type Option struct {
 	Start   time.Duration `json:"start"`
 	End     time.Duration `json:"end"`
 
-	Set      bool
-	Threads  int
-	Category string
-	Channel  string
-
+	Threads    int
+	Category   string
+	Channel    string
 	Videos     bool
 	Clips      bool
 	Highlights bool
-
-	Authorize bool
-	Subscribe bool
+	Authorize  bool
+	Subscribe  bool
 }
 
 func (p *Option) UnmarshalJSON(b []byte) error {
@@ -64,17 +68,7 @@ func (p *Option) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func level(main, fallback *Option) {
-	if main.Output == "" && fallback.Output != "" {
-		main.Output = fallback.Output
-	}
-	if main.Quality == "" && fallback.Quality != "" {
-		main.Quality = fallback.Quality
-	}
-}
-
 func isKick(input string) bool {
-	// only kick vods have UUID
 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
@@ -97,15 +91,31 @@ func (opt Option) unitsFromFileInput() ([]downloader.Unit, []kick.Unit) {
 	var unitsTwitch []downloader.Unit
 	var unitsKick []kick.Unit
 
-	for _, u := range inputUnits {
-		level(&u, &opt)
+	for _, unit := range inputUnits {
+		if unit.Output == "" && opt.Output != "" {
+			unit.Output = opt.Output
+		}
+		if unit.Quality == "" && opt.Quality != "" {
+			unit.Quality = opt.Quality
+		}
 
-		if isKick(u.Input) {
-			kickUnit := kick.Unit{URL: u.Input, Quality: downloader.Quality1080p60, Start: u.Start, End: u.End}
+		if isKick(unit.Input) {
+			kickUnit := kick.Unit{
+				URL:     unit.Input,
+				Quality: downloader.Quality1080p60,
+				Start:   unit.Start,
+				End:     unit.End,
+			}
+			kickUnit.CreateFile(opt.Output)
 			unitsKick = append(unitsKick, kickUnit)
 		} else {
-			unit := downloader.NewUnit(u.Input, u.Quality, downloader.WithTimestamps(u.Start, u.End))
-			unitsTwitch = append(unitsTwitch, *unit)
+			twitchUnit := downloader.NewUnit(
+				unit.Input,
+				unit.Quality,
+				downloader.WithTimestamps(unit.Start, unit.End),
+				downloader.WithWriter(opt.Output),
+			)
+			unitsTwitch = append(unitsTwitch, *twitchUnit)
 		}
 	}
 
@@ -120,10 +130,22 @@ func (opt Option) unitsFromFlagInput() ([]downloader.Unit, []kick.Unit) {
 
 	for _, input := range inputs {
 		if isKick(input) {
-			kickUnit := kick.Unit{URL: input, Quality: downloader.Quality1080p60, Start: opt.Start, End: opt.End}
-			kickUnits = append(kickUnits, kickUnit)
+			unit := kick.Unit{
+				URL:     input,
+				Quality: downloader.Quality1080p60,
+				Start:   opt.Start,
+				End:     opt.End,
+			}
+			unit.CreateFile(opt.Output)
+			kickUnits = append(kickUnits, unit)
 		} else {
-			unit := downloader.NewUnit(input, opt.Quality, downloader.WithTimestamps(opt.Start, opt.End))
+			unit := downloader.NewUnit(
+				input,
+				opt.Quality,
+				downloader.WithTimestamps(opt.Start, opt.End),
+				downloader.WithWriter(opt.Output),
+			)
+			unit.Title = uuid.NewString()
 			twitchUnits = append(twitchUnits, *unit)
 		}
 	}

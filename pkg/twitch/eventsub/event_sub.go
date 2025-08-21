@@ -1,4 +1,4 @@
-package event
+package eventsub
 
 import (
 	"context"
@@ -73,7 +73,7 @@ type EventSubClient struct {
 	mu             sync.Mutex
 }
 
-func NewClient(tw *twitch.Client) *EventSubClient {
+func New(tw *twitch.Client) *EventSubClient {
 	return &EventSubClient{
 		tw:            tw,
 		Subscriptions: []SubscriptionMessage{},
