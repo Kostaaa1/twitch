@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -52,6 +53,7 @@ func (p *Option) UnmarshalJSON(b []byte) error {
 	}
 
 	var err error
+
 	if aux.Start != "" {
 		p.Start, err = time.ParseDuration(aux.Start)
 		if err != nil {
@@ -100,7 +102,7 @@ func (opt Option) unitsFromFileInput(units *[]spinner.UnitProvider) {
 		if isKick(unit.Input) {
 			unit := kick.Unit{
 				URL:     unit.Input,
-				Quality: downloader.Quality1080p60,
+				Quality: downloader.Quality720p60,
 				Start:   unit.Start,
 				End:     unit.End,
 				Title:   uuid.NewString(),
@@ -127,7 +129,7 @@ func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 		if isKick(input) {
 			unit := kick.Unit{
 				URL:     input,
-				Quality: downloader.Quality1080p60,
+				Quality: downloader.Quality720p60,
 				Start:   opt.Start,
 				End:     opt.End,
 				Title:   uuid.NewString(),
@@ -135,6 +137,7 @@ func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 			unit.CreateFile(opt.Output)
 			*units = append(*units, unit)
 		} else {
+			fmt.Println("Creating twitch unit")
 			unit := downloader.NewUnit(
 				input,
 				opt.Quality,
@@ -169,8 +172,8 @@ func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) 
 
 	for _, unit := range units {
 		switch u := unit.(type) {
-		case downloader.Unit:
-			twitchUnits = append(twitchUnits, u)
+		case *downloader.Unit:
+			twitchUnits = append(twitchUnits, *u)
 		case kick.Unit:
 			kickUnits = append(kickUnits, u)
 		}

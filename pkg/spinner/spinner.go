@@ -178,12 +178,15 @@ func (m Model) View() string {
 	if m.err != nil {
 		return m.err.Error()
 	}
+
 	var str strings.Builder
+
 	for i := 0; i < len(m.units); i++ {
 		fullMsg := m.formatMessage(m.units[i])
 		str.WriteString(fullMsg)
 		str.WriteString("\n")
 	}
+
 	return str.String()
 }
 

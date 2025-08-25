@@ -37,11 +37,8 @@ func (c *Client) MasterPlaylistURL(input string) (string, error) {
 		return "", err
 	}
 
-	fmt.Println("LOOKING FOR: ", input)
-
 	for _, data := range videos {
 		if data.Video.UUID == vodUUID {
-			fmt.Println(data.Video, data.Source)
 			return data.Source, nil
 		}
 	}
@@ -60,7 +57,6 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		fmt.Printf("Request failed: %s\n", err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
