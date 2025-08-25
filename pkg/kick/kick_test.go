@@ -1,17 +1,10 @@
 package kick
 
-// import (
-// 	"bytes"
-// 	"context"
-// 	"fmt"
-// 	"net/http"
-// 	"strings"
-// 	"testing"
+import "testing"
 
-// 	"github.com/Kostaaa1/twitch/pkg/m3u8"
-// 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
-// 	"github.com/stretchr/testify/require"
-// )
+func TestKick_VideoByUUID(t *testing.T) {
+	t.Parallel()
+}
 
 // func TestKick_GetMasterPlaylist(t *testing.T) {
 // 	t.Parallel()
@@ -54,22 +47,19 @@ package kick
 // 			unit.Quality.Downgrade()
 // 			continue
 // 		}
+
 // 		break
 // 	}
 
-// 	// require.NoError(t, err)
-
-// 	playlist := m3u8.ParseMediaPlaylist(res.Body)
+// require.NoError(t, err)
+// playlist := m3u8.ParseMediaPlaylist(res.Body)
 // 	playlist.TruncateSegments(unit.Start, unit.End)
-
 // 	fmt.Println("SEGMENTS:", playlist.Segments)
 // }
 
 // func TestKick_DownloadVideo(t *testing.T) {
 // 	client := NewClient()
-
 // 	var buf bytes.Buffer
-
 // 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 // 	defer cancel()
 // 	err := client.Download(ctx, testUnit)

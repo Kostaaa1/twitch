@@ -26,11 +26,6 @@ type Stream struct {
 	IsMature     bool          `json:"is_mature"`
 }
 
-// type Streams struct {
-// 	Data       []Stream `json:"data"`
-// 	Pagination struct{} `json:"pagination"`
-// }
-
 type Channel struct {
 	BroadcasterID               string   `json:"broadcaster_id"`
 	BroadcasterLogin            string   `json:"broadcaster_login"`
@@ -69,13 +64,14 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+// It has retry mechanism for 401 Unauthorized responses, it will attempt to refresh the access token and retry the request up to Client.retryCount times.
 func (tw *Client) HelixRequest(
 	url string,
 	httpMethod string,
 	body io.Reader,
 	src interface{},
 ) error {
-	var retryCount int
+	retryCount := 0
 	var errResp ErrorResponse
 
 	decodeErr := func(r io.Reader) error {
@@ -102,8 +98,8 @@ func (tw *Client) HelixRequest(
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusUnauthorized {
-			if retryCount >= 3 {
-				return fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
+			if retryCount >= tw.retryCount {
+				return fmt.Errorf("max retries (%d) reached for unauthorized requests", tw.retryCount)
 			}
 
 			if err := decodeErr(resp.Body); err != nil {

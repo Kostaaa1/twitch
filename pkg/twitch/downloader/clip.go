@@ -16,11 +16,8 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 		return err
 	}
 
-	usherURL, err := dl.ClipVideoURL(
-		clip.PlaybackAccessToken,
-		clip.Assets[0].VideoQualities,
-		unit.Quality.String(),
-	)
+	usherURL, err := dl.ClipVideoURL(clip.PlaybackAccessToken, clip.Assets[0].VideoQualities, unit.Quality.String())
+
 	if err != nil {
 		return err
 	}
@@ -29,7 +26,7 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 	if unit.Quality == QualityAudioOnly {
 		n, err = extractAudio(usherURL, unit.Writer)
 	} else {
-		res, err := dl.twClient.HTTPClient().Get(usherURL)
+		res, err := dl.twClient.HttpClient().Get(usherURL)
 		if err != nil {
 			return err
 		}
@@ -79,14 +76,14 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 	}
 }
 
-func (dl *Downloader) ClipVideoURL(token twitch.PlaybackAccessToken, qualities []twitch.VideoQuality, quality string) (string, error) {
-	sourceURL := extractClipSourceURL(qualities, quality)
-	usherURL, err := dl.twClient.ConstructUsherURL(token, sourceURL)
-	if err != nil {
-		return "", err
-	}
-	return usherURL, nil
-}
+// func (dl *Downloader) ClipVideoURL(token twitch.PlaybackAccessToken, qualities []twitch.VideoQuality, quality string) (string, error) {
+// 	sourceURL := extractClipSourceURL(qualities, quality)
+// 	usherURL, err := dl.twClient.ConstructUsherURL(token, sourceURL)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return usherURL, nil
+// }
 
 // uses ffmpeg for getting the audio from a segment
 func extractAudio(url string, w io.Writer) (int64, error) {

@@ -37,8 +37,11 @@ func (c *Client) MasterPlaylistURL(input string) (string, error) {
 		return "", err
 	}
 
+	fmt.Println("LOOKING FOR: ", input)
+
 	for _, data := range videos {
 		if data.Video.UUID == vodUUID {
+			fmt.Println(data.Video, data.Source)
 			return data.Source, nil
 		}
 	}
@@ -78,6 +81,7 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 				}
 				channelData = data
 			}
+
 			if channelData != nil && video.Thumbnail.Src != "" {
 				vodSig := getVideoSignature(video.Thumbnail.Src)
 				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8",

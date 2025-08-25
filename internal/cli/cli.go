@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/kick"
+	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/google/uuid"
 )
@@ -72,7 +73,7 @@ func isKick(input string) bool {
 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
-func (opt Option) unitsFromFileInput() ([]downloader.Unit, []kick.Unit) {
+func (opt Option) unitsFromFileInput(units *[]spinner.UnitProvider) {
 	_, err := os.Stat(opt.Input)
 	if os.IsNotExist(err) {
 		log.Fatal(err)
@@ -88,9 +89,6 @@ func (opt Option) unitsFromFileInput() ([]downloader.Unit, []kick.Unit) {
 		log.Fatal(err)
 	}
 
-	var unitsTwitch []downloader.Unit
-	var unitsKick []kick.Unit
-
 	for _, unit := range inputUnits {
 		if unit.Output == "" && opt.Output != "" {
 			unit.Output = opt.Output
@@ -100,33 +98,30 @@ func (opt Option) unitsFromFileInput() ([]downloader.Unit, []kick.Unit) {
 		}
 
 		if isKick(unit.Input) {
-			kickUnit := kick.Unit{
+			unit := kick.Unit{
 				URL:     unit.Input,
 				Quality: downloader.Quality1080p60,
 				Start:   unit.Start,
 				End:     unit.End,
+				Title:   uuid.NewString(),
 			}
-			kickUnit.CreateFile(opt.Output)
-			unitsKick = append(unitsKick, kickUnit)
+			unit.CreateFile(opt.Output)
+			*units = append(*units, unit)
 		} else {
-			twitchUnit := downloader.NewUnit(
+			unit := downloader.NewUnit(
 				unit.Input,
 				unit.Quality,
 				downloader.WithTimestamps(unit.Start, unit.End),
 				downloader.WithWriter(opt.Output),
 			)
-			unitsTwitch = append(unitsTwitch, *twitchUnit)
+			*units = append(*units, unit)
 		}
 	}
 
-	return unitsTwitch, unitsKick
 }
 
-func (opt Option) unitsFromFlagInput() ([]downloader.Unit, []kick.Unit) {
+func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 	inputs := strings.Split(opt.Input, ",")
-
-	var twitchUnits []downloader.Unit
-	var kickUnits []kick.Unit
 
 	for _, input := range inputs {
 		if isKick(input) {
@@ -135,9 +130,10 @@ func (opt Option) unitsFromFlagInput() ([]downloader.Unit, []kick.Unit) {
 				Quality: downloader.Quality1080p60,
 				Start:   opt.Start,
 				End:     opt.End,
+				Title:   uuid.NewString(),
 			}
 			unit.CreateFile(opt.Output)
-			kickUnits = append(kickUnits, unit)
+			*units = append(*units, unit)
 		} else {
 			unit := downloader.NewUnit(
 				input,
@@ -145,27 +141,39 @@ func (opt Option) unitsFromFlagInput() ([]downloader.Unit, []kick.Unit) {
 				downloader.WithTimestamps(opt.Start, opt.End),
 				downloader.WithWriter(opt.Output),
 			)
-			unit.Title = uuid.NewString()
-			twitchUnits = append(twitchUnits, *unit)
+			*units = append(*units, unit)
 		}
 	}
-
-	return twitchUnits, kickUnits
 }
 
-func (opts Option) UnitsFromInput() ([]downloader.Unit, []kick.Unit) {
+func (opts Option) UnitsFromInput() []spinner.UnitProvider {
 	if opts.Input == "" {
 		log.Fatalf("Input was not provided.")
 	}
 
-	var twitchUnits []downloader.Unit
-	var kickUnits []kick.Unit
+	var units []spinner.UnitProvider
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		twitchUnits, kickUnits = opts.unitsFromFlagInput()
+		opts.unitsFromFlagInput(&units)
 	} else {
-		twitchUnits, kickUnits = opts.unitsFromFileInput()
+		opts.unitsFromFileInput(&units)
+	}
+
+	return units
+}
+
+func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {
+	var twitchUnits []downloader.Unit
+	var kickUnits []kick.Unit
+
+	for _, unit := range units {
+		switch u := unit.(type) {
+		case downloader.Unit:
+			twitchUnits = append(twitchUnits, u)
+		case kick.Unit:
+			kickUnits = append(kickUnits, u)
+		}
 	}
 
 	return twitchUnits, kickUnits

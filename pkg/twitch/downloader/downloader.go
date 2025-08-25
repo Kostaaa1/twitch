@@ -59,7 +59,7 @@ func (dl *Downloader) fetch(url string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
 
-	resp, err := dl.twClient.HTTPClient().Do(req)
+	resp, err := dl.twClient.HttpClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get response: %w", err)
 	}
@@ -78,7 +78,7 @@ func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
 		return 0, nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
 
-	resp, err := dl.twClient.HTTPClient().Do(req)
+	resp, err := dl.twClient.HttpClient().Do(req)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to get response: %w", err)
 	}

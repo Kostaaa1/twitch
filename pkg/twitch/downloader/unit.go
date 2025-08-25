@@ -13,6 +13,7 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
+	"github.com/google/uuid"
 )
 
 type MediaType int
@@ -177,7 +178,7 @@ func parseVodParams(u *url.URL, unit *Unit) error {
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
 func NewUnit(input, quality string, opts ...UnitOption) *Unit {
-	unit := &Unit{}
+	unit := &Unit{Title: uuid.NewString()}
 
 	unit.ID, unit.Type, unit.Error = parseIDAndMediaType(input)
 	if unit.Error != nil {

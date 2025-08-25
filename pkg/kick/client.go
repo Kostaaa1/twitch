@@ -2,13 +2,11 @@ package kick
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
-	utls "github.com/refraction-networking/utls"
 )
 
 type Client struct {
@@ -17,27 +15,12 @@ type Client struct {
 	ctx    context.Context
 }
 
-func (c *Client) SetProgressChannel(progCh chan spinner.ChannelMessage) {
-	c.progCh = progCh
+func New() *Client {
+	return &Client{client: http.DefaultClient}
 }
 
-func NewClient() *Client {
-	transport := &http.Transport{
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := utls.Dial(network, addr, nil)
-			if err != nil {
-				return nil, err
-			}
-			return conn, nil
-		},
-	}
-
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   15 * time.Second,
-	}
-
-	return &Client{client: client}
+func (c *Client) SetProgressChannel(progCh chan spinner.ChannelMessage) {
+	c.progCh = progCh
 }
 
 type VideoMetadata struct {

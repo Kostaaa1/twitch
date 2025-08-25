@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -82,6 +80,7 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh c
 	if progressCh == nil {
 		return
 	}
+
 	if unit.W != nil {
 		if file, ok := unit.W.(*os.File); ok && file != nil {
 			if unit.Error != nil {
@@ -122,8 +121,8 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	playlist := m3u8.ParseMediaPlaylist(res.Body)
 	playlist.TruncateSegments(unit.Start, unit.End)
 
-	jobsChan := make(chan segmentJob, 16)
-	resultsChan := make(chan segmentJob, 16)
+	jobsChan := make(chan segmentJob)
+	resultsChan := make(chan segmentJob)
 
 	go func() {
 		for i, seg := range playlist.Segments {
@@ -139,10 +138,9 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 				}
 			}
 		}
-		close(jobsChan)
 	}()
 
-	const maxWorkers = 16
+	const maxWorkers = 8
 	var wg sync.WaitGroup
 
 	for i := 0; i < maxWorkers; i++ {
@@ -150,6 +148,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 
 		go func() {
 			defer wg.Done()
+
 			for {
 				select {
 				case <-ctx.Done():
@@ -159,32 +158,23 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 						return
 					}
 
-					req, err := http.NewRequestWithContext(ctx, "GET", job.url, nil)
+					resp, err := c.client.Get(job.url)
 					if err != nil {
 						job.err = err
-					}
-					// setDefaultHeaders(req)
-
-					// TODO: bad?
-					res, err := c.client.Do(req)
-					if err != nil {
-						fmt.Println(err)
+					} else {
+						// Avoid using of the io.ReadAll???????
+						data, err := io.ReadAll(resp.Body)
 						job.err = err
-					}
-					b, err := io.ReadAll(res.Body)
-					res.Body.Close()
-					if err != nil {
-						job.err = err
+						job.data = data
+						resp.Body.Close()
+
+						select {
+						case <-ctx.Done():
+							return
+						case resultsChan <- job:
+						}
 					}
 
-					job.data = b
-					job.err = nil
-
-					select {
-					case <-ctx.Done():
-						return
-					case resultsChan <- job:
-					}
 				}
 			}
 		}()
@@ -219,7 +209,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 
 					n, err := unit.W.Write(job.data)
 					if err != nil {
-						log.Fatal(err)
+						return fmt.Errorf("error writing segment: %v", err)
 					}
 
 					msg := spinner.ChannelMessage{Bytes: int64(n)}

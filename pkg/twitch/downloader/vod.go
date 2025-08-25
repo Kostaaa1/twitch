@@ -158,7 +158,7 @@ func (unit Unit) StreamVOD(dl *Downloader) error {
 			lastIndex := strings.LastIndex(variant.URL, "/")
 			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
 
-			resp, err := dl.twClient.HTTPClient().Get(fullSegURL)
+			resp, err := dl.twClient.HttpClient().Get(fullSegURL)
 			if err != nil {
 				return err
 			}

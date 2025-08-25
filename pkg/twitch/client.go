@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Client struct {
 	httpClient *http.Client
 	creds      *Creds
+	retryCount int
 }
 
 const (
@@ -23,16 +25,26 @@ const (
 
 func NewClient(creds *Creds) *Client {
 	return &Client{
-		httpClient: http.DefaultClient,
 		creds:      creds,
+		retryCount: 3,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		},
 	}
 }
 
-func (tw *Client) HTTPClient() *http.Client {
+func (tw *Client) HttpClient() *http.Client {
 	return tw.httpClient
 }
 
-func (tw *Client) SetHTTPClient(c *http.Client) {
+func (tw *Client) SetHttpClient(c *http.Client) {
 	tw.httpClient = c
 }
 
