@@ -90,10 +90,11 @@ func (u Unit) GetTitle() string {
 	return u.ID
 }
 
-func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
-	if progressCh == nil {
+func (unit *Unit) NotifyProgressChannel(msg spinner.Message, progCh chan spinner.Message) {
+	if progCh == nil {
 		return
 	}
+
 	if unit.Writer != nil {
 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
 			if unit.Error != nil {
@@ -102,7 +103,7 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh c
 			}
 			l := msg
 			l.Text = file.Name()
-			progressCh <- l
+			progCh <- l
 		}
 	}
 }

@@ -13,7 +13,7 @@ import (
 
 type errMsg error
 
-type ChannelMessage struct {
+type Message struct {
 	Text    string
 	Message string
 	Bytes   int64
@@ -22,13 +22,15 @@ type ChannelMessage struct {
 }
 
 type unit struct {
-	Title       string
-	Message     string
+	Title   string
+	Message string
+	Err     error
+
 	TotalBytes  float64
 	StartTime   time.Time
 	ElapsedTime time.Duration
-	IsDone      bool
-	Err         error
+
+	IsDone bool
 }
 
 type UnitProvider interface {
@@ -44,7 +46,7 @@ type Model struct {
 	width      int
 	doneCount  int
 	program    *tea.Program
-	progChan   chan ChannelMessage
+	C          chan Message
 }
 
 var (
@@ -83,7 +85,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m *Model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		return <-m.progChan
+		return <-m.C
 	}
 }
 
@@ -115,7 +117,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg
 		return m, nil
 
-	case ChannelMessage:
+	case Message:
 		for i := range m.units {
 			if m.units[i].Title == msg.Text {
 				if msg.Error != nil {
@@ -263,7 +265,7 @@ func errorMsg(err error) string {
 
 // Unit can be whatever satisfies UnitProvider interface
 func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.CancelFunc) *Model {
-	progChan := make(chan ChannelMessage, len(units))
+	// TODO: CHANGE STRUCTURE, WE NEED O(1) ACCESS TO UNITS
 	su := make([]unit, len(units))
 
 	doneCount := 0
@@ -291,13 +293,13 @@ func New[T UnitProvider](units []T, spinnerModel string, cancelFunc context.Canc
 		units:      su,
 		spinner:    s,
 		doneCount:  doneCount,
-		progChan:   progChan,
+		C:          make(chan Message, len(units)),
 	}
 }
 
-func (m *Model) ProgressChan() chan ChannelMessage {
-	return m.progChan
-}
+// func (m *Model) ProgressChan() chan Message {
+// 	return m.ch
+// }
 
 func (m *Model) Run() {
 	m.program = tea.NewProgram(m)

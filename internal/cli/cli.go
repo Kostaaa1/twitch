@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -102,7 +101,7 @@ func (opt Option) unitsFromFileInput(units *[]spinner.UnitProvider) {
 		if isKick(unit.Input) {
 			unit := kick.Unit{
 				URL:     unit.Input,
-				Quality: downloader.Quality720p60,
+				Quality: kick.Quality1080p,
 				Start:   unit.Start,
 				End:     unit.End,
 				Title:   uuid.NewString(),
@@ -129,7 +128,7 @@ func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 		if isKick(input) {
 			unit := kick.Unit{
 				URL:     input,
-				Quality: downloader.Quality720p60,
+				Quality: kick.Quality1080p,
 				Start:   opt.Start,
 				End:     opt.End,
 				Title:   uuid.NewString(),
@@ -137,7 +136,6 @@ func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 			unit.CreateFile(opt.Output)
 			*units = append(*units, unit)
 		} else {
-			fmt.Println("Creating twitch unit")
 			unit := downloader.NewUnit(
 				input,
 				opt.Quality,

@@ -1,7 +1,6 @@
 package kick
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,8 +13,10 @@ import (
 
 func (c *Client) MasterPlaylistURL(input string) (string, error) {
 	channel, vodUUID := "", ""
-	// get channel name by input use /api/V1
+
+	// if input is UUID then get channel from V1Channel, otherwise if URL parse channel name and UUID from path
 	if uuid.Validate(input) == nil {
+		// TODO: not working
 		data, err := c.V1Channel(input)
 		if err != nil {
 			return "", err
@@ -30,6 +31,10 @@ func (c *Client) MasterPlaylistURL(input string) (string, error) {
 		parts := strings.Split(parsed.Path, "/")
 		channel = parts[1]
 		vodUUID = parts[3]
+	}
+
+	if channel == "" || vodUUID == "" {
+		return "", errors.New("invalid kick URL")
 	}
 
 	videos, err := c.Videos(channel)
@@ -47,22 +52,10 @@ func (c *Client) MasterPlaylistURL(input string) (string, error) {
 }
 
 func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
-	videosURL := fmt.Sprintf("https://kick.com/api/v2/channels/%s/videos", channel)
-
-	req, err := http.NewRequest(http.MethodGet, videosURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	setDefaultHeaders(req)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s/videos", channel)
 
 	var videos []*VideoMetadata
-	if err := json.NewDecoder(resp.Body).Decode(&videos); err != nil {
+	if err := c.sendRequestAndDecode(url, http.MethodGet, &videos); err != nil {
 		return nil, err
 	}
 
@@ -80,6 +73,13 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 
 			if channelData != nil && video.Thumbnail.Src != "" {
 				vodSig := getVideoSignature(video.Thumbnail.Src)
+
+				// TODO: this does not work properly! The timestamp of StartTime Hour and Minute is sometimes wrong
+				minute := video.StartTime.Minute()
+				if video.StartTime.Second() < 10 {
+					minute--
+				}
+
 				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8",
 					channelData.CustomerID,
 					channelData.ContentID,
@@ -87,7 +87,7 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 					video.StartTime.Month(),
 					video.StartTime.Day(),
 					video.StartTime.Hour(),
-					video.StartTime.Minute(),
+					minute,
 					vodSig)
 			}
 		}
@@ -119,28 +119,28 @@ type Video struct {
 	Views             int         `json:"views"`
 }
 
-func (c *Client) VideoByID(id string) (interface{}, error) {
-	videoURL := fmt.Sprintf("https://kick.com/api/v1/video/%s", id)
+// func (c *Client) VideoByID(id string) (interface{}, error) {
+// 	videoURL := fmt.Sprintf("https://kick.com/api/v1/video/%s", id)
 
-	req, err := http.NewRequest(http.MethodGet, videoURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	setDefaultHeaders(req)
+// 	req, err := http.NewRequest(http.MethodGet, videoURL, nil)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	setDefaultHeaders(req)
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+// 	resp, err := c.client.Do(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer resp.Body.Close()
 
-	var video Video
-	if err := json.NewDecoder(resp.Body).Decode(&video); err != nil {
-		return nil, err
-	}
+// 	var video Video
+// 	if err := json.NewDecoder(resp.Body).Decode(&video); err != nil {
+// 		return nil, err
+// 	}
 
-	return video, nil
-}
+// 	return video, nil
+// }
 
 // Channel
 type Channel struct {
@@ -235,21 +235,10 @@ type Channel struct {
 }
 
 func (c *Client) Channel(channel string) (*Channel, error) {
-	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s", channel)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	setDefaultHeaders(req)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	u := fmt.Sprintf("https://kick.com/api/v2/channels/%s", channel)
 
 	var data Channel
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := c.sendRequestAndDecode(u, http.MethodGet, &data); err != nil {
 		return nil, err
 	}
 
@@ -354,21 +343,10 @@ type V1Channel struct {
 }
 
 func (c *Client) V1Channel(vodUUID string) (*V1Channel, error) {
-	url := fmt.Sprintf("https://kick.com/api/v1/video/%s", vodUUID)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	setDefaultHeaders(req)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	u := fmt.Sprintf("https://kick.com/api/v1/video/%s", vodUUID)
 
 	var data V1Channel
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := c.sendRequestAndDecode(u, http.MethodGet, &data); err != nil {
 		return nil, err
 	}
 

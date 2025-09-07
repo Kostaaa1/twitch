@@ -2,24 +2,50 @@ package kick
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/Danny-Dasilva/CycleTLS/cycletls"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type Client struct {
-	client *http.Client
-	progCh chan spinner.ChannelMessage
-	ctx    context.Context
+	cycletls   cycletls.CycleTLS
+	httpClient *http.Client
+	ctx        context.Context
+	progCh     chan spinner.Message
 }
 
 func New() *Client {
-	return &Client{client: http.DefaultClient}
+	tlsClient := cycletls.Init()
+	return &Client{
+		cycletls:   tlsClient,
+		httpClient: http.DefaultClient,
+	}
 }
 
-func (c *Client) SetProgressChannel(progCh chan spinner.ChannelMessage) {
+func (c *Client) Close() {
+	c.cycletls.Close()
+}
+
+func (c *Client) defaultCycleTLSOpts() cycletls.Options {
+	return cycletls.Options{
+		Ja3:       "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0",
+		UserAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.54 Safari/537.36",
+	}
+}
+
+func (c *Client) sendRequestAndDecode(URL string, method string, target interface{}) error {
+	resp, err := c.cycletls.Do(URL, c.defaultCycleTLSOpts(), method)
+	if err != nil {
+		return err
+	}
+	return json.NewDecoder(strings.NewReader(resp.Body)).Decode(target)
+}
+
+func (c *Client) SetProgressChannel(progCh chan spinner.Message) {
 	c.progCh = progCh
 }
 
@@ -69,18 +95,10 @@ type Datetime struct {
 
 func (d *Datetime) UnmarshalJSON(b []byte) error {
 	s := strings.Trim(string(b), `"`)
-	layout := "2006-01-02 15:04:05"
-	t, err := time.Parse(layout, s)
+	t, err := time.Parse("2006-01-02 15:04:05", s)
 	if err != nil {
 		return err
 	}
 	d.Time = t
 	return nil
-}
-
-func setDefaultHeaders(req *http.Request) {
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Connection", "close")
 }

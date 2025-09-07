@@ -71,8 +71,8 @@ func (dl *Downloader) recordStream(unit Unit) error {
 			// TODO: improve this so it does not use io.ReadAll()
 			b, err := dl.fetch(variant.URL)
 			if err != nil {
-				msg := spinner.ChannelMessage{Error: errors.New("stream ended")}
-				unit.NotifyProgressChannel(msg, dl.progressCh)
+				msg := spinner.Message{Error: errors.New("stream ended")}
+				unit.NotifyProgressChannel(msg, dl.progCh)
 				return err
 			}
 
@@ -108,8 +108,8 @@ func (dl *Downloader) recordStream(unit Unit) error {
 							log.Fatal(err)
 						}
 
-						msg := spinner.ChannelMessage{Bytes: int64(n)}
-						unit.NotifyProgressChannel(msg, dl.progressCh)
+						msg := spinner.Message{Bytes: int64(n)}
+						unit.NotifyProgressChannel(msg, dl.progCh)
 						segHist.Add(segURL)
 					}
 				}

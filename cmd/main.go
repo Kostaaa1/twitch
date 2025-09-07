@@ -31,21 +31,16 @@ func main() {
 
 	option := ParseFlags(*conf)
 
-	var tw *twitch.Client
-
 	if option.Authorize {
-		if tw == nil {
-			tw = twitch.NewClient(&conf.Creds)
-		}
+		tw := twitch.NewClient(&conf.Creds)
 		if err := tw.Authorize(); err != nil {
 			panic(err)
 		}
+		return
 	}
 
 	if len(os.Args) == 1 {
-		if tw == nil {
-			tw = twitch.NewClient(&conf.Creds)
-		}
+		tw := twitch.NewClient(&conf.Creds)
 		initChat(tw, conf)
 		return
 	}
@@ -66,7 +61,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 
 	if conf.Downloader.ShowSpinner {
 		spin = spinner.New(units, conf.Downloader.SpinnerModel, cancel)
-		defer close(spin.ProgressChan())
+		defer close(spin.C)
 
 		g.Go(func() error {
 			spin.Run()
@@ -75,39 +70,11 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	}
 
 	if len(twitchUnits) > 0 {
-		tw := twitch.NewClient(&conf.Creds)
-		dl := downloader.New(ctx, tw, conf.Downloader)
-
-		if spin != nil {
-			dl.SetProgressChannel(spin.ProgressChan())
-		}
-
-		g.Go(func() error {
-			if option.Subscribe {
-				return initTwitchEventSub(ctx, tw, dl, twitchUnits)
-			} else {
-				return batchDownloadTwitchUnits(ctx, dl, option.Threads, twitchUnits)
-			}
-		})
+		startTwitchDownloader(ctx, spin, conf, option, twitchUnits, g)
 	}
 
 	if len(kickUnits) > 0 {
-		kick := kick.New()
-		if spin != nil {
-			kick.SetProgressChannel(spin.ProgressChan())
-		}
-
-		g.Go(func() error {
-			batchGroup, ctx := errgroup.WithContext(ctx)
-			batchGroup.SetLimit(option.Threads)
-			for _, unit := range kickUnits {
-				batchGroup.Go(func() error {
-					return kick.Download(ctx, unit)
-				})
-			}
-
-			return batchGroup.Wait()
-		})
+		startKickDownloader(ctx, spin, option.Threads, option, kickUnits, g)
 	}
 
 	if err := g.Wait(); err != nil {
@@ -115,19 +82,93 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	}
 }
 
+func startKickDownloader(
+	ctx context.Context,
+	spin *spinner.Model,
+	threads int,
+	option cli.Option,
+	kickUnits []kick.Unit,
+	g *errgroup.Group,
+) {
+	kick := kick.New()
+	if spin != nil {
+		kick.SetProgressChannel(spin.C)
+	}
+
+	g.Go(func() error {
+		batchGroup, ctx := errgroup.WithContext(ctx)
+		batchGroup.SetLimit(option.Threads)
+
+		for _, unit := range kickUnits {
+			batchGroup.Go(func() error {
+				if err := kick.Download(ctx, unit); err != nil {
+					// spinnerMsg := spinner.Message{
+					// 	Message: err.Error(),
+					// 	IsDone:  true,
+					// 	Error:   err,
+					// }
+					// unit.NotifyProgressChannel(spinnerMsg, spin.C)
+					return err
+				}
+
+				return nil
+			})
+		}
+
+		return batchGroup.Wait()
+	})
+}
+
+func startTwitchDownloader(
+	ctx context.Context,
+	spin *spinner.Model,
+	conf *config.Config,
+	option cli.Option,
+	twitchUnits []downloader.Unit,
+	g *errgroup.Group,
+) {
+	tw := twitch.NewClient(&conf.Creds)
+	dl := downloader.New(ctx, tw, conf.Downloader)
+
+	if spin != nil {
+		dl.SetProgressChannel(spin.C)
+	}
+
+	g.Go(func() error {
+		if option.Subscribe {
+			return initTwitchEventSub(ctx, tw, dl, twitchUnits)
+		} else {
+			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, spin.C)
+		}
+	})
+}
+
 func batchDownloadTwitchUnits(
 	ctx context.Context,
-	dl *downloader.Downloader,
 	threads int,
 	units []downloader.Unit,
+	dl *downloader.Downloader,
+	ch chan spinner.Message,
 ) error {
 	batchGroup, ctx := errgroup.WithContext(ctx)
 	batchGroup.SetLimit(threads)
+
 	for _, unit := range units {
 		batchGroup.Go(func() error {
-			return dl.Download(unit)
+			if err := dl.Download(unit); err != nil {
+				spinnerMsg := spinner.Message{
+					Message: err.Error(),
+					IsDone:  true,
+					Error:   err,
+				}
+
+				unit.NotifyProgressChannel(spinnerMsg, ch)
+				return err
+			}
+			return nil
 		})
 	}
+
 	return batchGroup.Wait()
 }
 

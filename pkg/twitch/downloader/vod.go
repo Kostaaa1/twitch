@@ -128,8 +128,7 @@ func (dl *Downloader) downloadVOD(unit Unit) error {
 						return fmt.Errorf("error writing segment: %v", err)
 					}
 
-					msg := spinner.ChannelMessage{Bytes: int64(n)}
-					unit.NotifyProgressChannel(msg, dl.progressCh)
+					unit.NotifyProgressChannel(spinner.Message{Bytes: int64(n)}, dl.progCh)
 				} else {
 					break
 				}
@@ -169,8 +168,7 @@ func (unit Unit) StreamVOD(dl *Downloader) error {
 				return err
 			}
 
-			msg := spinner.ChannelMessage{Bytes: n}
-			unit.NotifyProgressChannel(msg, dl.progressCh)
+			unit.NotifyProgressChannel(spinner.Message{Bytes: n}, dl.progCh)
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -14,31 +15,59 @@ import (
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 )
 
 type QualityType int
 
 const (
-	QualityBest QualityType = iota
-	Quality1080p60
+	Quality1080p QualityType = iota
 	Quality720p60
+	Quality720p30
 	Quality480p30
 	Quality360p30
 	Quality160p30
-	QualityWorst
-	QualityAudioOnly
 )
+
+func (qt QualityType) String() string {
+	switch qt {
+	case Quality1080p:
+		return "1080p"
+	case Quality720p60:
+		return "720p60"
+	case Quality720p30:
+		return "720p30"
+	case Quality480p30:
+		return "480p30"
+	case Quality360p30:
+		return "360p30"
+	case Quality160p30:
+		return "160p30"
+	default:
+		return ""
+	}
+}
 
 type Unit struct {
 	URL     string
 	Start   time.Duration
 	End     time.Duration
-	Quality downloader.QualityType
+	Quality QualityType
 	// used for file creation
 	Title string
 	W     io.Writer
 	Error error
+}
+
+// Satisfies spinner.UnitProvider
+func (u Unit) GetError() error {
+	return u.Error
+}
+
+func (u Unit) GetTitle() string {
+	if f, ok := u.W.(*os.File); ok && f != nil {
+		return f.Name()
+	}
+	return ""
 }
 
 func (u *Unit) CreateFile(output string) error {
@@ -55,17 +84,6 @@ func (u *Unit) CreateFile(output string) error {
 	return nil
 }
 
-func (u Unit) GetError() error {
-	return u.Error
-}
-
-func (u Unit) GetTitle() string {
-	if f, ok := u.W.(*os.File); ok && f != nil {
-		return f.Name()
-	}
-	return ""
-}
-
 func (u *Unit) CloseWriter() error {
 	if f, ok := u.W.(*os.File); ok && f != nil {
 		if u.Error != nil {
@@ -76,8 +94,8 @@ func (u *Unit) CloseWriter() error {
 	return nil
 }
 
-func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh chan spinner.ChannelMessage) {
-	if progressCh == nil {
+func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Message) {
+	if ch == nil {
 		return
 	}
 
@@ -89,12 +107,10 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.ChannelMessage, progressCh c
 			}
 			l := msg
 			l.Text = file.Name()
-			progressCh <- l
+			ch <- l
 		}
 	}
 }
-
-//////////////////
 
 type segmentJob struct {
 	index int
@@ -112,11 +128,15 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
 	playlistURL := basePath + unit.Quality.String() + "/playlist.m3u8"
 
-	res, err := c.client.Get(playlistURL)
+	res, err := c.httpClient.Get(playlistURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch media playlist: %s", err.Error())
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("access to the stream is forbidden (403)")
+	}
 
 	playlist := m3u8.ParseMediaPlaylist(res.Body)
 	playlist.TruncateSegments(unit.Start, unit.End)
@@ -158,7 +178,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 						return
 					}
 
-					resp, err := c.client.Get(job.url)
+					resp, err := c.httpClient.Get(job.url)
 					if err != nil {
 						job.err = err
 					} else {
@@ -212,7 +232,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 						return fmt.Errorf("error writing segment: %v", err)
 					}
 
-					msg := spinner.ChannelMessage{Bytes: int64(n)}
+					msg := spinner.Message{Bytes: int64(n)}
 					unit.NotifyProgressChannel(msg, c.progCh)
 				} else {
 					break

@@ -11,10 +11,10 @@ import (
 )
 
 type Downloader struct {
-	twClient   *twitch.Client
-	progressCh chan spinner.ChannelMessage
-	config     Config
-	ctx        context.Context
+	twClient *twitch.Client
+	progCh   chan spinner.Message
+	config   Config
+	ctx      context.Context
 }
 
 type Config struct {
@@ -32,8 +32,8 @@ func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader 
 	}
 }
 
-func (dl *Downloader) SetProgressChannel(progressCh chan spinner.ChannelMessage) {
-	dl.progressCh = progressCh
+func (dl *Downloader) SetProgressChannel(progCh chan spinner.Message) {
+	dl.progCh = progCh
 }
 
 func (dl *Downloader) Download(u Unit) error {
