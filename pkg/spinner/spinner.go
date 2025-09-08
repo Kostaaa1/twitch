@@ -44,13 +44,10 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 	doneCount := 0
 	for _, u := range units {
 		su[u.GetID()] = &unit{
-			title:                 u.GetTitle(),
-			err:                   u.GetError(),
-			downloadUnitSize:      sizeB,
-			downloadSpeedUnitSize: sizeB,
-			downloadSize:          0,
-			downloadSpeed:         0,
+			title: u.GetTitle(),
+			err:   u.GetError(),
 		}
+
 		if u.GetError() != nil {
 			doneCount++
 		}
@@ -69,10 +66,6 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 		cancelFunc: cancelFunc,
 	}
 
-	if doneCount == len(units) {
-		m.exit()
-	}
-
 	return m
 }
 
@@ -88,20 +81,17 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if len(m.units) == m.doneCount {
-		m.exit()
-		return m, tea.Quit
+		return m.exit()
 	}
 
 	switch msg := msg.(type) {
 	case tea.QuitMsg:
-		m.exit()
-		return m, tea.Quit
+		return m.exit()
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
-			m.exit()
-			return m, tea.Quit
+			return m.exit()
 		default:
 			return m, nil
 		}
@@ -114,37 +104,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if unit, ok := m.units[msg.ID]; ok {
 			// TODO: handle size conversion to largest possible size. Also needs to mutate download speed, speed size, possibly ETA
 
-			unit.downloadSize += float64(msg.Bytes)
+			// unit.downloadSize += float64(msg.Bytes)
+			// if unit.downloadSize >= 1024 && int(unit.downloadUnitSize) < len(sizeUnits)-1 {
+			// 	unit.downloadSize /= 1024
+			// 	unit.downloadUnitSize++
+			//
 
-			if unit.downloadSize >= 1024 && int(unit.downloadUnitSize) < len(sizeUnits)-1 {
-				unit.downloadSize /= 1024
-				unit.downloadUnitSize++
-			}
-
-			// func downloadSpeedMBs(bytes float64, elapsed time.Duration) float64 {
-			// 	elapsedSeconds := elapsed.Seconds()
-			// 	if elapsedSeconds == 0 {
-			// 		return 0
-			// 	}
-			// 	bytesPerSecond := bytes / elapsedSeconds
-			// 	kilobytesPerSecond := bytesPerSecond / (1024 * 1024)
-			// 	return kilobytesPerSecond
-			// }
-
-			// func progressMsg(total float64, elapsed time.Duration) string {
-			// 	totalConverted := total
-			// 	// convert to largest possible unit
-			// 	i := 0
-			// 	for totalConverted >= 1024 && i < len(sizeUnits)-1 {
-			// 		totalConverted /= 1024
-			// 		i++
-			// 	}
-			// 	// calculate speed
-			// 	elapsedSeconds := elapsed.Seconds()
-			// 	if elapsedSeconds > 0 {
-			// 	}
-			// 	return fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, sizeUnits[i], speed, elapsed.Truncate(time.Second))
-			// }
+			unit.totalBytes += float64(msg.Bytes)
 
 			if unit.startTime.IsZero() {
 				unit.startTime = time.Now()
@@ -180,8 +146,9 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 	if m.exiting {
 		return m, nil
 	}
-
 	m.exiting = true
+
+	fmt.Println("called exit()")
 
 	for _, unit := range m.units {
 		unit.isDone = true
@@ -191,13 +158,16 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 		m.cancelFunc()
 	}
 
+	time.Sleep(time.Second * 5)
+	close(m.C)
+
 	return m, tea.Quit
 }
 
 // Update ticker
 func (m *Model) updateTime() {
 	for _, unit := range m.units {
-		if !unit.isDone && unit.downloadSize > 0 {
+		if !unit.isDone && unit.totalBytes > 0 {
 			unit.elapsed = time.Since(unit.startTime)
 		}
 	}
@@ -239,8 +209,32 @@ func wrapText(s string, limit int) string {
 	return strings.Join(parts, "\n")
 }
 
-func (u unit) progress() string {
-	return fmt.Sprintf("(%.1f %s | %.2f %s/s) [%s]", u.downloadSize, u.downloadUnitSize, u.downloadSpeed, u.downloadSpeedUnitSize, u.elapsed.Truncate(time.Second))
+func downloadSpeedMBs(bytes float64, elapsed time.Duration) float64 {
+	elapsedSeconds := elapsed.Seconds()
+	if elapsedSeconds == 0 {
+		return 0
+	}
+	bytesPerSecond := bytes / elapsedSeconds
+	kilobytesPerSecond := bytesPerSecond / (1024 * 1024)
+	return kilobytesPerSecond
+}
+
+func progressMsg(total float64, elapsed time.Duration) string {
+	totalConverted := total
+
+	i := 0
+	for totalConverted >= 1024 && i < len(sizeUnits)-1 {
+		totalConverted /= 1024
+		i++
+	}
+
+	// calculate speed
+	// elapsedSeconds := elapsed.Seconds()
+	// if elapsedSeconds > 0 {
+	// }
+	bytesPerSec := total / elapsed.Seconds()
+
+	return fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, sizeUnits[i], bytesPerSec, elapsed.Truncate(time.Second))
 }
 
 func (m Model) formatMessage(u *unit) string {
@@ -251,12 +245,14 @@ func (m Model) formatMessage(u *unit) string {
 
 	var str strings.Builder
 
+	progMsg := progressMsg(u.totalBytes, u.elapsed)
+
 	if u.isDone {
-		str.WriteString(successMsg(u.title, u.progress()))
+		str.WriteString(successMsg(u.title, progMsg))
 	} else {
 		parts := []string{
 			m.spinner.View(),
-			strings.Join([]string{u.title, u.progress()}, " "),
+			strings.Join([]string{u.title, progMsg}, " "),
 		}
 		str.WriteString(strings.Join(parts, " "))
 	}

@@ -58,12 +58,6 @@ func initDownloader(conf *config.Config, option cli.Option) {
 
 	var spin *spinner.Model
 
-	go func() {
-		<-ctx.Done()
-		fmt.Println("context closed")
-		// close(spin.C)
-	}()
-
 	if conf.Downloader.ShowSpinner {
 		spin = spinner.New(ctx, units, cancel)
 
@@ -82,7 +76,6 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	}
 
 	g.Wait()
-	fmt.Println("WAIT FINISHED")
 }
 
 func startKickDownloader(

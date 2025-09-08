@@ -44,7 +44,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 				fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
 				select {
 				case <-ctx.Done():
-					fmt.Println("context canceled 1")
 					return
 				case jobsChan <- segmentJob{
 					index: i,
@@ -66,7 +65,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 			for {
 				select {
 				case <-ctx.Done():
-					fmt.Println("context canceled 2")
 					return
 				case job, ok := <-jobsChan:
 					if !ok {
@@ -91,7 +89,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 
 					select {
 					case <-ctx.Done():
-						fmt.Println("context canceled 3")
 						return
 					case resultsChan <- job:
 					}
@@ -111,7 +108,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("context canceled 4")
 			return nil
 		case result, ok := <-resultsChan:
 			if !ok {
@@ -133,7 +129,11 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 						return fmt.Errorf("error writing segment: %v", err)
 					}
 
-					unit.NotifyProgressChannel(spinner.Message{Bytes: int64(n)}, dl.progCh)
+					unit.NotifyProgressChannel(spinner.Message{
+						ID:    unit.GetTitle(),
+						Bytes: int64(n)},
+						dl.progCh,
+					)
 				} else {
 					break
 				}

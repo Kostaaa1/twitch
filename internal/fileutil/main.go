@@ -61,7 +61,6 @@ func CreateFile(dir, filename, ext string) (*os.File, error) {
 
 	f, err := os.Create(path)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 

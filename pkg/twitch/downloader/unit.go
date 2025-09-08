@@ -95,17 +95,13 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.Message, progCh chan spinner
 	if progCh == nil {
 		return
 	}
-
 	if unit.Writer != nil {
 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
 			if unit.Error != nil {
 				os.Remove(file.Name())
 				unit.Writer = nil
 			}
-
-			l := msg
-			l.ID = file.Name()
-			progCh <- l
+			progCh <- msg
 		}
 	}
 }
@@ -191,6 +187,7 @@ func NewUnit(input, quality string, opts ...UnitOption) *Unit {
 	}
 
 	parsedURL, err := url.Parse(input)
+
 	if err == nil && unit.Type == TypeVOD {
 		if unit.Error = parseVodParams(parsedURL, unit); unit.Error != nil {
 			return unit
@@ -217,7 +214,7 @@ func WithWriter(dir string) UnitOption {
 		if strings.HasPrefix(u.Quality.String(), "audio") {
 			ext = "mp3"
 		}
-		u.Writer, u.Error = fileutil.CreateFile(dir, u.Title, ext)
+		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetTitle(), ext)
 	}
 }
 

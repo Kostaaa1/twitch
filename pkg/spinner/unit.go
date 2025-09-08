@@ -12,20 +12,12 @@ import "time"
 type unitSize int
 
 type unit struct {
-	title string
-	err   error
-
-	downloadSize          float64
-	downloadUnitSize      unitSize
-	downloadSpeed         float64
-	downloadSpeedUnitSize unitSize
-
-	// TODO: handle ETA (estimated time left)
-	// eta       time.Duration
-	startTime time.Time
-	elapsed   time.Duration
-
-	isDone bool
+	title      string
+	err        error
+	totalBytes float64
+	startTime  time.Time
+	elapsed    time.Duration
+	isDone     bool
 }
 
 type UnitProvider interface {

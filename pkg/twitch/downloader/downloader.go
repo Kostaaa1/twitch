@@ -51,7 +51,6 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 		u.Error = dl.recordStream(ctx, u)
 	}
 
-	fmt.Println("DOWNLOAD FINISHED")
 	return nil
 }
 
