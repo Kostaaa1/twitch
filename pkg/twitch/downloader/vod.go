@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,7 +19,7 @@ type segmentJob struct {
 }
 
 // TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
-func (dl *Downloader) downloadVOD(unit Unit) error {
+func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
 	if err != nil {
 		return err
@@ -42,7 +43,8 @@ func (dl *Downloader) downloadVOD(unit Unit) error {
 				lastIndex := strings.LastIndex(variant.URL, "/")
 				fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
 				select {
-				case <-dl.ctx.Done():
+				case <-ctx.Done():
+					fmt.Println("context canceled 1")
 					return
 				case jobsChan <- segmentJob{
 					index: i,
@@ -63,7 +65,8 @@ func (dl *Downloader) downloadVOD(unit Unit) error {
 			defer wg.Done()
 			for {
 				select {
-				case <-dl.ctx.Done():
+				case <-ctx.Done():
+					fmt.Println("context canceled 2")
 					return
 				case job, ok := <-jobsChan:
 					if !ok {
@@ -71,15 +74,15 @@ func (dl *Downloader) downloadVOD(unit Unit) error {
 					}
 
 					// TODO: test this.. 403 when fetching segments that have unmuted or muted...
-					status, data, err := dl.fetchWithStatus(job.url)
+					status, data, err := dl.fetchWithStatus(ctx, job.url)
 					if status == http.StatusForbidden {
 						switch {
 						case strings.Contains(job.url, "unmuted"):
 							job.url = strings.Replace(job.url, "-unmuted", "-muted", 1)
-							data, err = dl.fetch(job.url)
+							data, err = dl.fetch(ctx, job.url)
 						case strings.Contains(job.url, "muted"):
 							job.url = strings.Replace(job.url, "-muted", "", 1)
-							data, err = dl.fetch(job.url)
+							data, err = dl.fetch(ctx, job.url)
 						}
 					}
 
@@ -87,7 +90,8 @@ func (dl *Downloader) downloadVOD(unit Unit) error {
 					job.data = data
 
 					select {
-					case <-dl.ctx.Done():
+					case <-ctx.Done():
+						fmt.Println("context canceled 3")
 						return
 					case resultsChan <- job:
 					}
@@ -106,7 +110,8 @@ func (dl *Downloader) downloadVOD(unit Unit) error {
 
 	for {
 		select {
-		case <-dl.ctx.Done():
+		case <-ctx.Done():
+			fmt.Println("context canceled 4")
 			return nil
 		case result, ok := <-resultsChan:
 			if !ok {

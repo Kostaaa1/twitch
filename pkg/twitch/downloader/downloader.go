@@ -14,19 +14,18 @@ type Downloader struct {
 	twClient *twitch.Client
 	progCh   chan spinner.Message
 	config   Config
-	ctx      context.Context
+	// ctx      context.Context
 }
 
 type Config struct {
 	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
 	ShowSpinner     bool   `json:"show_spinner"`
 	Output          string `json:"output"`
-	SpinnerModel    string `json:"spinner_model"`
 }
 
 func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader {
 	return &Downloader{
-		ctx:      ctx,
+		// ctx:      ctx,
 		twClient: twClient,
 		config:   conf,
 	}
@@ -36,25 +35,28 @@ func (dl *Downloader) SetProgressChannel(progCh chan spinner.Message) {
 	dl.progCh = progCh
 }
 
-func (dl *Downloader) Download(u Unit) error {
+func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 	defer u.CloseWriter()
 
-	if u.Error == nil {
-		switch u.Type {
-		case TypeVOD:
-			u.Error = dl.downloadVOD(u)
-		case TypeClip:
-			u.Error = dl.downloadClip(u)
-		case TypeLivestream:
-			u.Error = dl.recordStream(u)
-		}
+	if u.Error != nil {
+		return u.Error
 	}
 
-	return u.Error
+	switch u.Type {
+	case TypeVOD:
+		u.Error = dl.downloadVOD(ctx, u)
+	case TypeClip:
+		u.Error = dl.downloadClip(u)
+	case TypeLivestream:
+		u.Error = dl.recordStream(ctx, u)
+	}
+
+	fmt.Println("DOWNLOAD FINISHED")
+	return nil
 }
 
-func (dl *Downloader) fetch(url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
+func (dl *Downloader) fetch(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
@@ -72,8 +74,8 @@ func (dl *Downloader) fetch(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
-	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
+func (dl *Downloader) fetchWithStatus(ctx context.Context, url string) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to create request with context: %v", err)
 	}

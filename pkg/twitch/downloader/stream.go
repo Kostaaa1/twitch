@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -37,7 +38,7 @@ func (h *segmentHistory) Seen(url string) bool {
 	return false
 }
 
-func (dl *Downloader) recordStream(unit Unit) error {
+func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 	isLive, err := dl.twClient.IsChannelLive(unit.ID)
 	if err != nil {
 		return err
@@ -65,11 +66,11 @@ func (dl *Downloader) recordStream(unit Unit) error {
 
 	for {
 		select {
-		case <-dl.ctx.Done():
+		case <-ctx.Done():
 			return nil
 		case <-time.After(1 * time.Second):
 			// TODO: improve this so it does not use io.ReadAll()
-			b, err := dl.fetch(variant.URL)
+			b, err := dl.fetch(ctx, variant.URL)
 			if err != nil {
 				msg := spinner.Message{Error: errors.New("stream ended")}
 				unit.NotifyProgressChannel(msg, dl.progCh)
@@ -79,7 +80,7 @@ func (dl *Downloader) recordStream(unit Unit) error {
 			lines := strings.Split(string(b), "\n")
 			for i := 0; i < len(lines)-1; i++ {
 				select {
-				case <-dl.ctx.Done():
+				case <-ctx.Done():
 					return nil
 				default:
 					line := lines[i]
@@ -98,7 +99,7 @@ func (dl *Downloader) recordStream(unit Unit) error {
 						// 	segURL = strings.Replace(segURL, "unmuted", "muted", 1)
 						// }
 
-						segmentBytes, err := dl.fetch(segURL)
+						segmentBytes, err := dl.fetch(ctx, segURL)
 						if err != nil {
 							return err
 						}

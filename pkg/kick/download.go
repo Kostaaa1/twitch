@@ -95,21 +95,23 @@ func (u *Unit) CloseWriter() error {
 }
 
 func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Message) {
-	if ch == nil {
+	if unit.W == nil || ch == nil {
 		return
 	}
 
-	if unit.W != nil {
-		if file, ok := unit.W.(*os.File); ok && file != nil {
-			if unit.Error != nil {
-				os.Remove(file.Name())
-				unit.W = nil
-			}
-			l := msg
-			l.Text = file.Name()
-			ch <- l
-		}
+	file, ok := unit.W.(*os.File)
+	if !ok || file == nil {
+		return
 	}
+
+	if unit.Error != nil {
+		os.Remove(file.Name())
+		unit.W = nil
+		return
+	}
+
+	msg.ID = unit.Title
+	ch <- msg
 }
 
 type segmentJob struct {

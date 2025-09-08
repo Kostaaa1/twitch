@@ -99,7 +99,11 @@ func initConfigData() Config {
 			IsFFmpegEnabled: false,
 			ShowSpinner:     true,
 			Output:          "",
-			SpinnerModel:    "dot",
+			// Spinner: downloader.SpinnerConfig{
+			// 	Model:       "dot",
+			// 	TwitchColor: "#8839ef",
+			// 	KickColor:   "#29d416",
+			// },
 		},
 		Chat: Chat{
 			OpenedChats:    []string{},
@@ -116,7 +120,7 @@ func initConfigData() Config {
 					Vip         string `json:"vip"`
 				}{
 					Broadcaster: "#d20f39",
-					Mod:         "#40a02b",
+					Mod:         "#29d416",
 					Staff:       "#8839ef",
 					Vip:         "#ea76cb",
 				},
@@ -127,7 +131,7 @@ func initConfigData() Config {
 					Raid         string `json:"raid"`
 					Sub          string `json:"sub"`
 				}{
-					Announcement: "#40a02b",
+					Announcement: "#29d416",
 					First:        "#ea76db",
 					Original:     "#fff",
 					Raid:         "#fe640b",

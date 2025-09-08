@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -59,9 +58,14 @@ func initDownloader(conf *config.Config, option cli.Option) {
 
 	var spin *spinner.Model
 
+	go func() {
+		<-ctx.Done()
+		fmt.Println("context closed")
+		// close(spin.C)
+	}()
+
 	if conf.Downloader.ShowSpinner {
-		spin = spinner.New(units, conf.Downloader.SpinnerModel, cancel)
-		defer close(spin.C)
+		spin = spinner.New(ctx, units, cancel)
 
 		g.Go(func() error {
 			spin.Run()
@@ -74,18 +78,16 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	}
 
 	if len(kickUnits) > 0 {
-		startKickDownloader(ctx, spin, option.Threads, option, kickUnits, g)
+		startKickDownloader(ctx, spin, option, kickUnits, g)
 	}
 
-	if err := g.Wait(); err != nil {
-		log.Println("Error while downloading: ", err)
-	}
+	g.Wait()
+	fmt.Println("WAIT FINISHED")
 }
 
 func startKickDownloader(
 	ctx context.Context,
 	spin *spinner.Model,
-	threads int,
 	option cli.Option,
 	kickUnits []kick.Unit,
 	g *errgroup.Group,
@@ -96,26 +98,17 @@ func startKickDownloader(
 	}
 
 	g.Go(func() error {
-		batchGroup, ctx := errgroup.WithContext(ctx)
-		batchGroup.SetLimit(option.Threads)
+		g, ctx := errgroup.WithContext(ctx)
+		g.SetLimit(option.Threads)
 
 		for _, unit := range kickUnits {
-			batchGroup.Go(func() error {
-				if err := kick.Download(ctx, unit); err != nil {
-					// spinnerMsg := spinner.Message{
-					// 	Message: err.Error(),
-					// 	IsDone:  true,
-					// 	Error:   err,
-					// }
-					// unit.NotifyProgressChannel(spinnerMsg, spin.C)
-					return err
-				}
-
-				return nil
+			g.Go(func() error {
+				// TODO: Notify spinner if error occurs while downloading to update the view message..
+				return kick.Download(ctx, unit)
 			})
 		}
 
-		return batchGroup.Wait()
+		return g.Wait()
 	})
 }
 
@@ -138,7 +131,7 @@ func startTwitchDownloader(
 		if option.Subscribe {
 			return initTwitchEventSub(ctx, tw, dl, twitchUnits)
 		} else {
-			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, spin.C)
+			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, spin)
 		}
 	})
 }
@@ -148,28 +141,19 @@ func batchDownloadTwitchUnits(
 	threads int,
 	units []downloader.Unit,
 	dl *downloader.Downloader,
-	ch chan spinner.Message,
+	spin *spinner.Model,
 ) error {
-	batchGroup, ctx := errgroup.WithContext(ctx)
-	batchGroup.SetLimit(threads)
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(threads)
 
 	for _, unit := range units {
-		batchGroup.Go(func() error {
-			if err := dl.Download(unit); err != nil {
-				spinnerMsg := spinner.Message{
-					Message: err.Error(),
-					IsDone:  true,
-					Error:   err,
-				}
-
-				unit.NotifyProgressChannel(spinnerMsg, ch)
-				return err
-			}
-			return nil
+		g.Go(func() error {
+			// TODO: Notify spinner if error occurs while downloading to update the view message..
+			return dl.Download(ctx, unit)
 		})
 	}
 
-	return batchGroup.Wait()
+	return g.Wait()
 }
 
 func initTwitchEventSub(
@@ -200,7 +184,7 @@ func initTwitchEventSub(
 					go func() {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
 
-						if err := dl.Download(*unit); err != nil {
+						if err := dl.Download(ctx, *unit); err != nil {
 							fmt.Println("error occured: ", err)
 							isLive, _ := tw.IsChannelLive(user.Login)
 							if !isLive {

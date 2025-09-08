@@ -10,6 +10,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
+// TODO: handle context
 func (dl *Downloader) downloadClip(unit Unit) error {
 	clip, err := dl.twClient.ClipMetadata(unit.ID)
 	if err != nil {
