@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
-var exitOnce sync.Once
 
 type Message struct {
 	ID any
@@ -23,16 +20,18 @@ type Message struct {
 }
 
 type Model struct {
-	C          chan Message
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	spinner    spinner.Model
 	width      int
-	program    *tea.Program
-	units      map[any]*unit
-	exiting    bool
+
+	program *tea.Program
+	units   map[any]*unit
+	exiting bool
 	// used to quit/exit the spinner if all units are done - prevents from always checking if all units are done
 	doneCount int
+
+	C chan Message
 }
 
 // Unit can be whatever satisfies UnitProvider interface.
@@ -47,7 +46,6 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 			title: u.GetTitle(),
 			err:   u.GetError(),
 		}
-
 		if u.GetError() != nil {
 			doneCount++
 		}
@@ -57,7 +55,7 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	m := &Model{
+	return &Model{
 		ctx:        ctx,
 		units:      su,
 		spinner:    s,
@@ -65,11 +63,9 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 		C:          c,
 		cancelFunc: cancelFunc,
 	}
-
-	return m
 }
 
-func (m *Model) waitForMsg() tea.Cmd {
+func (m Model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
 		return <-m.C
 	}
@@ -84,54 +80,59 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.exit()
 	}
 
-	switch msg := msg.(type) {
-	case tea.QuitMsg:
+	select {
+	case <-m.ctx.Done():
 		return m.exit()
-
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "esc", "ctrl+c":
-			return m.exit()
-		default:
-			return m, nil
-		}
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		return m, nil
-
-	case Message:
-		if unit, ok := m.units[msg.ID]; ok {
-			// TODO: handle size conversion to largest possible size. Also needs to mutate download speed, speed size, possibly ETA
-
-			// unit.downloadSize += float64(msg.Bytes)
-			// if unit.downloadSize >= 1024 && int(unit.downloadUnitSize) < len(sizeUnits)-1 {
-			// 	unit.downloadSize /= 1024
-			// 	unit.downloadUnitSize++
-			//
-
-			unit.totalBytes += float64(msg.Bytes)
-
-			if unit.startTime.IsZero() {
-				unit.startTime = time.Now()
-			}
-
-			if msg.IsDone {
-				unit.isDone = true
-				m.doneCount++
-			}
-		}
-
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, tea.Batch(cmd, m.waitForMsg())
-
 	default:
-		m.updateTime()
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, tea.Batch(cmd, m.waitForMsg())
+		switch msg := msg.(type) {
+		case tea.QuitMsg:
+			return m.exit()
+
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "q", "esc", "ctrl+c":
+				return m.exit()
+			default:
+				return m, nil
+			}
+
+		case tea.WindowSizeMsg:
+			m.width = msg.Width
+			return m, nil
+
+		case Message:
+			if unit, ok := m.units[msg.ID]; ok {
+				unit.totalBytes += float64(msg.Bytes)
+				if unit.startTime.IsZero() {
+					unit.startTime = time.Now()
+				}
+
+				if msg.IsDone {
+					unit.isDone = true
+					m.doneCount++
+				}
+			}
+
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, tea.Batch(cmd, m.waitForMsg())
+
+		default:
+			m.updateTime()
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
 	}
+}
+
+func (m Model) View() string {
+	var str strings.Builder
+	for _, unit := range m.units {
+		str.WriteString(m.formatMessage(unit))
+		str.WriteString("\n")
+	}
+	return str.String()
 }
 
 func (m *Model) Run() {
@@ -148,65 +149,20 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 	}
 	m.exiting = true
 
-	fmt.Println("called exit()")
-
 	for _, unit := range m.units {
 		unit.isDone = true
 	}
 
-	if m.cancelFunc != nil {
-		m.cancelFunc()
-	}
-
-	time.Sleep(time.Second * 5)
-	close(m.C)
-
+	m.cancelFunc()
 	return m, tea.Quit
 }
 
-// Update ticker
 func (m *Model) updateTime() {
 	for _, unit := range m.units {
 		if !unit.isDone && unit.totalBytes > 0 {
 			unit.elapsed = time.Since(unit.startTime)
 		}
 	}
-}
-
-func (m Model) View() string {
-	var str strings.Builder
-	for _, unit := range m.units {
-		str.WriteString(m.formatMessage(unit))
-		str.WriteString("\n")
-	}
-	return str.String()
-}
-
-func wrapText(s string, limit int) string {
-	if limit <= 0 || len(s) < limit {
-		return s
-	}
-
-	indexes := []int{}
-	for i := 0; i < len(s); i++ {
-		if i > 0 && i%limit == 0 {
-			indexes = append(indexes, i)
-		}
-	}
-
-	parts := []string{}
-	for i, index := range indexes {
-		if len(parts) == 0 {
-			parts = append(parts, s[0:index])
-		}
-		if len(indexes)-1 == i {
-			parts = append(parts, s[index:])
-			break
-		}
-		parts = append(parts, s[index:indexes[i+1]])
-	}
-
-	return strings.Join(parts, "\n")
 }
 
 func downloadSpeedMBs(bytes float64, elapsed time.Duration) float64 {
@@ -228,17 +184,16 @@ func progressMsg(total float64, elapsed time.Duration) string {
 		i++
 	}
 
-	// calculate speed
-	// elapsedSeconds := elapsed.Seconds()
-	// if elapsedSeconds > 0 {
-	// }
-	bytesPerSec := total / elapsed.Seconds()
+	speed := downloadSpeedMBs(total, elapsed)
 
-	return fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, sizeUnits[i], bytesPerSec, elapsed.Truncate(time.Second))
+	return fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, sizeUnits[i], speed, elapsed.Truncate(time.Second))
 }
 
 func (m Model) formatMessage(u *unit) string {
-	w := m.width - 4
+	if m.width == 0 {
+		return ""
+	}
+
 	if u.err != nil {
 		return errorMsg(u.err.Error())
 	}
@@ -246,18 +201,19 @@ func (m Model) formatMessage(u *unit) string {
 	var str strings.Builder
 
 	progMsg := progressMsg(u.totalBytes, u.elapsed)
+	title := wordBreak(u.title, m.width-10)
 
 	if u.isDone {
-		str.WriteString(successMsg(u.title, progMsg))
+		str.WriteString(successMsg(title, progMsg))
 	} else {
 		parts := []string{
 			m.spinner.View(),
-			strings.Join([]string{u.title, progMsg}, " "),
+			strings.Join([]string{title, progMsg}, " "),
 		}
 		str.WriteString(strings.Join(parts, " "))
 	}
 
-	return wrapText(str.String(), w)
+	return str.String()
 }
 
 func successMsg(text, message string) string {
@@ -266,4 +222,13 @@ func successMsg(text, message string) string {
 
 func errorMsg(errMsg string) string {
 	return fmt.Sprintf("❌ %s", errMsg)
+}
+
+func wordBreak(s string, limit int) string {
+	if len(s) < limit {
+		return s
+	}
+	p1 := s[:limit]
+	p2 := s[limit+1:]
+	return fmt.Sprintf("%s\n%s", p1, wordBreak(p2, limit))
 }

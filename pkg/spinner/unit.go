@@ -2,15 +2,6 @@ package spinner
 
 import "time"
 
-// type unitState int
-
-// const (
-// 	unitProcessing unitState = iota
-// 	unitDone
-// )
-
-type unitSize int
-
 type unit struct {
 	title      string
 	err        error
@@ -27,28 +18,4 @@ type UnitProvider interface {
 	GetTitle() string
 	// used when initializing spinner.units. if unit has error when initializing, it will update the done count and state
 	GetError() error
-}
-
-const (
-	sizeB unitSize = iota
-	sizeKB
-	sizeMB
-	sizeGB
-	sizeTB
-)
-
-func (s unitSize) String() string {
-	switch s {
-	case sizeB:
-		return "B"
-	case sizeKB:
-		return "KB"
-	case sizeMB:
-		return "MB"
-	case sizeGB:
-		return "GB"
-	case sizeTB:
-		return "TB"
-	}
-	return ""
 }

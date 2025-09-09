@@ -65,6 +65,11 @@ func initDownloader(conf *config.Config, option cli.Option) {
 			spin.Run()
 			return nil
 		})
+
+		go func() {
+			<-ctx.Done()
+			close(spin.C)
+		}()
 	}
 
 	if len(twitchUnits) > 0 {

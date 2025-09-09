@@ -120,23 +120,33 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 			segmentBuffer[result.index] = result
 
 			for {
-				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
-					delete(segmentBuffer, nextIndexToWrite)
-					nextIndexToWrite++
-
-					n, err := unit.Writer.Write(job.data)
-					if err != nil {
-						return fmt.Errorf("error writing segment: %v", err)
-					}
-
-					unit.NotifyProgressChannel(spinner.Message{
-						ID:    unit.GetTitle(),
-						Bytes: int64(n)},
-						dl.progCh,
-					)
-				} else {
+				job, exists := segmentBuffer[nextIndexToWrite]
+				if !exists {
 					break
 				}
+				delete(segmentBuffer, nextIndexToWrite)
+				nextIndexToWrite++
+
+				errCh := make(chan error, 1)
+				go func(data []byte) {
+					_, err := unit.Writer.Write(job.data)
+					errCh <- err
+				}(job.data)
+
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case err := <-errCh:
+					if err != nil {
+						return err
+					}
+				}
+
+				unit.NotifyProgressChannel(spinner.Message{
+					ID:    unit.GetTitle(),
+					Bytes: int64(len(job.data))},
+					dl.progCh,
+				)
 			}
 		}
 	}
