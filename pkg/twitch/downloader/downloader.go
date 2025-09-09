@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -12,9 +13,10 @@ import (
 
 type Downloader struct {
 	twClient *twitch.Client
-	progCh   chan spinner.Message
 	config   Config
-	// ctx      context.Context
+	// TODO: this should not depend on spinner package
+	progCh chan spinner.Message
+	ctx    context.Context
 }
 
 type Config struct {
@@ -25,7 +27,7 @@ type Config struct {
 
 func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader {
 	return &Downloader{
-		// ctx:      ctx,
+		ctx:      ctx,
 		twClient: twClient,
 		config:   conf,
 	}
@@ -33,6 +35,24 @@ func New(ctx context.Context, twClient *twitch.Client, conf Config) *Downloader 
 
 func (dl *Downloader) SetProgressChannel(progCh chan spinner.Message) {
 	dl.progCh = progCh
+}
+
+func (dl *Downloader) NotifyProgressChannel(msg spinner.Message, unit Unit) {
+	if dl.progCh == nil {
+		return
+	}
+
+	_, ok := unit.Writer.(*os.File)
+	if !ok {
+		return
+	}
+
+	select {
+	case <-dl.ctx.Done():
+		return
+	default:
+		dl.progCh <- msg
+	}
 }
 
 func (dl *Downloader) Download(ctx context.Context, u Unit) error {
@@ -44,18 +64,18 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 
 	switch u.Type {
 	case TypeVOD:
-		u.Error = dl.downloadVOD(ctx, u)
+		u.Error = dl.downloadVOD(u)
 	case TypeClip:
 		u.Error = dl.downloadClip(u)
 	case TypeLivestream:
-		u.Error = dl.recordStream(ctx, u)
+		u.Error = dl.recordStream(u)
 	}
 
 	return nil
 }
 
-func (dl *Downloader) fetch(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (dl *Downloader) fetch(url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request with context: %v", err)
 	}
@@ -73,8 +93,8 @@ func (dl *Downloader) fetch(ctx context.Context, url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func (dl *Downloader) fetchWithStatus(ctx context.Context, url string) (int, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (dl *Downloader) fetchWithStatus(url string) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(dl.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to create request with context: %v", err)
 	}

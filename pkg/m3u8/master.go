@@ -19,7 +19,7 @@ type MasterPlaylist struct {
 	UserCountry     string `m3u8:"USER-COUNTRY"`
 	ManifestCluster string `m3u8:"MANIFEST-CLUSTER"`
 	UsherURL        string
-	Lists           []VariantPlaylist
+	Lists           []*VariantPlaylist
 	Serialized      string
 }
 
@@ -111,14 +111,15 @@ func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broad
 			if key == "chunked" {
 				key = "1080p60"
 			}
-			master.Lists = append(master.Lists, VariantPlaylist{
+			vp := &VariantPlaylist{
 				URL:        URL,
 				Bandwidth:  "", // ????
 				Codecs:     "avc1.64002A,mp4a.40.2",
 				Resolution: value.Res,
 				FrameRate:  value.FPS,
 				Video:      key,
-			})
+			}
+			master.Lists = append(master.Lists, vp)
 		}
 	}
 
@@ -177,7 +178,7 @@ func (m *MasterPlaylist) parse() {
 	}
 }
 
-func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (VariantPlaylist, error) {
+func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (*VariantPlaylist, error) {
 	for _, list := range playlist.Lists {
 		if strings.HasPrefix(list.Video, quality) {
 			return list, nil
@@ -188,5 +189,5 @@ func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (Var
 		return playlist.Lists[0], nil
 	}
 
-	return VariantPlaylist{}, fmt.Errorf("quality not found in master m3u8 playlist: %s", quality)
+	return nil, fmt.Errorf("quality not found in master m3u8 playlist: %s", quality)
 }

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
-	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/google/uuid"
 )
 
@@ -52,10 +51,7 @@ func GetMediaType(s string) MediaType {
 
 type Unit struct {
 	// ID can be: vod id, clip slug or channel name (livestream)
-	ID string
-	// used when creating events
-	// UserID string
-	// Type can be VOD, Clip, Livestream
+	ID   string
 	Type MediaType
 	// Quality of media - 1080p60, 720p60, 480p60 ....
 	Quality QualityType
@@ -66,6 +62,56 @@ type Unit struct {
 	Title  string
 	Writer io.Writer
 	Error  error
+}
+
+// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
+func NewUnit(input, quality string, opts ...UnitOption) *Unit {
+	unit := &Unit{
+		Title: uuid.NewString(),
+	}
+
+	unit.ID, unit.Type, unit.Error = parseIDAndMediaType(input)
+	if unit.Error != nil {
+		return unit
+	}
+
+	parsedURL, err := url.Parse(input)
+
+	if err == nil && unit.Type == TypeVOD {
+		if unit.Error = parseVodParams(parsedURL, unit); unit.Error != nil {
+			return unit
+		}
+	}
+
+	unit.Quality, unit.Error = getQuality(quality)
+	if unit.Error != nil {
+		return unit
+	}
+
+	for _, opt := range opts {
+		opt(unit)
+	}
+
+	return unit
+}
+
+type UnitOption func(*Unit)
+
+func WithWriter(dir string) UnitOption {
+	return func(u *Unit) {
+		ext := "mp4"
+		if strings.HasPrefix(u.Quality.String(), "audio") {
+			ext = "mp3"
+		}
+		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetTitle(), ext)
+	}
+}
+
+func WithTimestamps(start, end time.Duration) UnitOption {
+	return func(u *Unit) {
+		u.Start = start
+		u.End = end
+	}
 }
 
 func (u *Unit) CloseWriter() error {
@@ -84,27 +130,27 @@ func (u Unit) GetError() error {
 }
 
 func (u Unit) GetID() any {
-	return u.Title
+	return u.ID
 }
 
 func (u Unit) GetTitle() string {
-	return u.Title
+	return u.ID
 }
 
-func (unit *Unit) NotifyProgressChannel(msg spinner.Message, progCh chan spinner.Message) {
-	if progCh == nil {
-		return
-	}
-	if unit.Writer != nil {
-		if file, ok := unit.Writer.(*os.File); ok && file != nil {
-			if unit.Error != nil {
-				os.Remove(file.Name())
-				unit.Writer = nil
-			}
-			progCh <- msg
-		}
-	}
-}
+// func (unit *Unit) NotifyProgressChannel(msg spinner.Message, progCh chan spinner.Message) {
+// 	if progCh == nil {
+// 		return
+// 	}
+// 	if unit.Writer != nil {
+// 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
+// 			if unit.Error != nil {
+// 				os.Remove(file.Name())
+// 				unit.Writer = nil
+// 			}
+// 			progCh <- msg
+// 		}
+// 	}
+// }
 
 func getQuality(quality string) (QualityType, error) {
 	switch {
@@ -167,60 +213,8 @@ func parseVodParams(u *url.URL, unit *Unit) error {
 			unit.Start, _ = time.ParseDuration(t)
 		}
 	}
-
 	if unit.Start > unit.End {
 		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
 	}
-
 	return nil
-}
-
-// Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
-func NewUnit(input, quality string, opts ...UnitOption) *Unit {
-	unit := &Unit{
-		Title: uuid.NewString(),
-	}
-
-	unit.ID, unit.Type, unit.Error = parseIDAndMediaType(input)
-	if unit.Error != nil {
-		return unit
-	}
-
-	parsedURL, err := url.Parse(input)
-
-	if err == nil && unit.Type == TypeVOD {
-		if unit.Error = parseVodParams(parsedURL, unit); unit.Error != nil {
-			return unit
-		}
-	}
-
-	unit.Quality, unit.Error = getQuality(quality)
-	if unit.Error != nil {
-		return unit
-	}
-
-	for _, opt := range opts {
-		opt(unit)
-	}
-
-	return unit
-}
-
-type UnitOption func(*Unit)
-
-func WithWriter(dir string) UnitOption {
-	return func(u *Unit) {
-		ext := "mp4"
-		if strings.HasPrefix(u.Quality.String(), "audio") {
-			ext = "mp3"
-		}
-		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetTitle(), ext)
-	}
-}
-
-func WithTimestamps(start, end time.Duration) UnitOption {
-	return func(u *Unit) {
-		u.Start = start
-		u.End = end
-	}
 }

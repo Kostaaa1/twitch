@@ -14,7 +14,7 @@ type VariantPlaylist struct {
 	Serialized string
 }
 
-func parseVariantPlaylist(line, URL string) VariantPlaylist {
+func parseVariantPlaylist(line, URL string) *VariantPlaylist {
 	var variant VariantPlaylist
 	variant.URL = URL
 
@@ -51,5 +51,5 @@ func parseVariantPlaylist(line, URL string) VariantPlaylist {
 		}
 	}
 
-	return variant
+	return &variant
 }

@@ -106,7 +106,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if unit.startTime.IsZero() {
 					unit.startTime = time.Now()
 				}
-
 				if msg.IsDone {
 					unit.isDone = true
 					m.doneCount++

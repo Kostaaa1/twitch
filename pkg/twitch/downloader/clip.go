@@ -43,8 +43,8 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 		return err
 	}
 
-	msg := spinner.Message{Bytes: n}
-	unit.NotifyProgressChannel(msg, dl.progCh)
+	msg := spinner.Message{ID: unit.GetID(), Bytes: n}
+	dl.NotifyProgressChannel(msg, unit)
 
 	return nil
 }

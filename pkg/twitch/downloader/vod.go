@@ -1,13 +1,13 @@
 package downloader
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 
+	"github.com/Kostaaa1/twitch/pkg/m3u8"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
@@ -18,21 +18,32 @@ type segmentJob struct {
 	err   error
 }
 
-// TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
-func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
+func (dl *Downloader) getVariantAndMediaPlaylistForUnit(unit Unit) (variant *m3u8.VariantPlaylist, media *m3u8.MediaPlaylist, err error) {
 	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
+
+	variant, err = master.GetVariantPlaylistByQuality(unit.Quality.String())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	media, err = dl.twClient.FetchAndParseMediaPlaylist(variant)
+	if err != nil {
+		return nil, nil, err
+	}
+	media.TruncateSegments(unit.Start, unit.End)
+
+	return variant, media, nil
+}
+
+// TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
+func (dl *Downloader) downloadVOD(unit Unit) error {
+	variant, playlist, err := dl.getVariantAndMediaPlaylistForUnit(unit)
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant)
-	if err != nil {
-		return err
-	}
-	playlist.TruncateSegments(unit.Start, unit.End)
 
 	jobsChan := make(chan segmentJob)
 	resultsChan := make(chan segmentJob)
@@ -43,7 +54,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 				lastIndex := strings.LastIndex(variant.URL, "/")
 				fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
 				select {
-				case <-ctx.Done():
+				case <-dl.ctx.Done():
 					return
 				case jobsChan <- segmentJob{
 					index: i,
@@ -64,23 +75,23 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 			defer wg.Done()
 			for {
 				select {
-				case <-ctx.Done():
+				case <-dl.ctx.Done():
 					return
 				case job, ok := <-jobsChan:
 					if !ok {
 						return
 					}
 
-					// TODO: test this.. 403 when fetching segments that have unmuted or muted...
-					status, data, err := dl.fetchWithStatus(ctx, job.url)
+					// TODO: NOT TESTED.. 403 when fetching segments that have unmuted or muted...
+					status, data, err := dl.fetchWithStatus(job.url)
 					if status == http.StatusForbidden {
 						switch {
 						case strings.Contains(job.url, "unmuted"):
 							job.url = strings.Replace(job.url, "-unmuted", "-muted", 1)
-							data, err = dl.fetch(ctx, job.url)
+							data, err = dl.fetch(job.url)
 						case strings.Contains(job.url, "muted"):
 							job.url = strings.Replace(job.url, "-muted", "", 1)
-							data, err = dl.fetch(ctx, job.url)
+							data, err = dl.fetch(job.url)
 						}
 					}
 
@@ -88,7 +99,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 					job.data = data
 
 					select {
-					case <-ctx.Done():
+					case <-dl.ctx.Done():
 						return
 					case resultsChan <- job:
 					}
@@ -107,7 +118,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-dl.ctx.Done():
 			return nil
 		case result, ok := <-resultsChan:
 			if !ok {
@@ -134,19 +145,19 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 				}(job.data)
 
 				select {
-				case <-ctx.Done():
-					return ctx.Err()
+				case <-dl.ctx.Done():
+					return dl.ctx.Err()
 				case err := <-errCh:
 					if err != nil {
 						return err
 					}
 				}
 
-				unit.NotifyProgressChannel(spinner.Message{
+				msg := spinner.Message{
 					ID:    unit.GetTitle(),
-					Bytes: int64(len(job.data))},
-					dl.progCh,
-				)
+					Bytes: int64(len(job.data)),
+				}
+				dl.NotifyProgressChannel(msg, unit)
 			}
 		}
 	}
@@ -183,7 +194,8 @@ func (unit Unit) StreamVOD(dl *Downloader) error {
 				return err
 			}
 
-			unit.NotifyProgressChannel(spinner.Message{Bytes: n}, dl.progCh)
+			msg := spinner.Message{ID: unit.GetID(), Bytes: n}
+			dl.NotifyProgressChannel(msg, unit)
 		}
 	}
 

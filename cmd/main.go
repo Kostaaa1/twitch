@@ -60,25 +60,29 @@ func initDownloader(conf *config.Config, option cli.Option) {
 
 	if conf.Downloader.ShowSpinner {
 		spin = spinner.New(ctx, units, cancel)
-
 		g.Go(func() error {
 			spin.Run()
 			return nil
 		})
-
-		go func() {
-			<-ctx.Done()
-			close(spin.C)
-		}()
 	}
 
-	if len(twitchUnits) > 0 {
-		startTwitchDownloader(ctx, spin, conf, option, twitchUnits, g)
-	}
+	g.Go(func() error {
+		downloadGroup, ctx := errgroup.WithContext(ctx)
 
-	if len(kickUnits) > 0 {
-		startKickDownloader(ctx, spin, option, kickUnits, g)
-	}
+		if len(twitchUnits) > 0 {
+			startTwitchDownloader(ctx, spin, conf, option, twitchUnits, downloadGroup)
+		}
+		if len(kickUnits) > 0 {
+			startKickDownloader(ctx, spin, option, kickUnits, downloadGroup)
+		}
+
+		err := downloadGroup.Wait()
+		cancel()
+
+		return err
+	})
+
+	// TODO: when kick and twitch downloads finish, one of them or both, cancel() needs to be called
 
 	g.Wait()
 }
