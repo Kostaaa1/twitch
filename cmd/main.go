@@ -54,6 +54,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	g, ctx := errgroup.WithContext(ctx)
 
 	units := option.UnitsFromInput()
+	fmt.Println("UNITS: ", units)
 	twitchUnits, kickUnits := cli.FilterUnits(units)
 
 	var spin *spinner.Model
@@ -72,6 +73,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, spin, conf, option, twitchUnits, downloadGroup)
 		}
+
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, option, kickUnits, downloadGroup)
 		}
@@ -95,6 +97,7 @@ func startKickDownloader(
 	g *errgroup.Group,
 ) {
 	kick := kick.New()
+
 	if spin != nil {
 		kick.SetProgressChannel(spin.C)
 	}

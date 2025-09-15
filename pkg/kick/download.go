@@ -63,6 +63,10 @@ func (u Unit) GetError() error {
 	return u.Error
 }
 
+func (u Unit) GetID() any {
+	return u.Title
+}
+
 func (u Unit) GetTitle() string {
 	if f, ok := u.W.(*os.File); ok && f != nil {
 		return f.Name()
@@ -99,16 +103,15 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Mes
 		return
 	}
 
-	file, ok := unit.W.(*os.File)
-	if !ok || file == nil {
-		return
-	}
-
-	if unit.Error != nil {
-		os.Remove(file.Name())
-		unit.W = nil
-		return
-	}
+	// file, ok := unit.W.(*os.File)
+	// if !ok || file == nil {
+	// 	return
+	// }
+	// if unit.Error != nil {
+	// 	os.Remove(file.Name())
+	// 	unit.W = nil
+	// 	return
+	// }
 
 	msg.ID = unit.Title
 	ch <- msg
@@ -126,6 +129,8 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	if err != nil {
 		return fmt.Errorf("failed to get m3u8 master URL: %s", err.Error())
 	}
+
+	fmt.Println("MASTER: ", masterURL)
 
 	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
 	playlistURL := basePath + unit.Quality.String() + "/playlist.m3u8"
@@ -232,6 +237,10 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 					n, err := unit.W.Write(job.data)
 					if err != nil {
 						return fmt.Errorf("error writing segment: %v", err)
+					}
+
+					if ctx.Err() != nil {
+						return ctx.Err()
 					}
 
 					msg := spinner.Message{Bytes: int64(n)}

@@ -51,6 +51,57 @@ func (c *Client) MasterPlaylistURL(input string) (string, error) {
 	return "", errors.New("master.m3u8 not found")
 }
 
+// TESTING: vod that will not be saved - c6f99be4-02b9-4070-8be2-98c8a185eb91
+func (c *Client) buildSourcePlaylist(
+	vodSig,
+	customerID,
+	contentID string,
+	video *VideoMetadata,
+	adjustTimestamp bool,
+) {
+	// NOTE: test this offset
+	offset := 5
+
+	hour := video.StartTime.Hour()
+	minute := video.StartTime.Minute()
+	second := video.StartTime.Second()
+
+	if adjustTimestamp && second <= offset {
+		if minute == 0 {
+			hour--
+			minute = 59
+		} else {
+			minute--
+		}
+	}
+
+	video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8",
+		customerID,
+		contentID,
+		video.StartTime.Year(),
+		video.StartTime.Month(),
+		video.StartTime.Day(),
+		hour,
+		minute,
+		vodSig,
+	)
+
+	resp, err := c.httpClient.Get(video.Source)
+	if err != nil {
+	}
+	defer resp.Body.Close()
+
+	if adjustTimestamp && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+		c.buildSourcePlaylist(
+			vodSig,
+			customerID,
+			contentID,
+			video,
+			false,
+		)
+	}
+}
+
 func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s/videos", channel)
 
@@ -62,6 +113,7 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 	var channelData *Channel
 
 	for _, video := range videos {
+		// NOTE: no source = you need to be subscribed - so we are building master.m3u8 from scratch
 		if video.Source == "" {
 			if channelData == nil {
 				data, err := c.Channel(channel)
@@ -73,22 +125,13 @@ func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
 
 			if channelData != nil && video.Thumbnail.Src != "" {
 				vodSig := getVideoSignature(video.Thumbnail.Src)
-
-				// TODO: this does not work properly! The timestamp of StartTime Hour and Minute is sometimes wrong
-				minute := video.StartTime.Minute()
-				if video.StartTime.Second() < 10 {
-					minute--
-				}
-
-				video.Source = fmt.Sprintf("https://stream.kick.com/ivs/v1/%s/%s/%d/%d/%d/%d/%d/%s/media/hls/master.m3u8",
+				c.buildSourcePlaylist(
+					vodSig,
 					channelData.CustomerID,
 					channelData.ContentID,
-					video.StartTime.Year(),
-					video.StartTime.Month(),
-					video.StartTime.Day(),
-					video.StartTime.Hour(),
-					minute,
-					vodSig)
+					video,
+					true,
+				)
 			}
 		}
 	}
@@ -118,29 +161,6 @@ type Video struct {
 	UUID              string      `json:"uuid"`
 	Views             int         `json:"views"`
 }
-
-// func (c *Client) VideoByID(id string) (interface{}, error) {
-// 	videoURL := fmt.Sprintf("https://kick.com/api/v1/video/%s", id)
-
-// 	req, err := http.NewRequest(http.MethodGet, videoURL, nil)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	setDefaultHeaders(req)
-
-// 	resp, err := c.client.Do(req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer resp.Body.Close()
-
-// 	var video Video
-// 	if err := json.NewDecoder(resp.Body).Decode(&video); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return video, nil
-// }
 
 // Channel
 type Channel struct {

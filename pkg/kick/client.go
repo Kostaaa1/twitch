@@ -19,9 +19,8 @@ type Client struct {
 }
 
 func New() *Client {
-	tlsClient := cycletls.Init()
 	return &Client{
-		cycletls:   tlsClient,
+		cycletls:   cycletls.Init(),
 		httpClient: http.DefaultClient,
 	}
 }
