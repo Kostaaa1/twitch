@@ -33,15 +33,15 @@ func (qt QualityType) String() string {
 	case Quality1080p:
 		return "1080p"
 	case Quality720p60:
-		return "720p60"
+		return "720p"
 	case Quality720p30:
-		return "720p30"
+		return "720p"
 	case Quality480p30:
-		return "480p30"
+		return "480p"
 	case Quality360p30:
-		return "360p30"
+		return "360p"
 	case Quality160p30:
-		return "160p30"
+		return "160p"
 	default:
 		return ""
 	}
@@ -78,12 +78,10 @@ func (u *Unit) CreateFile(output string) error {
 	if output == "" {
 		return errors.New("output path not provided")
 	}
-
 	ext := "mp4"
 	if strings.HasPrefix(u.Quality.String(), "audio") {
 		ext = "mp3"
 	}
-
 	u.W, u.Error = fileutil.CreateFile(output, u.Title, ext)
 	return nil
 }
@@ -102,17 +100,6 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Mes
 	if unit.W == nil || ch == nil {
 		return
 	}
-
-	// file, ok := unit.W.(*os.File)
-	// if !ok || file == nil {
-	// 	return
-	// }
-	// if unit.Error != nil {
-	// 	os.Remove(file.Name())
-	// 	unit.W = nil
-	// 	return
-	// }
-
 	msg.ID = unit.Title
 	ch <- msg
 }
@@ -125,13 +112,12 @@ type segmentJob struct {
 }
 
 func (c *Client) Download(ctx context.Context, unit Unit) error {
+	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
+	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
 	masterURL, err := c.MasterPlaylistURL(unit.URL)
 	if err != nil {
 		return fmt.Errorf("failed to get m3u8 master URL: %s", err.Error())
 	}
-
-	fmt.Println("MASTER: ", masterURL)
-
 	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
 	playlistURL := basePath + unit.Quality.String() + "/playlist.m3u8"
 

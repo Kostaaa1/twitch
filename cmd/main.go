@@ -54,7 +54,6 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	g, ctx := errgroup.WithContext(ctx)
 
 	units := option.UnitsFromInput()
-	fmt.Println("UNITS: ", units)
 	twitchUnits, kickUnits := cli.FilterUnits(units)
 
 	var spin *spinner.Model

@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+// BAD BAD BAD
+
 type MasterPlaylist struct {
 	Origin          string `m3u8:"ORIGIN"`
 	B               bool   `m3u8:"B"`
@@ -24,9 +26,7 @@ type MasterPlaylist struct {
 }
 
 func Master(fetchedPlaylist []byte) *MasterPlaylist {
-	master := &MasterPlaylist{
-		Serialized: string(fetchedPlaylist),
-	}
+	master := &MasterPlaylist{Serialized: string(fetchedPlaylist)}
 	master.parse()
 	return master
 }
@@ -41,6 +41,7 @@ func createServingID() string {
 }
 
 // Used for sub-only VODs (users need to be subscribed to watch the VOD)
+// TODO: can be more performant - we do not really need to fetch and check all qualities
 func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broadcastType string) *MasterPlaylist {
 	master := MasterPlaylist{
 		Origin:          "s3",
@@ -102,10 +103,6 @@ func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broad
 		} else {
 			URL = fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, previewURL.Host, vodId, key)
 		}
-
-		// if URL == "" {
-		// 	continue
-		// }
 
 		if isQualityValid(URL) {
 			if key == "chunked" {

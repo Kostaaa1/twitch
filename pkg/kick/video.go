@@ -14,10 +14,9 @@ import (
 func (c *Client) MasterPlaylistURL(input string) (string, error) {
 	channel, vodUUID := "", ""
 
-	// if input is UUID then get channel from V1Channel, otherwise if URL parse channel name and UUID from path
+	// if input is UUID then get channel from V1Video, otherwise if URL parse channel name and UUID from path
 	if uuid.Validate(input) == nil {
-		// TODO: not working
-		data, err := c.V1Channel(input)
+		data, err := c.V1Video(input)
 		if err != nil {
 			return "", err
 		}
@@ -56,7 +55,7 @@ func (c *Client) buildSourcePlaylist(
 	vodSig,
 	customerID,
 	contentID string,
-	video *VideoMetadata,
+	video *V2Video,
 	adjustTimestamp bool,
 ) {
 	// NOTE: test this offset
@@ -102,16 +101,86 @@ func (c *Client) buildSourcePlaylist(
 	}
 }
 
-func (c *Client) Videos(channel string) ([]*VideoMetadata, error) {
+type V2Video struct {
+	Categories []struct {
+		Banner struct {
+			Responsive string `json:"responsive"`
+			URL        string `json:"url"`
+		} `json:"banner"`
+		CategoryID  int      `json:"category_id"`
+		DeletedAt   any      `json:"deleted_at"`
+		Description any      `json:"description"`
+		ID          int      `json:"id"`
+		IsFallback  bool     `json:"is_fallback"`
+		IsMature    bool     `json:"is_mature"`
+		IsPromoted  bool     `json:"is_promoted"`
+		Name        string   `json:"name"`
+		Slug        string   `json:"slug"`
+		Tags        []string `json:"tags"`
+		Viewers     int      `json:"viewers"`
+	} `json:"categories"`
+	ChannelID    int      `json:"channel_id"`
+	CreatedAt    string   `json:"created_at"`
+	Duration     int      `json:"duration"`
+	ID           int      `json:"id"`
+	IsLive       bool     `json:"is_live"`
+	IsMature     bool     `json:"is_mature"`
+	Language     string   `json:"language"`
+	RiskLevelID  any      `json:"risk_level_id"`
+	SessionTitle string   `json:"session_title"`
+	Slug         string   `json:"slug"`
+	Source       string   `json:"source"`
+	StartTime    Datetime `json:"start_time"`
+	Tags         []string `json:"tags"`
+	Thumbnail    struct {
+		Src    string `json:"src"`
+		Srcset string `json:"srcset"`
+	} `json:"thumbnail"`
+	TwitchChannel any `json:"twitch_channel"`
+	Video         struct {
+		CreatedAt         time.Time `json:"created_at"`
+		DeletedAt         any       `json:"deleted_at"`
+		ID                int       `json:"id"`
+		IsPrivate         bool      `json:"is_private"`
+		IsPruned          bool      `json:"is_pruned"`
+		LiveStreamID      int       `json:"live_stream_id"`
+		S3                any       `json:"s3"`
+		Slug              any       `json:"slug"`
+		Status            string    `json:"status"`
+		Thumb             any       `json:"thumb"`
+		TradingPlatformID any       `json:"trading_platform_id"`
+		UpdatedAt         time.Time `json:"updated_at"`
+		UUID              string    `json:"uuid"`
+		Views             int       `json:"views"`
+	} `json:"video"`
+	ViewerCount int `json:"viewer_count"`
+	Views       int `json:"views"`
+}
+
+type Datetime struct {
+	time.Time
+}
+
+func (d *Datetime) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	t, err := time.Parse("2006-01-02 15:04:05", s)
+	if err != nil {
+		return err
+	}
+	d.Time = t
+	return nil
+}
+
+func (c *Client) Videos(channel string) ([]*V2Video, error) {
 	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s/videos", channel)
 
-	var videos []*VideoMetadata
+	var videos []*V2Video
+	// var videos []interface{}
 	if err := c.sendRequestAndDecode(url, http.MethodGet, &videos); err != nil {
 		return nil, err
 	}
 
 	var channelData *Channel
-
 	for _, video := range videos {
 		// NOTE: no source = you need to be subscribed - so we are building master.m3u8 from scratch
 		if video.Source == "" {
@@ -143,23 +212,6 @@ func getVideoSignature(thumbnailURL string) string {
 	parsed, _ := url.Parse(thumbnailURL)
 	parts := strings.Split(parsed.Path, "/")
 	return parts[len(parts)-2]
-}
-
-type Video struct {
-	CreatedAt         time.Time   `json:"created_at"`
-	DeletedAt         interface{} `json:"deleted_at"`
-	ID                int         `json:"id"`
-	IsPrivate         bool        `json:"is_private"`
-	IsPruned          bool        `json:"is_pruned"`
-	LiveStreamID      int         `json:"live_stream_id"`
-	S3                interface{} `json:"s3"`
-	Slug              interface{} `json:"slug"`
-	Status            string      `json:"status"`
-	Thumb             interface{} `json:"thumb"`
-	TradingPlatformID interface{} `json:"trading_platform_id"`
-	UpdatedAt         time.Time   `json:"updated_at"`
-	UUID              string      `json:"uuid"`
-	Views             int         `json:"views"`
 }
 
 // Channel
@@ -256,7 +308,6 @@ type Channel struct {
 
 func (c *Client) Channel(channel string) (*Channel, error) {
 	u := fmt.Sprintf("https://kick.com/api/v2/channels/%s", channel)
-
 	var data Channel
 	if err := c.sendRequestAndDecode(u, http.MethodGet, &data); err != nil {
 		return nil, err
@@ -278,22 +329,21 @@ func getChannelPlaybackSignatures(playbackURL string) (string, string) {
 	return "", ""
 }
 
-type V1Channel struct {
-	ID                int         `json:"id"`
-	LiveStreamID      int         `json:"live_stream_id"`
-	Slug              interface{} `json:"slug"`
-	Thumb             interface{} `json:"thumb"`
-	S3                interface{} `json:"s3"`
-	TradingPlatformID interface{} `json:"trading_platform_id"`
+type V1Video struct {
 	CreatedAt         time.Time   `json:"created_at"`
+	DeletedAt         interface{} `json:"deleted_at"`
+	ID                int         `json:"id"`
+	IsPrivate         bool        `json:"is_private"`
+	IsPruned          bool        `json:"is_pruned"`
+	LiveStreamID      int         `json:"live_stream_id"`
+	S3                interface{} `json:"s3"`
+	Slug              interface{} `json:"slug"`
+	Status            string      `json:"status"`
+	Thumb             interface{} `json:"thumb"`
+	TradingPlatformID interface{} `json:"trading_platform_id"`
 	UpdatedAt         time.Time   `json:"updated_at"`
 	UUID              string      `json:"uuid"`
 	Views             int         `json:"views"`
-	DeletedAt         interface{} `json:"deleted_at"`
-	IsPruned          bool        `json:"is_pruned"`
-	IsPrivate         bool        `json:"is_private"`
-	Status            string      `json:"status"`
-	Source            string      `json:"source"`
 	Livestream        struct {
 		ID            int         `json:"id"`
 		Slug          string      `json:"slug"`
@@ -362,13 +412,11 @@ type V1Channel struct {
 	} `json:"livestream"`
 }
 
-func (c *Client) V1Channel(vodUUID string) (*V1Channel, error) {
+func (c *Client) V1Video(vodUUID string) (*V1Video, error) {
 	u := fmt.Sprintf("https://kick.com/api/v1/video/%s", vodUUID)
-
-	var data V1Channel
+	var data V1Video
 	if err := c.sendRequestAndDecode(u, http.MethodGet, &data); err != nil {
 		return nil, err
 	}
-
 	return &data, nil
 }
