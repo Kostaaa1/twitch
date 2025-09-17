@@ -137,21 +137,6 @@ func (u Unit) GetTitle() string {
 	return u.ID
 }
 
-// func (unit *Unit) NotifyProgressChannel(msg spinner.Message, progCh chan spinner.Message) {
-// 	if progCh == nil {
-// 		return
-// 	}
-// 	if unit.Writer != nil {
-// 		if file, ok := unit.Writer.(*os.File); ok && file != nil {
-// 			if unit.Error != nil {
-// 				os.Remove(file.Name())
-// 				unit.Writer = nil
-// 			}
-// 			progCh <- msg
-// 		}
-// 	}
-// }
-
 func getQuality(quality string) (QualityType, error) {
 	switch {
 	case quality == "" || quality == "best" || strings.HasPrefix(quality, "1080"):

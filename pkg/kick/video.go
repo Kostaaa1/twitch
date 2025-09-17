@@ -5,52 +5,41 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
-func (c *Client) MasterPlaylistURL(input string) (string, error) {
-	channel, vodUUID := "", ""
+func (c *Client) MasterPlaylistURL(channel *string, uuid string) (string, error) {
+	if channel == nil && uuid == "" {
+		return "", errors.New("error: missing channel and uuid")
+	}
 
-	// if input is UUID then get channel from V1Video, otherwise if URL parse channel name and UUID from path
-	if uuid.Validate(input) == nil {
-		data, err := c.V1Video(input)
+	if channel == nil {
+		data, err := c.V1Video(uuid)
 		if err != nil {
 			return "", err
 		}
-		vodUUID = input
-		channel = data.Livestream.Channel.Slug
-	} else {
-		parsed, err := url.Parse(input)
-		if err != nil {
-			return "", err
-		}
-		parts := strings.Split(parsed.Path, "/")
-		channel = parts[1]
-		vodUUID = parts[3]
+		ch := data.Livestream.Channel.Slug
+		channel = &ch
 	}
 
-	if channel == "" || vodUUID == "" {
-		return "", errors.New("invalid kick URL")
-	}
-
-	videos, err := c.Videos(channel)
+	videos, err := c.V2Videos(*channel)
 	if err != nil {
 		return "", err
 	}
 
-	for _, data := range videos {
-		if data.Video.UUID == vodUUID {
-			return data.Source, nil
-		}
+	i := slices.IndexFunc(videos, func(v *V2Video) bool {
+		return v.Video.UUID == uuid
+	})
+
+	if i < 0 {
+		return "", fmt.Errorf("error: not found video %s", uuid)
 	}
 
-	return "", errors.New("master.m3u8 not found")
+	return videos[i].Source, nil
 }
 
-// TESTING: vod that will not be saved - c6f99be4-02b9-4070-8be2-98c8a185eb91
 func (c *Client) buildSourcePlaylist(
 	vodSig,
 	customerID,
@@ -58,7 +47,6 @@ func (c *Client) buildSourcePlaylist(
 	video *V2Video,
 	adjustTimestamp bool,
 ) {
-	// NOTE: test this offset
 	offset := 5
 
 	hour := video.StartTime.Hour()
@@ -171,11 +159,10 @@ func (d *Datetime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *Client) Videos(channel string) ([]*V2Video, error) {
+func (c *Client) V2Videos(channel string) ([]*V2Video, error) {
 	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s/videos", channel)
 
 	var videos []*V2Video
-	// var videos []interface{}
 	if err := c.sendRequestAndDecode(url, http.MethodGet, &videos); err != nil {
 		return nil, err
 	}
@@ -214,7 +201,6 @@ func getVideoSignature(thumbnailURL string) string {
 	return parts[len(parts)-2]
 }
 
-// Channel
 type Channel struct {
 	BannerImage struct {
 		URL string `json:"url"`

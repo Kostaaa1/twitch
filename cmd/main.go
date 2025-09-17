@@ -83,8 +83,6 @@ func initDownloader(conf *config.Config, option cli.Option) {
 		return err
 	})
 
-	// TODO: when kick and twitch downloads finish, one of them or both, cancel() needs to be called
-
 	g.Wait()
 }
 
@@ -108,7 +106,11 @@ func startKickDownloader(
 		for _, unit := range kickUnits {
 			g.Go(func() error {
 				// TODO: Notify spinner if error occurs while downloading to update the view message..
-				return kick.Download(ctx, unit)
+				if err := kick.Download(ctx, unit); err != nil {
+					fmt.Println(err)
+					return err
+				}
+				return nil
 			})
 		}
 

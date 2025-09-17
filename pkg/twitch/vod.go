@@ -92,8 +92,6 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, value, sig)
 
-	fmt.Println("TEST:", m3u8Url)
-
 	b, code, err := tw.fetchWithCode(m3u8Url)
 	if code == http.StatusForbidden {
 		// 403 - you need to be subscribed to access the m3u8 master. In that case, we are creating fake playlist.

@@ -159,11 +159,13 @@ func (m *MasterPlaylist) parseLineInfo(line string) {
 
 func (m *MasterPlaylist) parse() {
 	lines := strings.Split(m.Serialized, "\n")
+
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])
 		if strings.HasPrefix(line, "#EXT-X-TWITCH-INFO:") {
 			m.parseLineInfo(line)
 		}
+
 		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
 			vl := parseVariantPlaylist(line, lines[i+1])
 			m.Lists = append(m.Lists, vl)
@@ -186,5 +188,5 @@ func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (*Va
 		return playlist.Lists[0], nil
 	}
 
-	return nil, fmt.Errorf("quality not found in master m3u8 playlist: %s", quality)
+	return nil, fmt.Errorf("error: quality not found in master.m3u8: %s", quality)
 }

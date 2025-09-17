@@ -34,13 +34,10 @@ type Model struct {
 	C chan Message
 }
 
-// Unit can be whatever satisfies UnitProvider interface.
-// TODO: support multiple colors/shapes per unit. Support multiple spinner shapes
-func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.CancelFunc) *Model {
-	su := make(map[any]*unit, len(units))
-	c := make(chan Message, len(units))
-
+func spinnerUnitsFromSlice[T UnitProvider](units []T) (map[any]*unit, int) {
 	doneCount := 0
+	su := make(map[any]*unit, len(units))
+
 	for _, u := range units {
 		su[u.GetID()] = &unit{
 			title: u.GetTitle(),
@@ -51,6 +48,14 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 		}
 	}
 
+	return su, doneCount
+}
+
+// Unit can be whatever satisfies UnitProvider interface.
+// TODO: support multiple colors/shapes per unit. Support multiple spinner shapes
+func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.CancelFunc) *Model {
+	su, doneCount := spinnerUnitsFromSlice(units)
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -60,7 +65,7 @@ func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.Canc
 		units:      su,
 		spinner:    s,
 		doneCount:  doneCount,
-		C:          c,
+		C:          make(chan Message, len(units)),
 		cancelFunc: cancelFunc,
 	}
 }

@@ -99,14 +99,12 @@ func (opt Option) unitsFromFileInput(units *[]spinner.UnitProvider) {
 		}
 
 		if isKick(unit.Input) {
-			unit := kick.Unit{
-				URL:     unit.Input,
-				Quality: kick.Quality1080p,
-				Start:   unit.Start,
-				End:     unit.End,
-				Title:   unit.Input,
-			}
-			unit.CreateFile(opt.Output)
+			unit := kick.NewUnit(
+				unit.Input,
+				unit.Quality,
+				kick.WithTimestamps(opt.Start, opt.End),
+				kick.WithWriter(opt.Output),
+			)
 			*units = append(*units, unit)
 		} else {
 			unit := downloader.NewUnit(
@@ -126,14 +124,12 @@ func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 
 	for _, input := range inputs {
 		if isKick(input) {
-			unit := kick.Unit{
-				URL:     input,
-				Quality: kick.Quality1080p,
-				Start:   opt.Start,
-				End:     opt.End,
-				Title:   input,
-			}
-			unit.CreateFile(opt.Output)
+			unit := kick.NewUnit(
+				input,
+				opt.Quality,
+				kick.WithTimestamps(opt.Start, opt.End),
+				kick.WithWriter(opt.Output),
+			)
 			*units = append(*units, unit)
 		} else {
 			unit := downloader.NewUnit(
@@ -172,8 +168,8 @@ func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) 
 		switch u := unit.(type) {
 		case *downloader.Unit:
 			twitchUnits = append(twitchUnits, *u)
-		case kick.Unit:
-			kickUnits = append(kickUnits, u)
+		case *kick.Unit:
+			kickUnits = append(kickUnits, *u)
 		}
 	}
 

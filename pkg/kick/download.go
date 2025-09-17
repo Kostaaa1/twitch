@@ -1,108 +1,18 @@
 package kick
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
-
-type QualityType int
-
-const (
-	Quality1080p QualityType = iota
-	Quality720p60
-	Quality720p30
-	Quality480p30
-	Quality360p30
-	Quality160p30
-)
-
-func (qt QualityType) String() string {
-	switch qt {
-	case Quality1080p:
-		return "1080p"
-	case Quality720p60:
-		return "720p"
-	case Quality720p30:
-		return "720p"
-	case Quality480p30:
-		return "480p"
-	case Quality360p30:
-		return "360p"
-	case Quality160p30:
-		return "160p"
-	default:
-		return ""
-	}
-}
-
-type Unit struct {
-	URL     string
-	Start   time.Duration
-	End     time.Duration
-	Quality QualityType
-	// used for file creation
-	Title string
-	W     io.Writer
-	Error error
-}
-
-// Satisfies spinner.UnitProvider
-func (u Unit) GetError() error {
-	return u.Error
-}
-
-func (u Unit) GetID() any {
-	return u.Title
-}
-
-func (u Unit) GetTitle() string {
-	if f, ok := u.W.(*os.File); ok && f != nil {
-		return f.Name()
-	}
-	return ""
-}
-
-func (u *Unit) CreateFile(output string) error {
-	if output == "" {
-		return errors.New("output path not provided")
-	}
-	ext := "mp4"
-	if strings.HasPrefix(u.Quality.String(), "audio") {
-		ext = "mp3"
-	}
-	u.W, u.Error = fileutil.CreateFile(output, u.Title, ext)
-	return nil
-}
-
-func (u *Unit) CloseWriter() error {
-	if f, ok := u.W.(*os.File); ok && f != nil {
-		if u.Error != nil {
-			os.Remove(f.Name())
-		}
-		return f.Close()
-	}
-	return nil
-}
-
-func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Message) {
-	if unit.W == nil || ch == nil {
-		return
-	}
-	msg.ID = unit.Title
-	ch <- msg
-}
 
 type segmentJob struct {
 	index int
@@ -111,28 +21,77 @@ type segmentJob struct {
 	err   error
 }
 
+func (c *Client) fetchWithContext(
+	ctx context.Context,
+	method string,
+	url string,
+) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (c *Client) getMediaPlaylist(
+	ctx context.Context,
+	unit Unit,
+	// channel *string,
+	// uuid uuid.UUID,
+	// quality string,
+) (string, *m3u8.MediaPlaylist, error) {
+	masterURL, err := c.MasterPlaylistURL(unit.Channel, unit.UUID.String())
+	if err != nil {
+		return "", nil, err
+	}
+
+	b, err := c.fetchWithContext(ctx, http.MethodGet, masterURL)
+	if err != nil {
+		return "", nil, err
+	}
+
+	master := m3u8.Master(b)
+	list, err := master.GetVariantPlaylistByQuality(unit.Quality)
+	if err != nil {
+		return "", nil, err
+	}
+
+	parts := strings.Split(masterURL, "master.m3u8")
+	listParts := strings.Split(list.URL, "/")
+
+	basePath := parts[0] + listParts[0]
+	playlistURL := parts[0] + list.URL
+
+	b, err = c.fetchWithContext(ctx, http.MethodGet, playlistURL)
+	if err != nil {
+		return "", nil, err
+	}
+
+	playlist := m3u8.ParseMediaPlaylist(bytes.NewReader(b))
+	playlist.TruncateSegments(unit.Start, unit.End)
+
+	return basePath, &playlist, nil
+}
+
 func (c *Client) Download(ctx context.Context, unit Unit) error {
 	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
 	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
-	masterURL, err := c.MasterPlaylistURL(unit.URL)
+	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)
 	if err != nil {
-		return fmt.Errorf("failed to get m3u8 master URL: %s", err.Error())
+		return err
 	}
-	basePath := strings.TrimSuffix(masterURL, "master.m3u8")
-	playlistURL := basePath + unit.Quality.String() + "/playlist.m3u8"
-
-	res, err := c.httpClient.Get(playlistURL)
-	if err != nil {
-		return fmt.Errorf("failed to fetch media playlist: %s", err.Error())
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode == http.StatusForbidden {
-		return fmt.Errorf("access to the stream is forbidden (403)")
-	}
-
-	playlist := m3u8.ParseMediaPlaylist(res.Body)
-	playlist.TruncateSegments(unit.Start, unit.End)
 
 	jobsChan := make(chan segmentJob)
 	resultsChan := make(chan segmentJob)
@@ -140,7 +99,7 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 	go func() {
 		for i, seg := range playlist.Segments {
 			if strings.HasSuffix(seg.URL, ".ts") {
-				fullSegURL, _ := url.JoinPath(basePath, unit.Quality.String(), seg.URL)
+				fullSegURL, _ := url.JoinPath(basePath, seg.URL)
 				select {
 				case <-ctx.Done():
 					return
@@ -171,11 +130,15 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 						return
 					}
 
-					resp, err := c.httpClient.Get(job.url)
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.url, nil)
+					if err != nil {
+						return
+					}
+
+					resp, err := c.httpClient.Do(req)
 					if err != nil {
 						job.err = err
 					} else {
-						// Avoid using of the io.ReadAll???????
 						data, err := io.ReadAll(resp.Body)
 						job.err = err
 						job.data = data
