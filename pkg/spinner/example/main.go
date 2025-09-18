@@ -37,7 +37,7 @@ func main() {
 	unit := Unit{title: "This is the title of the spinnerspinnerspinnerspinnerspinnerspinner spinnerspinner spinnerspinnerspinnerspinnerspinner spinnerspinnerspinner spinnerspinner", id: uuid}
 	units := []Unit{unit}
 
-	spin := spinner.New(ctx, units, cancel)
+	spin := spinner.New(ctx, units)
 
 	g.Go(func() error {
 		spin.Run()

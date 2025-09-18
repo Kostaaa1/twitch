@@ -1,17 +1,18 @@
 package downloader
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
 	"strings"
 
-	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 // TODO: handle context
-func (dl *Downloader) downloadClip(unit Unit) error {
+func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 	clip, err := dl.twClient.ClipMetadata(unit.ID)
 	if err != nil {
 		return err
@@ -27,13 +28,12 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 	if unit.Quality == QualityAudioOnly {
 		n, err = extractAudio(usherURL, unit.Writer)
 	} else {
-		res, err := dl.twClient.HttpClient().Get(usherURL)
+		b, err := dl.fetch(ctx, usherURL)
 		if err != nil {
 			return err
 		}
-		defer res.Body.Close()
 
-		n, err = io.Copy(unit.Writer, res.Body)
+		n, err = io.Copy(unit.Writer, bytes.NewReader(b))
 		if err != nil {
 			return err
 		}
@@ -43,8 +43,9 @@ func (dl *Downloader) downloadClip(unit Unit) error {
 		return err
 	}
 
-	msg := spinner.Message{ID: unit.GetID(), Bytes: n}
-	dl.NotifyProgressChannel(msg, unit)
+	fmt.Println(n)
+	// msg := spinner.Message{ID: unit.GetID(), Bytes: n}
+	// dl.NotifyProgressChannel(msg, unit)
 
 	return nil
 }
@@ -91,19 +92,24 @@ func extractAudio(url string, w io.Writer) (int64, error) {
 	cmd := exec.Command("ffmpeg", "-i", url, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
 	}
+
 	if err := cmd.Start(); err != nil {
 		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
 	}
+
 	n, err := io.Copy(w, stdout)
 	if err != nil {
 		return 0, fmt.Errorf("failed to copy audio data: %w", err)
 	}
+
 	if err := cmd.Wait(); err != nil {
 		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
 	}
+
 	return n, nil
 }

@@ -8,7 +8,7 @@ type unit struct {
 	totalBytes float64
 	startTime  time.Time
 	elapsed    time.Duration
-	isDone     bool
+	done       bool
 }
 
 type UnitProvider interface {

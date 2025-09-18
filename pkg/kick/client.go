@@ -7,20 +7,36 @@ import (
 	"strings"
 
 	"github.com/Danny-Dasilva/CycleTLS/cycletls"
-	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
+type ProgressMessage struct {
+	ID    any
+	Bytes int64
+	Error error
+	Done  bool
+}
+
 type Client struct {
+	ctx        context.Context
 	cycletls   cycletls.CycleTLS
 	httpClient *http.Client
-	ctx        context.Context
-	progCh     chan spinner.Message
+	notifyFn   func(ProgressMessage)
 }
 
 func New() *Client {
 	return &Client{
 		cycletls:   cycletls.Init(),
 		httpClient: http.DefaultClient,
+	}
+}
+
+func (c *Client) SetProgressNotifier(fn func(ProgressMessage)) {
+	c.notifyFn = fn
+}
+
+func (c *Client) notify(msg ProgressMessage) {
+	if c.notifyFn != nil {
+		c.notifyFn(msg)
 	}
 }
 
@@ -41,8 +57,4 @@ func (c *Client) sendRequestAndDecode(URL string, method string, target interfac
 		return err
 	}
 	return json.NewDecoder(strings.NewReader(resp.Body)).Decode(target)
-}
-
-func (c *Client) SetProgressChannel(progCh chan spinner.Message) {
-	c.progCh = progCh
 }

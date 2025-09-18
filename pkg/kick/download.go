@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
-	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type segmentJob struct {
@@ -85,7 +84,22 @@ func (c *Client) getMediaPlaylist(
 	return basePath, &playlist, nil
 }
 
-func (c *Client) Download(ctx context.Context, unit Unit) error {
+func (c *Client) Download(ctx context.Context, u Unit) error {
+	// downloadVod is blocking, when done, notify
+	err := c.downloadVod(ctx, u)
+
+	msg := ProgressMessage{
+		ID:    u.GetID(),
+		Bytes: 0,
+		Error: err,
+		Done:  true,
+	}
+	c.notify(msg)
+
+	return nil
+}
+
+func (c *Client) downloadVod(ctx context.Context, unit Unit) error {
 	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
 	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
 	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)
@@ -192,8 +206,13 @@ func (c *Client) Download(ctx context.Context, unit Unit) error {
 						return ctx.Err()
 					}
 
-					msg := spinner.Message{Bytes: int64(n)}
-					unit.NotifyProgressChannel(msg, c.progCh)
+					msg := ProgressMessage{
+						ID:    unit.GetID(),
+						Error: unit.GetError(),
+						Bytes: int64(n),
+						Done:  false,
+					}
+					c.notify(msg)
 				} else {
 					break
 				}

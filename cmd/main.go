@@ -59,7 +59,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	var spin *spinner.Model
 
 	if conf.Downloader.ShowSpinner {
-		spin = spinner.New(ctx, units, cancel)
+		spin = spinner.New(ctx, units)
 		g.Go(func() error {
 			spin.Run()
 			return nil
@@ -93,10 +93,18 @@ func startKickDownloader(
 	kickUnits []kick.Unit,
 	g *errgroup.Group,
 ) {
-	kick := kick.New()
+	c := kick.New()
 
 	if spin != nil {
-		kick.SetProgressChannel(spin.C)
+		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
+			// TODO: CHECK IF CONTEXT IS CANCELED
+			spin.C <- spinner.Message{
+				ID:    pm.ID,
+				Bytes: pm.Bytes,
+				Err:   pm.Error,
+				Done:  pm.Done,
+			}
+		})
 	}
 
 	g.Go(func() error {
@@ -105,12 +113,7 @@ func startKickDownloader(
 
 		for _, unit := range kickUnits {
 			g.Go(func() error {
-				// TODO: Notify spinner if error occurs while downloading to update the view message..
-				if err := kick.Download(ctx, unit); err != nil {
-					fmt.Println(err)
-					return err
-				}
-				return nil
+				return c.Download(ctx, unit)
 			})
 		}
 
@@ -127,10 +130,10 @@ func startTwitchDownloader(
 	g *errgroup.Group,
 ) {
 	tw := twitch.NewClient(&conf.Creds)
-	dl := downloader.New(ctx, tw, conf.Downloader)
+	dl := downloader.New(tw, conf.Downloader)
 
 	if spin != nil {
-		dl.SetProgressChannel(spin.C)
+		// dl.SetProgressChannel(spin.C)
 	}
 
 	g.Go(func() error {

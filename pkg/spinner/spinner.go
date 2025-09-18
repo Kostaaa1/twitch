@@ -12,11 +12,10 @@ import (
 )
 
 type Message struct {
-	ID any
-	// Text    string
-	Bytes  int64
-	Error  error
-	IsDone bool
+	ID    any
+	Bytes int64
+	Err   error
+	Done  bool
 }
 
 type Model struct {
@@ -30,8 +29,7 @@ type Model struct {
 	exiting bool
 	// used to quit/exit the spinner if all units are done - prevents from always checking if all units are done
 	doneCount int
-
-	C chan Message
+	C         chan Message
 }
 
 func spinnerUnitsFromSlice[T UnitProvider](units []T) (map[any]*unit, int) {
@@ -53,20 +51,22 @@ func spinnerUnitsFromSlice[T UnitProvider](units []T) (map[any]*unit, int) {
 
 // Unit can be whatever satisfies UnitProvider interface.
 // TODO: support multiple colors/shapes per unit. Support multiple spinner shapes
-func New[T UnitProvider](ctx context.Context, units []T, cancelFunc context.CancelFunc) *Model {
+func New[T UnitProvider](ctx context.Context, units []T) *Model {
 	su, doneCount := spinnerUnitsFromSlice(units)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &Model{
 		ctx:        ctx,
+		cancelFunc: cancel,
 		units:      su,
 		spinner:    s,
 		doneCount:  doneCount,
 		C:          make(chan Message, len(units)),
-		cancelFunc: cancelFunc,
 	}
 }
 
@@ -111,8 +111,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if unit.startTime.IsZero() {
 					unit.startTime = time.Now()
 				}
-				if msg.IsDone {
-					unit.isDone = true
+
+				unit.err = msg.Err
+
+				if msg.Done {
+					unit.done = true
 					m.doneCount++
 				}
 			}
@@ -154,7 +157,7 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 	m.exiting = true
 
 	for _, unit := range m.units {
-		unit.isDone = true
+		unit.done = true
 	}
 
 	m.cancelFunc()
@@ -163,7 +166,7 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 
 func (m *Model) updateTime() {
 	for _, unit := range m.units {
-		if !unit.isDone && unit.totalBytes > 0 {
+		if !unit.done && unit.totalBytes > 0 {
 			unit.elapsed = time.Since(unit.startTime)
 		}
 	}
@@ -207,7 +210,7 @@ func (m Model) formatMessage(u *unit) string {
 	progMsg := progressMsg(u.totalBytes, u.elapsed)
 	title := wordBreak(u.title, m.width-10)
 
-	if u.isDone {
+	if u.done {
 		str.WriteString(successMsg(title, progMsg))
 	} else {
 		parts := []string{

@@ -1,13 +1,11 @@
 package downloader
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"log"
 	"strings"
 	"time"
-
-	"github.com/Kostaaa1/twitch/pkg/spinner"
 )
 
 type segmentHistory struct {
@@ -37,7 +35,7 @@ func (h *segmentHistory) Seen(url string) bool {
 	return false
 }
 
-func (dl *Downloader) recordStream(unit Unit) error {
+func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 	isLive, err := dl.twClient.IsChannelLive(unit.ID)
 	if err != nil {
 		return err
@@ -65,14 +63,14 @@ func (dl *Downloader) recordStream(unit Unit) error {
 
 	for {
 		select {
-		case <-dl.ctx.Done():
+		case <-ctx.Done():
 			return nil
 		case <-time.After(1 * time.Second):
-			b, err := dl.fetch(variant.URL)
+			b, err := dl.fetch(ctx, variant.URL)
 			// TODO: handle this error better
 			if err != nil {
-				msg := spinner.Message{ID: unit.GetID(), Error: errors.New("stream ended")}
-				dl.NotifyProgressChannel(msg, unit)
+				// msg := spinner.Message{ID: unit.GetID(), Err: errors.New("stream ended")}
+				// dl.NotifyProgressChannel(msg, unit)
 				return err
 			}
 
@@ -80,7 +78,7 @@ func (dl *Downloader) recordStream(unit Unit) error {
 
 			for i := 0; i < len(lines)-1; i++ {
 				select {
-				case <-dl.ctx.Done():
+				case <-ctx.Done():
 					return nil
 				default:
 					line := lines[i]
@@ -99,18 +97,18 @@ func (dl *Downloader) recordStream(unit Unit) error {
 						// 	segURL = strings.Replace(segURL, "unmuted", "muted", 1)
 						// }
 
-						segmentBytes, err := dl.fetch(segURL)
+						segmentBytes, err := dl.fetch(ctx, segURL)
 						if err != nil {
 							return err
 						}
 
-						n, err := unit.Writer.Write(segmentBytes)
+						_, err = unit.Writer.Write(segmentBytes)
 						if err != nil {
 							log.Fatal(err)
 						}
 
-						msg := spinner.Message{ID: unit.GetID(), Bytes: int64(n)}
-						dl.NotifyProgressChannel(msg, unit)
+						// msg := spinner.Message{ID: unit.GetID(), Bytes: int64(n)}
+						// dl.NotifyProgressChannel(msg, unit)
 
 						segHist.Add(segURL)
 					}
