@@ -3,7 +3,7 @@ package downloader
 import (
 	"context"
 	"fmt"
-	"log"
+	"io"
 	"strings"
 	"time"
 )
@@ -66,11 +66,15 @@ func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(1 * time.Second):
-			b, err := dl.fetch(ctx, variant.URL)
-			// TODO: handle this error better
+			// TODO: we do not really need to fetch segments all the time.
+			reader, _, err := dl.fetch(ctx, variant.URL)
 			if err != nil {
-				// msg := spinner.Message{ID: unit.GetID(), Err: errors.New("stream ended")}
-				// dl.NotifyProgressChannel(msg, unit)
+				return err
+			}
+			defer reader.Close()
+
+			b, err := io.ReadAll(reader)
+			if err != nil {
 				return err
 			}
 
@@ -97,18 +101,24 @@ func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 						// 	segURL = strings.Replace(segURL, "unmuted", "muted", 1)
 						// }
 
-						segmentBytes, err := dl.fetch(ctx, segURL)
+						reader, _, err := dl.fetch(ctx, segURL)
 						if err != nil {
 							return err
 						}
 
-						_, err = unit.Writer.Write(segmentBytes)
+						n, err := io.Copy(unit.Writer, reader)
 						if err != nil {
-							log.Fatal(err)
+							return err
 						}
 
 						// msg := spinner.Message{ID: unit.GetID(), Bytes: int64(n)}
 						// dl.NotifyProgressChannel(msg, unit)
+						dl.notify(ProgressMessage{
+							ID:    unit.GetID(),
+							Err:   unit.Error,
+							Bytes: n,
+							Done:  false,
+						})
 
 						segHist.Add(segURL)
 					}

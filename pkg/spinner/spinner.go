@@ -29,7 +29,9 @@ type Model struct {
 	exiting bool
 	// used to quit/exit the spinner if all units are done - prevents from always checking if all units are done
 	doneCount int
-	C         chan Message
+	// TODO: Maybe this can be done without channel for messages.
+	// Maybe we can make units a Writer, when called it will automatically update the spinner view. The problem is, how to call it link it up with other packages
+	C chan Message
 }
 
 func spinnerUnitsFromSlice[T UnitProvider](units []T) (map[any]*unit, int) {

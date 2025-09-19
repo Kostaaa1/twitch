@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -28,12 +27,12 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 	if unit.Quality == QualityAudioOnly {
 		n, err = extractAudio(usherURL, unit.Writer)
 	} else {
-		b, err := dl.fetch(ctx, usherURL)
+		reader, _, err := dl.fetch(ctx, usherURL)
 		if err != nil {
 			return err
 		}
 
-		n, err = io.Copy(unit.Writer, bytes.NewReader(b))
+		n, err = io.Copy(unit.Writer, reader)
 		if err != nil {
 			return err
 		}

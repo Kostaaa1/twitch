@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -46,15 +45,15 @@ func buildTSURL(baseURL, segment string) string {
 }
 
 func (dl *Downloader) fetchSegmentWithRetry(ctx context.Context, u string) (io.ReadCloser, error) {
-	status, data, err := dl.fetchWithStatusCloser(ctx, u)
+	data, status, err := dl.fetch(ctx, u)
 	if status == http.StatusForbidden {
 		switch {
 		case strings.Contains(u, "unmuted"):
 			u = strings.Replace(u, "-unmuted", "-muted", 1)
-			_, data, err = dl.fetchWithStatusCloser(ctx, u)
+			data, _, err = dl.fetch(ctx, u)
 		case strings.Contains(u, "muted"):
 			u = strings.Replace(u, "-muted", "", 1)
-			_, data, err = dl.fetchWithStatusCloser(ctx, u)
+			data, _, err = dl.fetch(ctx, u)
 		}
 	}
 
@@ -70,7 +69,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 	abort := func(err error) error {
-		fmt.Println("ABORT CALLEDJ", err)
 		cancel()
 		return err
 	}
@@ -98,7 +96,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 						return err
 					}
 
-					fmt.Println("Sending to channel: ", r)
 					seg.Data <- r
 					close(seg.Data)
 				}
@@ -123,7 +120,12 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 					return err
 				}
 
-				fmt.Printf("Written: %d\n", n)
+				dl.notify(ProgressMessage{
+					ID:    unit.GetID(),
+					Err:   unit.Error,
+					Bytes: n,
+					Done:  false,
+				})
 			}
 		}
 
@@ -131,6 +133,50 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	})
 
 	return g.Wait()
+}
+
+func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
+	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
+	if err != nil {
+		return err
+	}
+	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
+	if err != nil {
+		return err
+	}
+	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant)
+	if err != nil {
+		return err
+	}
+	playlist.TruncateSegments(unit.Start, unit.End)
+
+	for _, seg := range playlist.Segments {
+		if strings.HasSuffix(seg.URL, ".ts") {
+			lastIndex := strings.LastIndex(variant.URL, "/")
+			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
+
+			// resp, err := dl.twClient.HttpClient().Get(fullSegURL)
+			// if err != nil {
+			// 	return err
+			// }
+			// defer resp.Body.Close()
+
+			reader, _, err := dl.fetch(ctx, fullSegURL)
+			if err != nil {
+				return err
+			}
+
+			_, err = io.Copy(unit.Writer, reader)
+			if err != nil {
+				return err
+			}
+
+			// msg := spinner.Message{ID: unit.GetID(), Bytes: n}
+			// dl.NotifyProgressChannel(msg, unit)
+		}
+	}
+
+	return nil
 }
 
 // TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
@@ -148,7 +194,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 // 			if strings.HasSuffix(seg.URL, ".ts") {
 // 				lastIndex := strings.LastIndex(variant.URL, "/")
 // 				segURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
-
 // 				select {
 // 				case <-ctx.Done():
 // 					return
@@ -258,47 +303,3 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 // 		}
 // 	}
 // }
-
-func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
-	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
-	if err != nil {
-		return err
-	}
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
-	if err != nil {
-		return err
-	}
-	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant)
-	if err != nil {
-		return err
-	}
-	playlist.TruncateSegments(unit.Start, unit.End)
-
-	for _, seg := range playlist.Segments {
-		if strings.HasSuffix(seg.URL, ".ts") {
-			lastIndex := strings.LastIndex(variant.URL, "/")
-			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
-
-			// resp, err := dl.twClient.HttpClient().Get(fullSegURL)
-			// if err != nil {
-			// 	return err
-			// }
-			// defer resp.Body.Close()
-
-			b, err := dl.fetch(ctx, fullSegURL)
-			if err != nil {
-				return err
-			}
-
-			_, err = io.Copy(unit.Writer, bytes.NewReader(b))
-			if err != nil {
-				return err
-			}
-
-			// msg := spinner.Message{ID: unit.GetID(), Bytes: n}
-			// dl.NotifyProgressChannel(msg, unit)
-		}
-	}
-
-	return nil
-}

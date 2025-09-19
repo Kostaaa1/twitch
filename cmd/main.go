@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -83,7 +84,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 		return err
 	})
 
-	g.Wait()
+	log.Fatal(g.Wait())
 }
 
 func startKickDownloader(
@@ -97,7 +98,9 @@ func startKickDownloader(
 
 	if spin != nil {
 		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
-			// TODO: CHECK IF CONTEXT IS CANCELED
+			if ctx.Err() != nil {
+				return
+			}
 			spin.C <- spinner.Message{
 				ID:    pm.ID,
 				Bytes: pm.Bytes,
@@ -133,7 +136,17 @@ func startTwitchDownloader(
 	dl := downloader.New(tw, conf.Downloader)
 
 	if spin != nil {
-		// dl.SetProgressChannel(spin.C)
+		dl.SetProgressNotifier(func(pm downloader.ProgressMessage) {
+			if ctx.Err() != nil {
+				return
+			}
+			spin.C <- spinner.Message{
+				ID:    pm.ID,
+				Bytes: pm.Bytes,
+				Err:   pm.Err,
+				Done:  pm.Done,
+			}
+		})
 	}
 
 	g.Go(func() error {
