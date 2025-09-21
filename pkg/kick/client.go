@@ -10,7 +10,7 @@ import (
 )
 
 type ProgressMessage struct {
-	ID    any
+	ID    string
 	Bytes int64
 	Error error
 	Done  bool

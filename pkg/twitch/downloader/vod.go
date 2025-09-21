@@ -30,7 +30,7 @@ func (dl *Downloader) getVariantAndMediaPlaylistForUnit(unit Unit) (variant *m3u
 		return nil, nil, err
 	}
 
-	media, err = dl.twClient.FetchAndParseMediaPlaylist(variant)
+	media, err = dl.twClient.FetchAndParseMediaPlaylist(variant.URL)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,21 +67,15 @@ func (dl *Downloader) fetchSegmentWithRetry(ctx context.Context, u string) (io.R
 func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	variant, playlist, _ := dl.getVariantAndMediaPlaylistForUnit(unit)
 
-	ctx, cancel := context.WithCancel(ctx)
-	abort := func(err error) error {
-		cancel()
-		return err
-	}
+	g, ctx := errgroup.WithContext(ctx)
 
 	currentChunk := atomic.Uint32{}
-	g, ctx := errgroup.WithContext(ctx)
 
 	for i := 0; i < 8; i++ {
 		g.Go(func() error {
 			for {
 				chunkInx := int(currentChunk.Add(1) - 1)
 				if chunkInx >= len(playlist.Segments) {
-					abort(nil)
 					return nil
 				}
 
@@ -92,7 +86,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 
 					r, err := dl.fetchSegmentWithRetry(ctx, fullSegURL)
 					if err != nil {
-						abort(err)
 						return err
 					}
 
@@ -116,7 +109,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 				n, err := io.Copy(unit.Writer, chunk)
 				chunk.Close()
 				if err != nil {
-					abort(err)
 					return err
 				}
 
@@ -124,7 +116,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 					ID:    unit.GetID(),
 					Err:   unit.Error,
 					Bytes: n,
-					Done:  false,
 				})
 			}
 		}
@@ -140,11 +131,13 @@ func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
 	if err != nil {
 		return err
 	}
+
 	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err
 	}
-	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant)
+
+	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant.URL)
 	if err != nil {
 		return err
 	}
@@ -154,12 +147,6 @@ func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
 		if strings.HasSuffix(seg.URL, ".ts") {
 			lastIndex := strings.LastIndex(variant.URL, "/")
 			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
-
-			// resp, err := dl.twClient.HttpClient().Get(fullSegURL)
-			// if err != nil {
-			// 	return err
-			// }
-			// defer resp.Body.Close()
 
 			reader, _, err := dl.fetch(ctx, fullSegURL)
 			if err != nil {

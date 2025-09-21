@@ -12,35 +12,44 @@ import (
 )
 
 type Message struct {
-	ID    any
+	ID    string
 	Bytes int64
 	Err   error
 	Done  bool
 }
 
-type Model struct {
-	ctx        context.Context
-	cancelFunc context.CancelFunc
-	spinner    spinner.Model
-	width      int
+// TODO:
+// 1.Maybe support multiple colors and spinner.Spinner per unit. If that is the case, we need to redesign this and display spinner per unit (not one spinner with multiple units). Then i would display each per unit.
+// 2. Maybe implement write method
 
+type Model struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	spinner spinner.Model
+	width   int
 	program *tea.Program
-	units   map[any]*unit
+	units   []*unit
 	exiting bool
 	// used to quit/exit the spinner if all units are done - prevents from always checking if all units are done
 	doneCount int
-	// TODO: Maybe this can be done without channel for messages.
-	// Maybe we can make units a Writer, when called it will automatically update the spinner view. The problem is, how to call it link it up with other packages
-	C chan Message
+	C         chan Message
 }
 
-func spinnerUnitsFromSlice[T UnitProvider](units []T) (map[any]*unit, int) {
-	doneCount := 0
-	su := make(map[any]*unit, len(units))
+type spinnerOpts func(m *Model)
 
-	for _, u := range units {
-		su[u.GetID()] = &unit{
-			title: u.GetTitle(),
+func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
+	return func(m *Model) {
+		m.cancel = cancel
+	}
+}
+
+func spinnerUnitsSliceFromSlice[T UnitProvider](units []T) ([]*unit, int) {
+	doneCount := 0
+	su := make([]*unit, len(units))
+
+	for i, u := range units {
+		su[i] = &unit{
+			title: u.GetID(),
 			err:   u.GetError(),
 		}
 		if u.GetError() != nil {
@@ -51,25 +60,26 @@ func spinnerUnitsFromSlice[T UnitProvider](units []T) (map[any]*unit, int) {
 	return su, doneCount
 }
 
-// Unit can be whatever satisfies UnitProvider interface.
-// TODO: support multiple colors/shapes per unit. Support multiple spinner shapes
-func New[T UnitProvider](ctx context.Context, units []T) *Model {
-	su, doneCount := spinnerUnitsFromSlice(units)
+func New[T UnitProvider](ctx context.Context, units []T, opts ...spinnerOpts) *Model {
+	su, doneCount := spinnerUnitsSliceFromSlice(units)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	ctx, cancel := context.WithCancel(ctx)
-
-	return &Model{
-		ctx:        ctx,
-		cancelFunc: cancel,
-		units:      su,
-		spinner:    s,
-		doneCount:  doneCount,
-		C:          make(chan Message, len(units)),
+	m := &Model{
+		ctx:       ctx,
+		units:     su,
+		spinner:   s,
+		doneCount: doneCount,
+		C:         make(chan Message, len(units)),
 	}
+
+	for _, opt := range opts {
+		opt(m)
+	}
+
+	return m
 }
 
 func (m Model) waitForMsg() tea.Cmd {
@@ -83,7 +93,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if len(m.units) == m.doneCount {
+	if m.doneCount >= len(m.units) {
 		return m.exit()
 	}
 
@@ -108,17 +118,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case Message:
-			if unit, ok := m.units[msg.ID]; ok {
-				unit.totalBytes += float64(msg.Bytes)
-				if unit.startTime.IsZero() {
-					unit.startTime = time.Now()
-				}
+			for i := range m.units {
+				if m.units[i].title == msg.ID {
+					m.units[i].totalBytes += float64(msg.Bytes)
 
-				unit.err = msg.Err
+					if m.units[i].startTime.IsZero() {
+						m.units[i].startTime = time.Now()
+					}
+					m.units[i].done = msg.Done
 
-				if msg.Done {
-					unit.done = true
-					m.doneCount++
+					if msg.Done || msg.Err != nil {
+						m.doneCount++
+					}
+
+					if msg.Err != nil {
+						m.units[i].err = msg.Err
+						m.units[i].done = true
+					}
 				}
 			}
 
@@ -138,7 +154,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	var str strings.Builder
 	for _, unit := range m.units {
-		str.WriteString(m.formatMessage(unit))
+		str.WriteString(m.printUnit(unit))
 		str.WriteString("\n")
 	}
 	return str.String()
@@ -162,7 +178,7 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 		unit.done = true
 	}
 
-	m.cancelFunc()
+	m.cancel()
 	return m, tea.Quit
 }
 
@@ -198,19 +214,20 @@ func progressMsg(total float64, elapsed time.Duration) string {
 	return fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, sizeUnits[i], speed, elapsed.Truncate(time.Second))
 }
 
-func (m Model) formatMessage(u *unit) string {
+func (m Model) printUnit(u *unit) string {
 	if m.width == 0 {
 		return ""
 	}
 
 	if u.err != nil {
-		return errorMsg(u.err.Error())
+		return errorMsg(u.title, u.err.Error())
 	}
 
 	var str strings.Builder
 
+	// title := u.title, m.widt
 	progMsg := progressMsg(u.totalBytes, u.elapsed)
-	title := wordBreak(u.title, m.width-10)
+	title := u.title
 
 	if u.done {
 		str.WriteString(successMsg(title, progMsg))
@@ -225,16 +242,16 @@ func (m Model) formatMessage(u *unit) string {
 	return str.String()
 }
 
-func successMsg(text, message string) string {
-	return fmt.Sprintf("✅ %s %s", text, message)
+func successMsg(title, message string) string {
+	return fmt.Sprintf("✅ %s %s", title, message)
 }
 
-func errorMsg(errMsg string) string {
-	return fmt.Sprintf("❌ %s", errMsg)
+func errorMsg(title, errMsg string) string {
+	return fmt.Sprintf("❌ %s %s", title, errMsg)
 }
 
 func wordBreak(s string, limit int) string {
-	if len(s) < limit {
+	if len(s) <= limit {
 		return s
 	}
 	p1 := s[:limit]

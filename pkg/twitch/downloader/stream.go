@@ -96,11 +96,6 @@ func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 							continue
 						}
 
-						// if segmentURL has *-unmuted.ts, this will give 403
-						// if strings.Contains(segURL, "unmuted") {
-						// 	segURL = strings.Replace(segURL, "unmuted", "muted", 1)
-						// }
-
 						reader, _, err := dl.fetch(ctx, segURL)
 						if err != nil {
 							return err
@@ -111,13 +106,10 @@ func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 							return err
 						}
 
-						// msg := spinner.Message{ID: unit.GetID(), Bytes: int64(n)}
-						// dl.NotifyProgressChannel(msg, unit)
 						dl.notify(ProgressMessage{
 							ID:    unit.GetID(),
 							Err:   unit.Error,
 							Bytes: n,
-							Done:  false,
 						})
 
 						segHist.Add(segURL)

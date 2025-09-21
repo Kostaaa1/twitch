@@ -6,11 +6,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type Client struct {
-	httpClient *http.Client
+	http       *http.Client
 	creds      *Creds
 	retryCount int
 }
@@ -27,29 +26,30 @@ func NewClient(creds *Creds) *Client {
 	return &Client{
 		creds:      creds,
 		retryCount: 3,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:          100,
-				MaxIdleConnsPerHost:   100,
-				IdleConnTimeout:       90 * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
-			},
-		},
+		http:       http.DefaultClient,
+		// httpClient: &http.Client{
+		// 	// Timeout: 15 * time.Second,
+		// 	Transport: &http.Transport{
+		// 		MaxIdleConns:          100,
+		// 		MaxIdleConnsPerHost:   100,
+		// 		IdleConnTimeout:       90 * time.Second,
+		// 		TLSHandshakeTimeout:   10 * time.Second,
+		// 		ExpectContinueTimeout: 1 * time.Second,
+		// 	},
+		// },
 	}
 }
 
 func (tw *Client) HttpClient() *http.Client {
-	return tw.httpClient
+	return tw.http
 }
 
 func (tw *Client) SetHttpClient(c *http.Client) {
-	tw.httpClient = c
+	tw.http = c
 }
 
 func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
-	resp, err := tw.httpClient.Get(url)
+	resp, err := tw.http.Get(url)
 	if err != nil {
 		return nil, 0, fmt.Errorf("fetching failed: %w", err)
 	}
@@ -87,7 +87,7 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 	}
 	req.Header.Set("Client-Id", gqlClientID)
 
-	resp, err := tw.httpClient.Do(req)
+	resp, err := tw.http.Do(req)
 	if err != nil {
 		return err
 	}

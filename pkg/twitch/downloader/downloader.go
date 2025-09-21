@@ -10,7 +10,7 @@ import (
 )
 
 type ProgressMessage struct {
-	ID    any
+	ID    string
 	Bytes int64
 	Err   error
 	Done  bool
@@ -54,26 +54,24 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 		return u.Error
 	}
 
+	var err error
+
 	switch u.Type {
 	case TypeVOD:
-		u.Error = dl.downloadVOD(ctx, u)
+		err = dl.downloadVOD(ctx, u)
 	case TypeClip:
-		u.Error = dl.downloadClip(ctx, u)
+		err = dl.downloadClip(ctx, u)
 	case TypeLivestream:
-		u.Error = dl.recordStream(ctx, u)
+		err = dl.recordStream(ctx, u)
 	}
 
-	if u.Error != nil {
-		dl.notify(ProgressMessage{
-			ID:    u.GetID(),
-			Err:   u.Error,
-			Bytes: 0,
-			Done:  true,
-		})
-		return u.Error
-	}
+	dl.notify(ProgressMessage{
+		ID:    u.ID,
+		Err:   err,
+		Bytes: 0,
+	})
 
-	return nil
+	return err
 }
 
 func (dl *Downloader) fetch(ctx context.Context, url string) (io.ReadCloser, int, error) {

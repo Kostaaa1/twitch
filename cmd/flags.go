@@ -19,7 +19,7 @@ func ParseFlags(conf config.Config) cli.Option {
 	flag.DurationVar(&option.Start, "start", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
 	flag.DurationVar(&option.End, "end", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
 
-	flag.IntVar(&option.Threads, "threads", 6, "Number of parallel downloads (batch mode only)")
+	flag.IntVar(&option.Threads, "threads", 10, "Number of parallel downloads (batch mode only)")
 
 	flag.StringVar(&option.Channel, "channel", "", "Twitch channel name")
 

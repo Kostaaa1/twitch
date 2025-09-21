@@ -24,15 +24,15 @@ type Unit struct {
 	W       io.Writer
 }
 
-type UnitOptions func(*Unit)
+type unitOptions func(*Unit)
 
-func WithWriter(dir string) UnitOptions {
+func WithWriter(dir string) unitOptions {
 	return func(u *Unit) {
-		u.W, u.Error = fileutil.CreateFile(dir, u.GetTitle(), "mp4")
+		u.W, u.Error = fileutil.CreateFile(dir, u.GetID(), "mp4")
 	}
 }
 
-func WithTimestamps(start, end time.Duration) UnitOptions {
+func WithTimestamps(start, end time.Duration) unitOptions {
 	return func(u *Unit) {
 		u.Start = start
 		u.End = end
@@ -40,7 +40,7 @@ func WithTimestamps(start, end time.Duration) UnitOptions {
 }
 
 // input can be either VOD uuid or URL
-func NewUnit(input, quality string, opts ...UnitOptions) *Unit {
+func NewUnit(input, quality string, opts ...unitOptions) *Unit {
 	unit := &Unit{}
 
 	if err := validateQuality(quality); err != nil {
@@ -108,10 +108,6 @@ func (u Unit) GetError() error {
 	return u.Error
 }
 
-func (u Unit) GetID() any {
-	return u.UUID.String()
-}
-
-func (u Unit) GetTitle() string {
+func (u Unit) GetID() string {
 	return u.UUID.String()
 }

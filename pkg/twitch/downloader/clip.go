@@ -42,9 +42,11 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	fmt.Println(n)
-	// msg := spinner.Message{ID: unit.GetID(), Bytes: n}
-	// dl.NotifyProgressChannel(msg, unit)
+	dl.notify(ProgressMessage{
+		ID:    unit.GetID(),
+		Bytes: n,
+		Err:   unit.Error,
+	})
 
 	return nil
 }

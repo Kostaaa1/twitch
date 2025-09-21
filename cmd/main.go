@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -60,7 +59,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 	var spin *spinner.Model
 
 	if conf.Downloader.ShowSpinner {
-		spin = spinner.New(ctx, units)
+		spin = spinner.New(ctx, units, spinner.WithCancelFunc(cancel))
 		g.Go(func() error {
 			spin.Run()
 			return nil
@@ -84,44 +83,7 @@ func initDownloader(conf *config.Config, option cli.Option) {
 		return err
 	})
 
-	log.Fatal(g.Wait())
-}
-
-func startKickDownloader(
-	ctx context.Context,
-	spin *spinner.Model,
-	option cli.Option,
-	kickUnits []kick.Unit,
-	g *errgroup.Group,
-) {
-	c := kick.New()
-
-	if spin != nil {
-		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
-			if ctx.Err() != nil {
-				return
-			}
-			spin.C <- spinner.Message{
-				ID:    pm.ID,
-				Bytes: pm.Bytes,
-				Err:   pm.Error,
-				Done:  pm.Done,
-			}
-		})
-	}
-
-	g.Go(func() error {
-		g, ctx := errgroup.WithContext(ctx)
-		g.SetLimit(option.Threads)
-
-		for _, unit := range kickUnits {
-			g.Go(func() error {
-				return c.Download(ctx, unit)
-			})
-		}
-
-		return g.Wait()
-	})
+	g.Wait()
 }
 
 func startTwitchDownloader(
@@ -170,8 +132,8 @@ func batchDownloadTwitchUnits(
 
 	for _, unit := range units {
 		g.Go(func() error {
-			// TODO: Notify spinner if error occurs while downloading to update the view message..
-			return dl.Download(ctx, unit)
+			dl.Download(ctx, unit)
+			return nil
 		})
 	}
 
@@ -234,4 +196,42 @@ func initChat(client *twitch.Client, conf *config.Config) {
 		panic(err)
 	}
 	chat.Open(client, conf)
+}
+
+func startKickDownloader(
+	ctx context.Context,
+	spin *spinner.Model,
+	option cli.Option,
+	kickUnits []kick.Unit,
+	g *errgroup.Group,
+) {
+	c := kick.New()
+
+	if spin != nil {
+		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
+			if ctx.Err() != nil {
+				return
+			}
+			spin.C <- spinner.Message{
+				ID:    pm.ID,
+				Bytes: pm.Bytes,
+				Err:   pm.Error,
+				Done:  pm.Done,
+			}
+		})
+	}
+
+	g.Go(func() error {
+		g, ctx := errgroup.WithContext(ctx)
+		g.SetLimit(option.Threads)
+
+		for _, unit := range kickUnits {
+			g.Go(func() error {
+				c.Download(ctx, unit)
+				return nil
+			})
+		}
+
+		return g.Wait()
+	})
 }

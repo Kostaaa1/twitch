@@ -14,17 +14,15 @@ import (
 type Unit struct {
 	title string
 	err   error
-	id    any
+	id    string
 }
 
-func (u Unit) GetID() any {
+func (u Unit) GetID() string {
 	return u.id
 }
+
 func (u Unit) GetError() error {
 	return u.err
-}
-func (u Unit) GetTitle() string {
-	return u.title
 }
 
 func main() {

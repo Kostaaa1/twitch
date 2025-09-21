@@ -103,7 +103,7 @@ func WithWriter(dir string) UnitOption {
 		if strings.HasPrefix(u.Quality.String(), "audio") {
 			ext = "mp3"
 		}
-		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetTitle(), ext)
+		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetID(), ext)
 	}
 }
 
@@ -129,11 +129,7 @@ func (u Unit) GetError() error {
 	return u.Error
 }
 
-func (u Unit) GetID() any {
-	return u.ID
-}
-
-func (u Unit) GetTitle() string {
+func (u Unit) GetID() string {
 	return u.ID
 }
 

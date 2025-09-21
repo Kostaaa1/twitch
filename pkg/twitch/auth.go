@@ -35,7 +35,7 @@ func (tw *Client) RefetchAccesToken() error {
 		"grant_type":    {"refresh_token"},
 	}
 
-	resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", values)
+	resp, err := tw.http.PostForm("https://id.twitch.tv/oauth2/token", values)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (tw *Client) Authorize() error {
 					"grant_type":    {"authorization_code"},
 					"redirect_uri":  {tw.creds.RedirectURL},
 				}
-				resp, err := tw.httpClient.PostForm("https://id.twitch.tv/oauth2/token", values)
+				resp, err := tw.http.PostForm("https://id.twitch.tv/oauth2/token", values)
 				if err != nil {
 					log.Fatalf("failed to exchange code for refresh token: %v", err)
 				}

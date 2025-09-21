@@ -1,7 +1,6 @@
 package twitch
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -74,13 +73,6 @@ func (tw *Client) PlaybackAccessToken(login string) error {
 		return err
 	}
 
-	b, err := json.MarshalIndent(p, "", " ")
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf(string(b))
-
 	return nil
 }
 
@@ -103,7 +95,7 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 		if err != nil {
 			return nil, err
 		}
-		return m3u8.MasterPlaylistMock(tw.httpClient, vodID, previewURL, subVOD.Video.BroadcastType), nil
+		return m3u8.MasterPlaylistMock(tw.http, vodID, previewURL, subVOD.Video.BroadcastType), nil
 	}
 
 	if err != nil {
@@ -113,8 +105,8 @@ func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) 
 	return m3u8.Master(b), nil
 }
 
-func (tw *Client) FetchAndParseMediaPlaylist(variant *m3u8.VariantPlaylist) (*m3u8.MediaPlaylist, error) {
-	resp, err := tw.httpClient.Get(variant.URL)
+func (tw *Client) FetchAndParseMediaPlaylist(u string) (*m3u8.MediaPlaylist, error) {
+	resp, err := tw.http.Get(u)
 	if err != nil {
 		return nil, err
 	}

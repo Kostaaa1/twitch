@@ -91,7 +91,7 @@ func (tw *Client) HelixRequest(
 		req.Header.Set("Authorization", tw.GetBearerToken())
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := tw.httpClient.Do(req)
+		resp, err := tw.http.Do(req)
 		if err != nil {
 			return fmt.Errorf("request failed: %v", err)
 		}
