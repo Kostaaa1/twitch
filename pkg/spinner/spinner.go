@@ -19,8 +19,8 @@ type Message struct {
 }
 
 // TODO:
-// 1.Maybe support multiple colors and spinner.Spinner per unit. If that is the case, we need to redesign this and display spinner per unit (not one spinner with multiple units). Then i would display each per unit.
-// 2. Maybe implement write method
+// 1. Maybe support multiple colors and spinner.Spinner per unit. If that is the case, we need to redesign this and display spinner per unit (not one spinner with multiple units). Then i would display each per unit.
+// 2. Maybe implement write method, where we would need to use gob for encoding/decoding struct bytes.
 
 type Model struct {
 	ctx     context.Context
@@ -118,26 +118,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case Message:
-			for i := range m.units {
-				if m.units[i].title == msg.ID {
-					m.units[i].totalBytes += float64(msg.Bytes)
-
-					if m.units[i].startTime.IsZero() {
-						m.units[i].startTime = time.Now()
-					}
-					m.units[i].done = msg.Done
-
-					if msg.Done || msg.Err != nil {
-						m.doneCount++
-					}
-
-					if msg.Err != nil {
-						m.units[i].err = msg.Err
-						m.units[i].done = true
-					}
-				}
-			}
-
+			m.updateProgressUnits(msg)
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, tea.Batch(cmd, m.waitForMsg())
@@ -165,6 +146,28 @@ func (m *Model) Run() {
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Error starting program: %v\n", err)
 		panic(err)
+	}
+}
+
+func (m *Model) updateProgressUnits(msg Message) {
+	for i := range m.units {
+		if m.units[i].title == msg.ID {
+			m.units[i].totalBytes += float64(msg.Bytes)
+
+			if m.units[i].startTime.IsZero() {
+				m.units[i].startTime = time.Now()
+			}
+			m.units[i].done = msg.Done
+
+			if msg.Done || msg.Err != nil {
+				m.doneCount++
+			}
+
+			if msg.Err != nil {
+				m.units[i].err = msg.Err
+				m.units[i].done = true
+			}
+		}
 	}
 }
 

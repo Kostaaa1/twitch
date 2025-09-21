@@ -123,6 +123,13 @@ func (client *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL stri
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
+func (c *Client) Title(slug string) string {
+	switch {
+	case "" == "":
+		clip := c.ClipMetadata(slug)
+	}
+}
+
 func (client *Client) ClipMetadata(slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",

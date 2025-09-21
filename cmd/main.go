@@ -235,3 +235,10 @@ func startKickDownloader(
 		return g.Wait()
 	})
 }
+
+// TEST:
+func getUnitTitles(client *twitch.Client, units []*downloader.Unit) {
+	for _, u := range units {
+		client.ClipMetadata()
+	}
+}

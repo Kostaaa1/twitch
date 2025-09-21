@@ -69,6 +69,7 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 		ID:    u.ID,
 		Err:   err,
 		Bytes: 0,
+		Done:  true,
 	})
 
 	return err
