@@ -115,7 +115,7 @@ func startTwitchDownloader(
 		if option.Subscribe {
 			return initTwitchEventSub(ctx, tw, dl, twitchUnits)
 		} else {
-			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, spin)
+			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, tw)
 		}
 	})
 }
@@ -125,13 +125,14 @@ func batchDownloadTwitchUnits(
 	threads int,
 	units []downloader.Unit,
 	dl *downloader.Downloader,
-	spin *spinner.Model,
+	tw *twitch.Client,
 ) error {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(threads)
 
 	for _, unit := range units {
 		g.Go(func() error {
+			unit.Title = getUnitTitle(tw, unit)
 			dl.Download(ctx, unit)
 			return nil
 		})
@@ -236,9 +237,26 @@ func startKickDownloader(
 	})
 }
 
-// TEST:
-func getUnitTitles(client *twitch.Client, units []*downloader.Unit) {
-	for _, u := range units {
-		client.ClipMetadata()
+func getUnitTitle(c *twitch.Client, unit downloader.Unit) string {
+	switch unit.Type {
+	case downloader.TypeLivestream:
+		s, err := c.StreamMetadata(unit.ID)
+		if err != nil {
+			return ""
+		}
+		return s.BroadcastSettings.Title
+	case downloader.TypeVOD:
+		vod, err := c.VideoMetadata(unit.ID)
+		if err != nil {
+			return ""
+		}
+		return vod.Video.Title
+	case downloader.TypeClip:
+		clip, err := c.ClipMetadata(unit.ID)
+		if err != nil {
+			return ""
+		}
+		return clip.Title
 	}
+	return ""
 }
