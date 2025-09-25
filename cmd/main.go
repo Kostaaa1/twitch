@@ -137,8 +137,7 @@ func batchDownloadTwitchUnits(
 		unit.FetchTitle(tw)
 
 		g.Go(func() error {
-			unit.Title = getUnitTitle(tw, unit)
-			dl.Download(ctx, unit)
+			err = dl.Download(ctx, unit)
 			return nil
 		})
 	}
