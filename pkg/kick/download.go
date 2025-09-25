@@ -3,6 +3,7 @@ package kick
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +26,7 @@ func (c *Client) fetchWithContext(
 	method string,
 	url string,
 ) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -41,12 +42,16 @@ func (c *Client) fetchWithContext(
 		return nil, err
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return b, errors.Join(errors.New("403 forbidden"), err)
+	}
+
 	return b, nil
 }
 
 func (c *Client) getMediaPlaylist(
 	ctx context.Context,
-	unit Unit,
+	unit *Unit,
 	// channel *string,
 	// uuid uuid.UUID,
 	// quality string,
@@ -62,6 +67,7 @@ func (c *Client) getMediaPlaylist(
 	}
 
 	master := m3u8.Master(b)
+
 	list, err := master.GetVariantPlaylistByQuality(unit.Quality)
 	if err != nil {
 		return "", nil, err
@@ -84,22 +90,21 @@ func (c *Client) getMediaPlaylist(
 	return basePath, &playlist, nil
 }
 
-func (c *Client) Download(ctx context.Context, u Unit) error {
+func (c *Client) Download(ctx context.Context, u *Unit) error {
 	// downloadVod is blocking, when done, notify
 	err := c.downloadVod(ctx, u)
 
-	msg := ProgressMessage{
+	c.notify(ProgressMessage{
 		ID:    u.GetID(),
 		Bytes: 0,
 		Error: err,
 		Done:  true,
-	}
-	c.notify(msg)
+	})
 
-	return nil
+	return err
 }
 
-func (c *Client) downloadVod(ctx context.Context, unit Unit) error {
+func (c *Client) downloadVod(ctx context.Context, unit *Unit) error {
 	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
 	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
 	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)

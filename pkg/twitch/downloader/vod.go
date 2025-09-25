@@ -12,13 +12,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type segmentJob struct {
-	index int
-	url   string
-	data  []byte
-	err   error
-}
-
 func (dl *Downloader) getVariantAndMediaPlaylistForUnit(unit Unit) (variant *m3u8.VariantPlaylist, media *m3u8.MediaPlaylist, err error) {
 	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
 	if err != nil {
@@ -68,7 +61,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	variant, playlist, _ := dl.getVariantAndMediaPlaylistForUnit(unit)
 
 	g, ctx := errgroup.WithContext(ctx)
-
 	currentChunk := atomic.Uint32{}
 
 	for i := 0; i < 8; i++ {

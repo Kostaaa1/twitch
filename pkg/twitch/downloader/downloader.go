@@ -47,26 +47,33 @@ func (c *Downloader) notify(msg ProgressMessage) {
 	}
 }
 
-func (dl *Downloader) Download(ctx context.Context, u Unit) error {
+func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	defer u.CloseWriter()
 
-	if u.Error != nil {
-		return u.Error
-	}
+	fmt.Println(u.Title)
 
-	var err error
+	err := u.Error
+	if err != nil {
+		dl.notify(ProgressMessage{
+			ID:    u.GetID(),
+			Err:   err,
+			Bytes: 0,
+			Done:  true,
+		})
+		return err
+	}
 
 	switch u.Type {
 	case TypeVOD:
-		err = dl.downloadVOD(ctx, u)
+		err = dl.downloadVOD(ctx, *u)
 	case TypeClip:
-		err = dl.downloadClip(ctx, u)
+		err = dl.downloadClip(ctx, *u)
 	case TypeLivestream:
-		err = dl.recordStream(ctx, u)
+		err = dl.recordStream(ctx, *u)
 	}
 
 	dl.notify(ProgressMessage{
-		ID:    u.ID,
+		ID:    u.GetID(),
 		Err:   err,
 		Bytes: 0,
 		Done:  true,

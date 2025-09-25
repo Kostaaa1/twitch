@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
-	"github.com/google/uuid"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
 type MediaType int
@@ -56,19 +56,42 @@ type Unit struct {
 	// Quality of media - 1080p60, 720p60, 480p60 ....
 	Quality QualityType
 	// Used when wanting to download the part of the VOD
-	Start time.Duration
-	End   time.Duration
-	// used as filename
+	Start  time.Duration
+	End    time.Duration
 	Title  string
 	Writer io.Writer
 	Error  error
 }
 
+func (u *Unit) FetchTitle(c *twitch.Client) {
+	switch u.Type {
+	case TypeClip:
+		clip, err := c.ClipMetadata(u.ID)
+		if err != nil {
+			u.Error = err
+			return
+		}
+		u.Title = clip.Title
+	case TypeVOD:
+		vod, err := c.VideoMetadata(u.ID)
+		if err != nil {
+			u.Error = err
+			return
+		}
+		u.Title = vod.Video.Title
+	case TypeLivestream:
+		stream, err := c.StreamMetadata(u.ID)
+		if err != nil {
+			u.Error = err
+			return
+		}
+		u.Title = stream.BroadcastSettings.Title
+	}
+}
+
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
 func NewUnit(input, quality string, opts ...UnitOption) *Unit {
-	unit := &Unit{
-		Title: uuid.NewString(),
-	}
+	unit := new(Unit)
 
 	unit.ID, unit.Type, unit.Error = parseIDAndMediaType(input)
 	if unit.Error != nil {
@@ -128,9 +151,8 @@ func (u *Unit) CloseWriter() error {
 func (u Unit) GetError() error {
 	return u.Error
 }
-
 func (u Unit) GetID() string {
-	return u.ID
+	return u.Title
 }
 
 func getQuality(quality string) (QualityType, error) {

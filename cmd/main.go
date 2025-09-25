@@ -68,19 +68,20 @@ func initDownloader(conf *config.Config, option cli.Option) {
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
-
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, spin, conf, option, twitchUnits, downloadGroup)
 		}
-
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, option, kickUnits, downloadGroup)
 		}
 
+		// TODO: If error happens when downloading i want spinner to cancel the context, but if there is no errors, cancel needs to happen after downloading of batches finishes. Problem is that i cannot return
 		err := downloadGroup.Wait()
-		cancel()
+		if err == nil {
+			cancel()
+		}
 
-		return err
+		return nil
 	})
 
 	g.Wait()
@@ -91,7 +92,7 @@ func startTwitchDownloader(
 	spin *spinner.Model,
 	conf *config.Config,
 	option cli.Option,
-	twitchUnits []downloader.Unit,
+	twitchUnits []*downloader.Unit,
 	g *errgroup.Group,
 ) {
 	tw := twitch.NewClient(&conf.Creds)
@@ -115,7 +116,7 @@ func startTwitchDownloader(
 		if option.Subscribe {
 			return initTwitchEventSub(ctx, tw, dl, twitchUnits)
 		} else {
-			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, spin)
+			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, tw)
 		}
 	})
 }
@@ -123,28 +124,74 @@ func startTwitchDownloader(
 func batchDownloadTwitchUnits(
 	ctx context.Context,
 	threads int,
-	units []downloader.Unit,
+	units []*downloader.Unit,
 	dl *downloader.Downloader,
-	spin *spinner.Model,
+	tw *twitch.Client,
 ) error {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(threads)
 
+	var err error
+
 	for _, unit := range units {
+		unit.FetchTitle(tw)
+
 		g.Go(func() error {
 			dl.Download(ctx, unit)
 			return nil
 		})
 	}
 
-	return g.Wait()
+	g.Wait()
+	return err
+}
+
+func startKickDownloader(
+	ctx context.Context,
+	spin *spinner.Model,
+	option cli.Option,
+	kickUnits []*kick.Unit,
+	g *errgroup.Group,
+) {
+	c := kick.New()
+
+	if spin != nil {
+		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
+			if ctx.Err() != nil {
+				return
+			}
+			spin.C <- spinner.Message{
+				ID:    pm.ID,
+				Bytes: pm.Bytes,
+				Err:   pm.Error,
+				Done:  pm.Done,
+			}
+		})
+	}
+
+	g.Go(func() error {
+		g, ctx := errgroup.WithContext(ctx)
+		g.SetLimit(option.Threads)
+
+		var err error
+
+		for _, unit := range kickUnits {
+			g.Go(func() error {
+				err = c.Download(ctx, unit)
+				return nil
+			})
+		}
+
+		g.Wait()
+		return err
+	})
 }
 
 func initTwitchEventSub(
 	ctx context.Context,
 	tw *twitch.Client,
 	dl *downloader.Downloader,
-	units []downloader.Unit,
+	units []*downloader.Unit,
 ) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -168,7 +215,7 @@ func initTwitchEventSub(
 					go func() {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
 
-						if err := dl.Download(ctx, *unit); err != nil {
+						if err := dl.Download(ctx, unit); err != nil {
 							fmt.Println("error occured: ", err)
 							isLive, _ := tw.IsChannelLive(user.Login)
 							if !isLive {
@@ -196,49 +243,4 @@ func initChat(client *twitch.Client, conf *config.Config) {
 		panic(err)
 	}
 	chat.Open(client, conf)
-}
-
-func startKickDownloader(
-	ctx context.Context,
-	spin *spinner.Model,
-	option cli.Option,
-	kickUnits []kick.Unit,
-	g *errgroup.Group,
-) {
-	c := kick.New()
-
-	if spin != nil {
-		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
-			if ctx.Err() != nil {
-				return
-			}
-			spin.C <- spinner.Message{
-				ID:    pm.ID,
-				Bytes: pm.Bytes,
-				Err:   pm.Error,
-				Done:  pm.Done,
-			}
-		})
-	}
-
-	g.Go(func() error {
-		g, ctx := errgroup.WithContext(ctx)
-		g.SetLimit(option.Threads)
-
-		for _, unit := range kickUnits {
-			g.Go(func() error {
-				c.Download(ctx, unit)
-				return nil
-			})
-		}
-
-		return g.Wait()
-	})
-}
-
-// TEST:
-func getUnitTitles(client *twitch.Client, units []*downloader.Unit) {
-	for _, u := range units {
-		client.ClipMetadata()
-	}
 }

@@ -74,6 +74,28 @@ func isKick(input string) bool {
 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
+func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
+	inputs := strings.Split(opt.Input, ",")
+
+	for _, input := range inputs {
+		if isKick(input) {
+			*units = append(*units, kick.NewUnit(
+				input,
+				opt.Quality,
+				kick.WithTimestamps(opt.Start, opt.End),
+				kick.WithWriter(opt.Output),
+			))
+		} else {
+			*units = append(*units, downloader.NewUnit(
+				input,
+				opt.Quality,
+				downloader.WithTimestamps(opt.Start, opt.End),
+				downloader.WithWriter(opt.Output),
+			))
+		}
+	}
+}
+
 func (opt Option) unitsFromFileInput(units *[]spinner.UnitProvider) {
 	_, err := os.Stat(opt.Input)
 	if os.IsNotExist(err) {
@@ -99,46 +121,19 @@ func (opt Option) unitsFromFileInput(units *[]spinner.UnitProvider) {
 		}
 
 		if isKick(unit.Input) {
-			unit := kick.NewUnit(
+			*units = append(*units, kick.NewUnit(
 				unit.Input,
 				unit.Quality,
 				kick.WithTimestamps(opt.Start, opt.End),
 				kick.WithWriter(opt.Output),
-			)
-			*units = append(*units, unit)
+			))
 		} else {
-			unit := downloader.NewUnit(
+			*units = append(*units, downloader.NewUnit(
 				unit.Input,
 				unit.Quality,
 				downloader.WithTimestamps(unit.Start, unit.End),
 				downloader.WithWriter(opt.Output),
-			)
-			*units = append(*units, unit)
-		}
-	}
-
-}
-
-func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
-	inputs := strings.Split(opt.Input, ",")
-
-	for _, input := range inputs {
-		if isKick(input) {
-			unit := kick.NewUnit(
-				input,
-				opt.Quality,
-				kick.WithTimestamps(opt.Start, opt.End),
-				kick.WithWriter(opt.Output),
-			)
-			*units = append(*units, unit)
-		} else {
-			unit := downloader.NewUnit(
-				input,
-				opt.Quality,
-				downloader.WithTimestamps(opt.Start, opt.End),
-				downloader.WithWriter(opt.Output),
-			)
-			*units = append(*units, unit)
+			))
 		}
 	}
 }
@@ -148,7 +143,7 @@ func (opts Option) UnitsFromInput() []spinner.UnitProvider {
 		log.Fatalf("Input was not provided.")
 	}
 
-	var units []spinner.UnitProvider
+	units := []spinner.UnitProvider{}
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
@@ -160,16 +155,16 @@ func (opts Option) UnitsFromInput() []spinner.UnitProvider {
 	return units
 }
 
-func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {
-	var twitchUnits []downloader.Unit
-	var kickUnits []kick.Unit
+func FilterUnits(units []spinner.UnitProvider) ([]*downloader.Unit, []*kick.Unit) {
+	var twitchUnits []*downloader.Unit
+	var kickUnits []*kick.Unit
 
 	for _, unit := range units {
 		switch u := unit.(type) {
 		case *downloader.Unit:
-			twitchUnits = append(twitchUnits, *u)
+			twitchUnits = append(twitchUnits, u)
 		case *kick.Unit:
-			kickUnits = append(kickUnits, *u)
+			kickUnits = append(kickUnits, u)
 		}
 	}
 
