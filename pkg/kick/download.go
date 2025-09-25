@@ -51,10 +51,7 @@ func (c *Client) fetchWithContext(
 
 func (c *Client) getMediaPlaylist(
 	ctx context.Context,
-	unit *Unit,
-	// channel *string,
-	// uuid uuid.UUID,
-	// quality string,
+	unit Unit,
 ) (string, *m3u8.MediaPlaylist, error) {
 	masterURL, err := c.MasterPlaylistURL(unit.Channel, unit.UUID.String())
 	if err != nil {
@@ -90,7 +87,7 @@ func (c *Client) getMediaPlaylist(
 	return basePath, &playlist, nil
 }
 
-func (c *Client) Download(ctx context.Context, u *Unit) error {
+func (c *Client) Download(ctx context.Context, u Unit) error {
 	// downloadVod is blocking, when done, notify
 	err := c.downloadVod(ctx, u)
 
@@ -104,7 +101,7 @@ func (c *Client) Download(ctx context.Context, u *Unit) error {
 	return err
 }
 
-func (c *Client) downloadVod(ctx context.Context, unit *Unit) error {
+func (c *Client) downloadVod(ctx context.Context, unit Unit) error {
 	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
 	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
 	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)

@@ -91,6 +91,7 @@ func (opt Option) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 				opt.Quality,
 				downloader.WithTimestamps(opt.Start, opt.End),
 				downloader.WithWriter(opt.Output),
+				downloader.WithTitle(),
 			))
 		}
 	}
@@ -155,16 +156,16 @@ func (opts Option) UnitsFromInput() []spinner.UnitProvider {
 	return units
 }
 
-func FilterUnits(units []spinner.UnitProvider) ([]*downloader.Unit, []*kick.Unit) {
-	var twitchUnits []*downloader.Unit
-	var kickUnits []*kick.Unit
+func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {
+	var twitchUnits []downloader.Unit
+	var kickUnits []kick.Unit
 
 	for _, unit := range units {
 		switch u := unit.(type) {
 		case *downloader.Unit:
-			twitchUnits = append(twitchUnits, u)
+			twitchUnits = append(twitchUnits, *u)
 		case *kick.Unit:
-			kickUnits = append(kickUnits, u)
+			kickUnits = append(kickUnits, *u)
 		}
 	}
 

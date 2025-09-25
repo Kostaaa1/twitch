@@ -68,9 +68,11 @@ func initDownloader(conf *config.Config, option cli.Option) {
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
+
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, spin, conf, option, twitchUnits, downloadGroup)
 		}
+
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, option, kickUnits, downloadGroup)
 		}
@@ -92,7 +94,7 @@ func startTwitchDownloader(
 	spin *spinner.Model,
 	conf *config.Config,
 	option cli.Option,
-	twitchUnits []*downloader.Unit,
+	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
 	tw := twitch.NewClient(&conf.Creds)
@@ -124,7 +126,7 @@ func startTwitchDownloader(
 func batchDownloadTwitchUnits(
 	ctx context.Context,
 	threads int,
-	units []*downloader.Unit,
+	units []downloader.Unit,
 	dl *downloader.Downloader,
 	tw *twitch.Client,
 ) error {
@@ -150,7 +152,7 @@ func startKickDownloader(
 	ctx context.Context,
 	spin *spinner.Model,
 	option cli.Option,
-	kickUnits []*kick.Unit,
+	kickUnits []kick.Unit,
 	g *errgroup.Group,
 ) {
 	c := kick.New()
@@ -191,7 +193,7 @@ func initTwitchEventSub(
 	ctx context.Context,
 	tw *twitch.Client,
 	dl *downloader.Downloader,
-	units []*downloader.Unit,
+	units []downloader.Unit,
 ) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -215,7 +217,7 @@ func initTwitchEventSub(
 					go func() {
 						fmt.Println("Starting to record the stream for: ", unit.ID)
 
-						if err := dl.Download(ctx, unit); err != nil {
+						if err := dl.Download(ctx, *unit); err != nil {
 							fmt.Println("error occured: ", err)
 							isLive, _ := tw.IsChannelLive(user.Login)
 							if !isLive {

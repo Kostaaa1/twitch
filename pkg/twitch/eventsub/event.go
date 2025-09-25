@@ -103,7 +103,7 @@ func ChannelPollEndEvent(userID string) Event {
 }
 
 // uses userID to
-func FromUnits(units []*downloader.Unit) ([]Event, error) {
+func FromUnits(units []downloader.Unit) ([]Event, error) {
 	var events []Event
 	for _, unit := range units {
 		if unit.Error != nil {

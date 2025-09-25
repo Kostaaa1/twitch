@@ -25,8 +25,8 @@ const (
 func NewClient(creds *Creds) *Client {
 	return &Client{
 		creds:      creds,
-		retryCount: 3,
 		http:       http.DefaultClient,
+		retryCount: 3,
 		// httpClient: &http.Client{
 		// 	// Timeout: 15 * time.Second,
 		// 	Transport: &http.Transport{

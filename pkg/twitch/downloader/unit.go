@@ -137,6 +137,13 @@ func WithTimestamps(start, end time.Duration) UnitOption {
 	}
 }
 
+func WithTitle() UnitOption {
+	return func(u *Unit) {
+		c := twitch.NewClient(nil)
+		u.FetchTitle(c)
+	}
+}
+
 func (u *Unit) CloseWriter() error {
 	if f, ok := u.Writer.(*os.File); ok && f != nil {
 		if u.Error != nil {
