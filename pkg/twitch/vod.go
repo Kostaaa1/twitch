@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,7 +16,7 @@ type VideoCredResponse struct {
 	Value     string `json:"value"`
 }
 
-func (tw *Client) vodTokenAndSignature(id string) (string, string, error) {
+func (tw *Client) vodTokenAndSignature(ctx context.Context, id string) (string, string, error) {
 	gqlPayload := `{
 	    "operationName": "PlaybackAccessToken_Template",
 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -36,7 +37,7 @@ func (tw *Client) vodTokenAndSignature(id string) (string, string, error) {
 	}
 	var p payload
 
-	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
 		return "", "", err
 	}
 
@@ -47,7 +48,7 @@ func (tw *Client) vodTokenAndSignature(id string) (string, string, error) {
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (tw *Client) PlaybackAccessToken(login string) error {
+func (tw *Client) PlaybackAccessToken(ctx context.Context, login string) error {
 	gqlPayload := `{
 	    "operationName": "PlaybackAccessToken_Template",
 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -69,25 +70,25 @@ func (tw *Client) PlaybackAccessToken(login string) error {
 	}
 	var p payload
 
-	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (tw *Client) MasterPlaylistVOD(vodID string) (*m3u8.MasterPlaylist, error) {
-	value, sig, err := tw.vodTokenAndSignature(vodID)
+func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
+	value, sig, err := tw.vodTokenAndSignature(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
 
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, value, sig)
 
-	b, code, err := tw.fetchWithCode(m3u8Url)
+	b, code, err := tw.fetchWithCode(ctx, m3u8Url)
 	if code == http.StatusForbidden {
 		// 403 - you need to be subscribed to access the m3u8 master. In that case, we are creating fake playlist.
-		subVOD, err := tw.SubVodData(vodID)
+		subVOD, err := tw.SubVodData(ctx, vodID)
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +136,7 @@ type VideoMetadata struct {
 	Video       Video `json:"video"`
 }
 
-func (tw *Client) VideoMetadata(id string) (VideoMetadata, error) {
+func (tw *Client) VideoMetadata(ctx context.Context, id string) (VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
 		"variables": {
@@ -156,7 +157,8 @@ func (tw *Client) VideoMetadata(id string) (VideoMetadata, error) {
 	var p payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
-	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
+
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
 		return VideoMetadata{}, err
 	}
 
@@ -215,7 +217,7 @@ type FilterableVideoTower_Videos struct {
 	} `json:"data"`
 }
 
-func (tw *Client) GetVideosByChannelName(channelName string, limit int) ([]Video, error) {
+func (tw *Client) GetVideosByChannelName(ctx context.Context, channelName string, limit int) ([]Video, error) {
 	gqlPl := `{
 		"operationName": "FilterableVideoTower_Videos",
 		"variables": {
@@ -251,7 +253,7 @@ func (tw *Client) GetVideosByChannelName(channelName string, limit int) ([]Video
 	}
 
 	var p data
-	if err := tw.sendGqlLoadAndDecode(body, &p); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
 		return nil, err
 	}
 
@@ -274,7 +276,7 @@ type SubVODResponse struct {
 	} `json:"video"`
 }
 
-func (tw *Client) SubVodData(vodID string) (SubVODResponse, error) {
+func (tw *Client) SubVodData(ctx context.Context, vodID string) (SubVODResponse, error) {
 	gqlPayload := `{
  	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
 	}`
@@ -283,7 +285,7 @@ func (tw *Client) SubVodData(vodID string) (SubVODResponse, error) {
 	var subVodResponse struct {
 		Data SubVODResponse `json:"data"`
 	}
-	if err := tw.sendGqlLoadAndDecode(body, &subVodResponse); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &subVodResponse); err != nil {
 		return SubVODResponse{}, err
 	}
 	return subVodResponse.Data, nil

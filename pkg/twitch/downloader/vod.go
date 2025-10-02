@@ -12,8 +12,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (dl *Downloader) getVariantAndMediaPlaylistForUnit(unit Unit) (variant *m3u8.VariantPlaylist, media *m3u8.MediaPlaylist, err error) {
-	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
+func (dl *Downloader) getPlaylistsForUnit(ctx context.Context, unit Unit) (variant *m3u8.VariantPlaylist, media *m3u8.MediaPlaylist, err error) {
+	master, err := dl.twClient.MasterPlaylistVOD(ctx, unit.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,7 +58,7 @@ func (dl *Downloader) fetchSegmentWithRetry(ctx context.Context, u string) (io.R
 }
 
 func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
-	variant, playlist, _ := dl.getVariantAndMediaPlaylistForUnit(unit)
+	variant, playlist, _ := dl.getPlaylistsForUnit(ctx, unit)
 
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
@@ -76,12 +76,12 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 				if strings.HasSuffix(seg.URL, ".ts") {
 					fullSegURL := buildTSURL(variant.URL, seg.URL)
 
-					r, err := dl.fetchSegmentWithRetry(ctx, fullSegURL)
+					reader, err := dl.fetchSegmentWithRetry(ctx, fullSegURL)
 					if err != nil {
 						return err
 					}
 
-					seg.Data <- r
+					seg.Data <- reader
 					close(seg.Data)
 				}
 			}
@@ -98,8 +98,9 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 					continue
 				}
 
+				// chunk.Close()
+
 				n, err := io.Copy(unit.Writer, chunk)
-				chunk.Close()
 				if err != nil {
 					return err
 				}
@@ -119,7 +120,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 }
 
 func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
-	master, err := dl.twClient.MasterPlaylistVOD(unit.ID)
+	master, err := dl.twClient.MasterPlaylistVOD(ctx, unit.ID)
 	if err != nil {
 		return err
 	}
@@ -160,11 +161,10 @@ func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
 
 // TODO: batch writes / buffered writer / temp memory-mapped file / sliding windows writer (?)
 // func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
-// 	variant, playlist, err := dl.getVariantAndMediaPlaylistForUnit(unit)
+// 	variant, playlist, err := dl.getPlaylistsForUnit(unit)
 // 	if err != nil {
 // 		return err
 // 	}
-
 // 	jobsChan := make(chan segmentJob)
 // 	resultsChan := make(chan segmentJob)
 

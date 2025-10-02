@@ -119,7 +119,7 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 		select {
 		case <-ctx.Done():
 			fmt.Println("Unsubscribing to the events...")
-			if err := client.UnsubscribeToAll(); err != nil {
+			if err := client.UnsubscribeToAll(ctx); err != nil {
 				fmt.Printf("failed to delete all subscriptions: %v\n", err)
 			}
 			fmt.Println("Closing the connection...")
@@ -155,7 +155,7 @@ func (client *EventSubClient) DialWS(ctx context.Context, events []Event) error 
 						Type:      event.Type,
 						Transport: transport,
 					}
-					resp, err := client.Subscribe(body)
+					resp, err := client.Subscribe(ctx, body)
 					if err != nil {
 						fmt.Printf("Failed to subscribe to: %s | error: %s\n", event.Type, err)
 						continue

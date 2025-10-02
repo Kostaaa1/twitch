@@ -157,6 +157,7 @@ func (m *Model) updateProgressUnits(msg Message) {
 			if m.units[i].startTime.IsZero() {
 				m.units[i].startTime = time.Now()
 			}
+
 			m.units[i].done = msg.Done
 
 			if msg.Done || msg.Err != nil {
@@ -228,7 +229,6 @@ func (m Model) printUnit(u *unit) string {
 
 	var str strings.Builder
 
-	// title := u.title, m.widt
 	progMsg := progressMsg(u.totalBytes, u.elapsed)
 	title := u.title
 

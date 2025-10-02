@@ -36,7 +36,7 @@ func (h *segmentHistory) Seen(url string) bool {
 }
 
 func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
-	isLive, err := dl.twClient.IsChannelLive(unit.ID)
+	isLive, err := dl.twClient.IsChannelLive(ctx, unit.ID)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 		return fmt.Errorf("%s is offline", unit.ID)
 	}
 
-	master, err := dl.twClient.MasterPlaylistStream(unit.ID)
+	master, err := dl.twClient.MasterPlaylistStream(ctx, unit.ID)
 	if err != nil {
 		return err
 	}

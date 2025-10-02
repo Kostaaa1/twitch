@@ -2,6 +2,7 @@ package eventsub
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,14 +32,14 @@ var (
 	subscriptionsURL = "https://api.twitch.tv/helix/eventsub/subscriptions"
 )
 
-func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, error) {
+func (sub *EventSubClient) Subscribe(ctx context.Context, body RequestBody) (*SubscriptionResponse, error) {
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 
 	var data SubscriptionResponse
-	if err := sub.tw.HelixRequest(subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
+	if err := sub.tw.HelixRequest(ctx, subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
 		return nil, err
 	}
 
@@ -46,9 +47,9 @@ func (sub *EventSubClient) Subscribe(body RequestBody) (*SubscriptionResponse, e
 	return &data, nil
 }
 
-func (sub *EventSubClient) GetSubscriptions() (*SubscriptionResponse, error) {
+func (sub *EventSubClient) GetSubscriptions(ctx context.Context) (*SubscriptionResponse, error) {
 	var data SubscriptionResponse
-	if err := sub.tw.HelixRequest(subscriptionsURL, http.MethodGet, nil, &data); err != nil {
+	if err := sub.tw.HelixRequest(ctx, subscriptionsURL, http.MethodGet, nil, &data); err != nil {
 		return nil, err
 	}
 	return &data, nil
@@ -64,22 +65,25 @@ func (sub *EventSubClient) RemoveSubscriptionByID(id string) {
 	sub.Subscriptions = newSubs
 }
 
-func (sub *EventSubClient) Unsubscribe(subId string) error {
+func (sub *EventSubClient) Unsubscribe(ctx context.Context, subId string) error {
 	url := fmt.Sprintf("%s?id=%s", subscriptionsURL, subId)
-	if err := sub.tw.HelixRequest(url, http.MethodDelete, nil, nil); err != nil {
+	if err := sub.tw.HelixRequest(ctx, url, http.MethodDelete, nil, nil); err != nil {
 		return err
 	}
 	sub.RemoveSubscriptionByID(subId)
 	return nil
 }
 
-func (sub *EventSubClient) UnsubscribeToAll() error {
+// TODO: ???
+func (sub *EventSubClient) UnsubscribeToAll(ctx context.Context) error {
 	subCopy := make([]SubscriptionMessage, len(sub.Subscriptions))
 	copy(subCopy, sub.Subscriptions)
+
 	for _, data := range subCopy {
-		if err := sub.Unsubscribe(data.ID); err != nil {
+		if err := sub.Unsubscribe(ctx, data.ID); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

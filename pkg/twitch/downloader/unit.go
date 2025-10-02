@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -63,24 +64,24 @@ type Unit struct {
 	Error  error
 }
 
-func (u *Unit) FetchTitle(c *twitch.Client) {
+func (u *Unit) FetchTitle(ctx context.Context, c *twitch.Client) {
 	switch u.Type {
 	case TypeClip:
-		clip, err := c.ClipMetadata(u.ID)
+		clip, err := c.ClipMetadata(ctx, u.ID)
 		if err != nil {
 			u.Error = err
 			return
 		}
 		u.Title = clip.Title
 	case TypeVOD:
-		vod, err := c.VideoMetadata(u.ID)
+		vod, err := c.VideoMetadata(ctx, u.ID)
 		if err != nil {
 			u.Error = err
 			return
 		}
 		u.Title = vod.Video.Title
 	case TypeLivestream:
-		stream, err := c.StreamMetadata(u.ID)
+		stream, err := c.StreamMetadata(ctx, u.ID)
 		if err != nil {
 			u.Error = err
 			return
@@ -90,25 +91,32 @@ func (u *Unit) FetchTitle(c *twitch.Client) {
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
-func NewUnit(input, quality string, opts ...UnitOption) *Unit {
+func NewUnit(input string, opts ...UnitOption) *Unit {
 	unit := new(Unit)
 
-	unit.ID, unit.Type, unit.Error = parseIDAndMediaType(input)
-	if unit.Error != nil {
+	if input == "" {
+		unit.Error = errors.New("input is empty")
 		return unit
 	}
 
-	parsedURL, err := url.Parse(input)
-
-	if err == nil && unit.Type == TypeVOD {
-		if unit.Error = parseVodParams(parsedURL, unit); unit.Error != nil {
+	u, err := url.ParseRequestURI(input)
+	if err != nil {
+		unit.ID = input
+		if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
+			unit.Type = TypeVOD
+		} else if len(input) >= 25 {
+			unit.Type = TypeClip
+		} else {
+			unit.Type = TypeLivestream
+		}
+	} else {
+		if !strings.Contains(u.Hostname(), "twitch.tv") {
+			unit.Error = errors.New("URL must belong to 'twitch.tv'")
 			return unit
 		}
-	}
 
-	unit.Quality, unit.Error = getQuality(quality)
-	if unit.Error != nil {
-		return unit
+		_, unit.ID = path.Split(u.Path)
+		extractParamsFromURL(u, unit)
 	}
 
 	for _, opt := range opts {
@@ -137,10 +145,17 @@ func WithTimestamps(start, end time.Duration) UnitOption {
 	}
 }
 
+func WithQuality(q string) UnitOption {
+	return func(u *Unit) {
+		u.Quality, u.Error = getQuality(q)
+	}
+}
+
+// TODO: pass client here
 func WithTitle() UnitOption {
 	return func(u *Unit) {
 		c := twitch.NewClient(nil)
-		u.FetchTitle(c)
+		u.FetchTitle(context.Background(), c)
 	}
 }
 
@@ -158,6 +173,7 @@ func (u *Unit) CloseWriter() error {
 func (u Unit) GetError() error {
 	return u.Error
 }
+
 func (u Unit) GetID() string {
 	return u.Title
 }
@@ -181,50 +197,16 @@ func getQuality(quality string) (QualityType, error) {
 	}
 }
 
-func parseIDAndMediaType(input string) (string, MediaType, error) {
-	if input == "" {
-		return "", 0, errors.New("input cannot be empty")
-	}
-
-	if !strings.Contains(input, "http://") && !strings.Contains(input, "https://") {
-		if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
-			return input, TypeVOD, nil
-		}
-		if len(input) >= 25 {
-			return input, TypeClip, nil
-		}
-		return input, TypeLivestream, nil
-	}
-
-	parsedURL, err := url.Parse(input)
-	if err != nil {
-		return "", 0, err
-	}
-
-	if !strings.Contains(parsedURL.Hostname(), "twitch.tv") {
-		return "", 0, errors.New("URL must belong to 'twitch.tv'")
-	}
-
-	_, id := path.Split(parsedURL.Path)
-
-	switch {
-	case strings.Contains(parsedURL.Host, "clips.twitch.tv") || strings.Contains(parsedURL.Path, "/clip/"):
-		return id, TypeClip, nil
-	case strings.Contains(parsedURL.Path, "/videos/"):
-		return id, TypeVOD, nil
-	default:
-		return id, TypeLivestream, nil
-	}
-}
-
-func parseVodParams(u *url.URL, unit *Unit) error {
+func extractParamsFromURL(u *url.URL, unit *Unit) error {
 	if unit.Start == 0 {
 		if t := u.Query().Get("t"); t != "" {
 			unit.Start, _ = time.ParseDuration(t)
 		}
 	}
+
 	if unit.Start > unit.End {
 		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
 	}
+
 	return nil
 }

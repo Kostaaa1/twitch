@@ -12,7 +12,7 @@ import (
 
 // TODO: handle context
 func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
-	clip, err := dl.twClient.ClipMetadata(unit.ID)
+	clip, err := dl.twClient.ClipMetadata(ctx, unit.ID)
 	if err != nil {
 		return err
 	}

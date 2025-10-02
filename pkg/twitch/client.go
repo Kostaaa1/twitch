@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,15 +49,20 @@ func (tw *Client) SetHttpClient(c *http.Client) {
 	tw.http = c
 }
 
-func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
-	resp, err := tw.http.Get(url)
+func (tw *Client) fetchWithCode(ctx context.Context, url string) ([]byte, int, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, 0, fmt.Errorf("fetching failed: %w", err)
+		return nil, 0, err
+	}
+
+	resp, err := tw.http.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("[http] fetching failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, resp.StatusCode, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
+		return nil, resp.StatusCode, fmt.Errorf("[http] non-success status code: %d %s", resp.StatusCode, resp.Status)
 	}
 
 	bytes, err := io.ReadAll(resp.Body)
@@ -67,21 +73,13 @@ func (tw *Client) fetchWithCode(url string) ([]byte, int, error) {
 	return bytes, resp.StatusCode, nil
 }
 
-func (tw *Client) fetch(url string) ([]byte, error) {
-	b, _, err := tw.fetchWithCode(url)
+func (tw *Client) fetch(ctx context.Context, url string) ([]byte, error) {
+	b, _, err := tw.fetchWithCode(ctx, url)
 	return b, err
 }
 
-func (tw *Client) decodeJSONResponse(resp *http.Response, p interface{}) error {
-	defer resp.Body.Close()
-	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
-	req, err := http.NewRequest(http.MethodPost, gqlURL, body)
+func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, body *strings.Reader, v any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, body)
 	if err != nil {
 		return fmt.Errorf("failed to create request to get the access token: %s", err)
 	}
@@ -97,7 +95,7 @@ func (tw *Client) sendGqlLoadAndDecode(body *strings.Reader, v any) error {
 		return fmt.Errorf("unsupported response status code for graphql: %v", resp.StatusCode)
 	}
 
-	if err := tw.decodeJSONResponse(resp, &v); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		return err
 	}
 

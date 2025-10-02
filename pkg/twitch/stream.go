@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ type UseLiveBroadcast struct {
 	} `json:"lastBroadcast"`
 }
 
-func (tw *Client) UseLiveBroadcast(channelName string) (*UseLiveBroadcast, error) {
+func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*UseLiveBroadcast, error) {
 	gqlPl := `{
 		"operationName": "UseLiveBroadcast",
 		"variables": {
@@ -45,7 +46,7 @@ func (tw *Client) UseLiveBroadcast(channelName string) (*UseLiveBroadcast, error
 	var resp payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
-	if err := tw.sendGqlLoadAndDecode(body, &resp); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &resp); err != nil {
 		return nil, err
 	}
 
@@ -72,7 +73,7 @@ type envelope[T any] struct {
 	Data T `json:"data"`
 }
 
-func (tw *Client) StreamMetadata(channelName string) (*StreamMetadata, error) {
+func (tw *Client) StreamMetadata(ctx context.Context, channelName string) (*StreamMetadata, error) {
 	gqlPl := `{
 		"operationName": "NielsenContentMetadata",
 		"variables": {
@@ -97,14 +98,14 @@ func (tw *Client) StreamMetadata(channelName string) (*StreamMetadata, error) {
 	var resp envelope[payload]
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
-	if err := tw.sendGqlLoadAndDecode(body, &resp); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &resp); err != nil {
 		return nil, err
 	}
 
 	return &resp.Data.User, nil
 }
 
-func (tw *Client) streamCreds(id string) (string, string, error) {
+func (tw *Client) streamCreds(ctx context.Context, id string) (string, string, error) {
 	gqlPl := `{
 		"operationName": "PlaybackAccessToken_Template",
 		"query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -125,22 +126,22 @@ func (tw *Client) streamCreds(id string) (string, string, error) {
 	var data payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, id))
-	if err := tw.sendGqlLoadAndDecode(body, &data); err != nil {
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &data); err != nil {
 		return "", "", err
 	}
 
 	return data.Data.VideoPlaybackAccessToken.Value, data.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-func (tw *Client) MasterPlaylistStream(channel string) (*m3u8.MasterPlaylist, error) {
-	tok, sig, err := tw.streamCreds(channel)
+func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u8.MasterPlaylist, error) {
+	tok, sig, err := tw.streamCreds(ctx, channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
-	b, err := tw.fetch(url)
+	b, err := tw.fetch(ctx, url)
 	if err != nil {
 		return nil, err
 	}

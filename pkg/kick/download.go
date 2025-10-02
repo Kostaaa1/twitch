@@ -3,15 +3,13 @@ package kick
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 
 	"github.com/Kostaaa1/twitch/pkg/m3u8"
+	"golang.org/x/sync/errgroup"
 )
 
 type segmentJob struct {
@@ -19,34 +17,6 @@ type segmentJob struct {
 	url   string
 	data  []byte
 	err   error
-}
-
-func (c *Client) fetchWithContext(
-	ctx context.Context,
-	method string,
-	url string,
-) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return b, errors.Join(errors.New("403 forbidden"), err)
-	}
-
-	return b, nil
 }
 
 func (c *Client) getMediaPlaylist(
@@ -58,12 +28,12 @@ func (c *Client) getMediaPlaylist(
 		return "", nil, err
 	}
 
-	b, err := c.fetchWithContext(ctx, http.MethodGet, masterURL)
+	res, err := c.cycletls.Do(masterURL, c.defaultCycleTLSOpts(), http.MethodGet)
 	if err != nil {
 		return "", nil, err
 	}
 
-	master := m3u8.Master(b)
+	master := m3u8.Master(res.BodyBytes)
 
 	list, err := master.GetVariantPlaylistByQuality(unit.Quality)
 	if err != nil {
@@ -76,12 +46,12 @@ func (c *Client) getMediaPlaylist(
 	basePath := parts[0] + listParts[0]
 	playlistURL := parts[0] + list.URL
 
-	b, err = c.fetchWithContext(ctx, http.MethodGet, playlistURL)
+	res, err = c.cycletls.Do(playlistURL, c.defaultCycleTLSOpts(), http.MethodGet)
 	if err != nil {
 		return "", nil, err
 	}
 
-	playlist := m3u8.ParseMediaPlaylist(bytes.NewReader(b))
+	playlist := m3u8.ParseMediaPlaylist(bytes.NewReader(res.BodyBytes))
 	playlist.TruncateSegments(unit.Start, unit.End)
 
 	return basePath, &playlist, nil
@@ -89,7 +59,7 @@ func (c *Client) getMediaPlaylist(
 
 func (c *Client) Download(ctx context.Context, u Unit) error {
 	// downloadVod is blocking, when done, notify
-	err := c.downloadVod(ctx, u)
+	err := c.downloadVO(ctx, u)
 
 	c.notify(ProgressMessage{
 		ID:    u.GetID(),
@@ -101,124 +71,183 @@ func (c *Client) Download(ctx context.Context, u Unit) error {
 	return err
 }
 
-func (c *Client) downloadVod(ctx context.Context, unit Unit) error {
-	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
-	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
-	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)
+func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
+	u, playlist, err := c.getMediaPlaylist(ctx, unit)
 	if err != nil {
 		return err
 	}
 
-	jobsChan := make(chan segmentJob)
-	resultsChan := make(chan segmentJob)
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(8)
 
-	go func() {
-		for i, seg := range playlist.Segments {
-			if strings.HasSuffix(seg.URL, ".ts") {
-				fullSegURL, _ := url.JoinPath(basePath, seg.URL)
-				select {
-				case <-ctx.Done():
-					return
-				case jobsChan <- segmentJob{
-					index: i,
-					url:   fullSegURL,
-				}:
-				}
-			}
-		}
-	}()
+	g.Go(func() error {
+		for _, seg := range playlist.Segments {
+			g.Go(func() error {
+				if strings.HasSuffix(seg.URL, ".ts") {
+					segmentURL, _ := url.JoinPath(u, seg.URL)
 
-	const maxWorkers = 8
-	var wg sync.WaitGroup
-
-	for i := 0; i < maxWorkers; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case job, ok := <-jobsChan:
-					if !ok {
-						return
-					}
-
-					req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.url, nil)
+					res, err := c.cycletls.Do(segmentURL, c.defaultCycleTLSOpts(), http.MethodGet)
 					if err != nil {
-						return
+						return err
 					}
 
-					resp, err := c.httpClient.Do(req)
-					if err != nil {
-						job.err = err
-					} else {
-						data, err := io.ReadAll(resp.Body)
-						job.err = err
-						job.data = data
-						resp.Body.Close()
-
-						select {
-						case <-ctx.Done():
-							return
-						case resultsChan <- job:
-						}
-					}
-
+					seg.Data <- io.NopCloser(bytes.NewReader(res.BodyBytes))
 				}
-			}
-		}()
-	}
 
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
-	segmentBuffer := make(map[int]segmentJob)
-	nextIndexToWrite := 0
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case result, ok := <-resultsChan:
-			if !ok {
 				return nil
-			}
-			if result.err != nil {
-				return fmt.Errorf("error downloading segment %s: %v", result.url, result.err)
-			}
+			})
+		}
+		return nil
+	})
 
-			segmentBuffer[result.index] = result
+	g.Go(func() error {
+		for i := 0; i < len(playlist.Segments); i++ {
+			select {
+			case <-ctx.Done():
+				return nil
 
-			for {
-				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
-					delete(segmentBuffer, nextIndexToWrite)
-					nextIndexToWrite++
-
-					n, err := unit.W.Write(job.data)
-					if err != nil {
-						return fmt.Errorf("error writing segment: %v", err)
-					}
-
-					if ctx.Err() != nil {
-						return ctx.Err()
-					}
-
-					msg := ProgressMessage{
-						ID:    unit.GetID(),
-						Error: unit.GetError(),
-						Bytes: int64(n),
-						Done:  false,
-					}
-					c.notify(msg)
-				} else {
-					break
+			case chunk := <-playlist.Segments[i].Data:
+				n, err := io.Copy(unit.W, chunk)
+				if err != nil {
+					return err
 				}
+
+				c.notify(ProgressMessage{
+					ID:    unit.GetID(),
+					Error: unit.GetError(),
+					Bytes: int64(n),
+					Done:  false,
+				})
+
+				close(playlist.Segments[i].Data)
 			}
 		}
-	}
+		return nil
+	})
+
+	g.Wait()
+
+	return nil
 }
+
+// func (c *Client) downloadVod(ctx context.Context, unit Unit) error {
+// 	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
+// 	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
+// 	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	jobsChan := make(chan segmentJob)
+// 	resultsChan := make(chan segmentJob)
+
+// 	go func() {
+// 		for i, seg := range playlist.Segments {
+// 			if strings.HasSuffix(seg.URL, ".ts") {
+// 				fullSegURL, _ := url.JoinPath(basePath, seg.URL)
+// 				select {
+// 				case <-ctx.Done():
+// 					return
+// 				case jobsChan <- segmentJob{
+// 					index: i,
+// 					url:   fullSegURL,
+// 				}:
+// 				}
+// 			}
+// 		}
+// 	}()
+
+// 	const maxWorkers = 8
+// 	var wg sync.WaitGroup
+
+// 	for i := 0; i < maxWorkers; i++ {
+// 		wg.Add(1)
+
+// 		go func() {
+// 			defer wg.Done()
+
+// 			for {
+// 				select {
+// 				case <-ctx.Done():
+// 					return
+// 				case job, ok := <-jobsChan:
+// 					if !ok {
+// 						return
+// 					}
+
+// 					req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.url, nil)
+// 					if err != nil {
+// 						return
+// 					}
+
+// 					resp, err := c.httpClient.Do(req)
+// 					if err != nil {
+// 						job.err = err
+// 					} else {
+// 						data, err := io.ReadAll(resp.Body)
+// 						job.err = err
+// 						job.data = data
+// 						resp.Body.Close()
+
+// 						select {
+// 						case <-ctx.Done():
+// 							return
+// 						case resultsChan <- job:
+// 						}
+// 					}
+
+// 				}
+// 			}
+// 		}()
+// 	}
+
+// 	go func() {
+// 		wg.Wait()
+// 		close(resultsChan)
+// 	}()
+
+// 	segmentBuffer := make(map[int]segmentJob)
+// 	nextIndexToWrite := 0
+
+// 	for {
+// 		select {
+// 		case <-ctx.Done():
+// 			return nil
+// 		case result, ok := <-resultsChan:
+// 			if !ok {
+// 				return nil
+// 			}
+// 			if result.err != nil {
+// 				return fmt.Errorf("error downloading segment %s: %v", result.url, result.err)
+// 			}
+
+// 			segmentBuffer[result.index] = result
+
+// 			for {
+// 				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
+// 					delete(segmentBuffer, nextIndexToWrite)
+// 					nextIndexToWrite++
+
+// 					n, err := unit.W.Write(job.data)
+// 					if err != nil {
+// 						return fmt.Errorf("error writing segment: %v", err)
+// 					}
+
+// 					if ctx.Err() != nil {
+// 						return ctx.Err()
+// 					}
+
+// 					msg := ProgressMessage{
+// 						ID:    unit.GetID(),
+// 						Error: unit.GetError(),
+// 						Bytes: int64(n),
+// 						Done:  false,
+// 					}
+// 					c.notify(msg)
+// 				} else {
+// 					break
+// 				}
+// 			}
+// 		}
+// 	}
+// }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -227,12 +228,12 @@ func Get() (*Config, error) {
 	return &data, nil
 }
 
-func (conf *Config) AuthorizeAndSaveUserData(client *twitch.Client) error {
+func (conf *Config) AuthorizeAndSaveUserData(ctx context.Context, client *twitch.Client) error {
 	if err := client.Authorize(); err != nil {
 		return err
 	}
 
-	user, err := client.UserByChannelName("")
+	user, err := client.UserByChannelName(ctx, "")
 	if err != nil {
 		return fmt.Errorf("failed to get the user data: %v", err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -28,9 +29,9 @@ func main() {
 		conf.Save()
 	}()
 
-	option := ParseFlags(*conf)
+	flag := cli.ParseFlags(*conf)
 
-	if option.Authorize {
+	if flag.Authorize {
 		tw := twitch.NewClient(&conf.Creds)
 		if err := tw.Authorize(); err != nil {
 			panic(err)
@@ -38,16 +39,21 @@ func main() {
 		return
 	}
 
-	if len(os.Args) == 1 {
-		tw := twitch.NewClient(&conf.Creds)
-		initChat(tw, conf)
+	if flag.Info != "" {
+		handlePrinting(flag.Info)
 		return
 	}
 
-	initDownloader(conf, option)
+	if len(os.Args) == 1 {
+		tw := twitch.NewClient(&conf.Creds)
+		initChat(context.Background(), tw, conf)
+		return
+	}
+
+	initDownloader(conf, flag)
 }
 
-func initDownloader(conf *config.Config, option cli.Option) {
+func initDownloader(conf *config.Config, option cli.Flag) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -93,7 +99,7 @@ func startTwitchDownloader(
 	ctx context.Context,
 	spin *spinner.Model,
 	conf *config.Config,
-	option cli.Option,
+	option cli.Flag,
 	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
@@ -136,7 +142,7 @@ func batchDownloadTwitchUnits(
 	var err error
 
 	for _, unit := range units {
-		unit.FetchTitle(tw)
+		unit.FetchTitle(ctx, tw)
 
 		g.Go(func() error {
 			err = dl.Download(ctx, unit)
@@ -151,7 +157,7 @@ func batchDownloadTwitchUnits(
 func startKickDownloader(
 	ctx context.Context,
 	spin *spinner.Model,
-	option cli.Option,
+	flag cli.Flag,
 	kickUnits []kick.Unit,
 	g *errgroup.Group,
 ) {
@@ -173,18 +179,22 @@ func startKickDownloader(
 
 	g.Go(func() error {
 		g, ctx := errgroup.WithContext(ctx)
-		g.SetLimit(option.Threads)
+		g.SetLimit(flag.Threads)
 
 		var err error
 
 		for _, unit := range kickUnits {
 			g.Go(func() error {
-				err = c.Download(ctx, unit)
+				e := c.Download(ctx, unit)
+				if e != nil {
+					err = errors.Join(err, e)
+				}
 				return nil
 			})
 		}
 
 		g.Wait()
+
 		return err
 	})
 }
@@ -210,8 +220,8 @@ func initTwitchEventSub(
 			condition := resp.Payload.Subscription.Condition
 
 			if userID, ok := condition["broadcaster_user_id"].(string); ok {
-				user, _ := tw.UserByID(userID)
-				unit := downloader.NewUnit(user.Login, downloader.Quality1080p60.String())
+				user, _ := tw.UserByID(ctx, userID)
+				unit := downloader.NewUnit(user.Login, downloader.WithQuality(""))
 
 				if unit.Error == nil {
 					go func() {
@@ -219,10 +229,11 @@ func initTwitchEventSub(
 
 						if err := dl.Download(ctx, *unit); err != nil {
 							fmt.Println("error occured: ", err)
-							isLive, _ := tw.IsChannelLive(user.Login)
+							isLive, _ := tw.IsChannelLive(ctx, user.Login)
 							if !isLive {
 								fmt.Println("Stream went offline!")
 							}
+
 							return
 						}
 
@@ -240,9 +251,13 @@ func initTwitchEventSub(
 	return nil
 }
 
-func initChat(client *twitch.Client, conf *config.Config) {
-	if err := conf.AuthorizeAndSaveUserData(client); err != nil {
+func initChat(ctx context.Context, client *twitch.Client, conf *config.Config) {
+	if err := conf.AuthorizeAndSaveUserData(ctx, client); err != nil {
 		panic(err)
 	}
 	chat.Open(client, conf)
+}
+
+func handlePrinting(media string) {
+	fmt.Println("handle printing for media")
 }

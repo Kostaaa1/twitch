@@ -1,6 +1,7 @@
 package twitch
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -123,7 +124,7 @@ func (client *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL stri
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
-func (client *Client) ClipMetadata(slug string) (Clip, error) {
+func (client *Client) ClipMetadata(ctx context.Context, slug string) (Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {
@@ -144,7 +145,7 @@ func (client *Client) ClipMetadata(slug string) (Clip, error) {
 	}
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-	if err := client.sendGqlLoadAndDecode(body, &result); err != nil {
+	if err := client.sendGqlLoadAndDecode(ctx, body, &result); err != nil {
 		return Clip{}, err
 	}
 
