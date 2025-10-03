@@ -92,6 +92,7 @@ func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
 					}
 
 					seg.Data <- io.NopCloser(bytes.NewReader(res.BodyBytes))
+					close(seg.Data)
 				}
 
 				return nil
@@ -118,8 +119,7 @@ func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
 					Bytes: int64(n),
 					Done:  false,
 				})
-
-				close(playlist.Segments[i].Data)
+				chunk.Close()
 			}
 		}
 		return nil

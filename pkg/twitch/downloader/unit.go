@@ -91,7 +91,7 @@ func (u *Unit) FetchTitle(ctx context.Context, c *twitch.Client) {
 }
 
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
-func NewUnit(input string, opts ...UnitOption) *Unit {
+func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := new(Unit)
 
 	if input == "" {
@@ -126,36 +126,39 @@ func NewUnit(input string, opts ...UnitOption) *Unit {
 	return unit
 }
 
-type UnitOption func(*Unit)
+type unitOption func(*Unit)
 
-func WithWriter(dir string) UnitOption {
+func WithTitle(c *twitch.Client) unitOption {
 	return func(u *Unit) {
+		u.FetchTitle(context.Background(), c)
+	}
+}
+
+func WithWriter(dir string) unitOption {
+	return func(u *Unit) {
+		if u.Error != nil {
+			return
+		}
+
 		ext := "mp4"
 		if strings.HasPrefix(u.Quality.String(), "audio") {
 			ext = "mp3"
 		}
+
 		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetID(), ext)
 	}
 }
 
-func WithTimestamps(start, end time.Duration) UnitOption {
+func WithTimestamps(start, end time.Duration) unitOption {
 	return func(u *Unit) {
 		u.Start = start
 		u.End = end
 	}
 }
 
-func WithQuality(q string) UnitOption {
+func WithQuality(q string) unitOption {
 	return func(u *Unit) {
 		u.Quality, u.Error = getQuality(q)
-	}
-}
-
-// TODO: pass client here
-func WithTitle() UnitOption {
-	return func(u *Unit) {
-		c := twitch.NewClient(nil)
-		u.FetchTitle(context.Background(), c)
 	}
 }
 
@@ -175,6 +178,9 @@ func (u Unit) GetError() error {
 }
 
 func (u Unit) GetID() string {
+	if u.Title == "" {
+		return u.ID
+	}
 	return u.Title
 }
 

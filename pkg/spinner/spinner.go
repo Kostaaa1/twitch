@@ -230,7 +230,7 @@ func (m Model) printUnit(u *unit) string {
 	var str strings.Builder
 
 	progMsg := progressMsg(u.totalBytes, u.elapsed)
-	title := u.title
+	title := wordBreak(u.title, m.width)
 
 	if u.done {
 		str.WriteString(successMsg(title, progMsg))

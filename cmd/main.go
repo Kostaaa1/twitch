@@ -142,10 +142,11 @@ func batchDownloadTwitchUnits(
 	var err error
 
 	for _, unit := range units {
-		unit.FetchTitle(ctx, tw)
-
 		g.Go(func() error {
-			err = dl.Download(ctx, unit)
+			if e := dl.Download(ctx, unit); e != nil {
+				err = errors.Join(err, e)
+			}
+
 			return nil
 		})
 	}

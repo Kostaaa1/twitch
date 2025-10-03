@@ -11,6 +11,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/google/uuid"
 )
@@ -96,6 +97,8 @@ func isKick(input string) bool {
 func (flag Flag) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 	inputs := strings.Split(flag.Input, ",")
 
+	c := twitch.NewClient(nil)
+
 	for _, input := range inputs {
 		if isKick(input) {
 			*units = append(*units, kick.NewUnit(
@@ -107,10 +110,10 @@ func (flag Flag) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 		} else {
 			*units = append(*units, downloader.NewUnit(
 				input,
+				downloader.WithTitle(c),
 				downloader.WithQuality(flag.Quality),
 				downloader.WithTimestamps(flag.Start, flag.End),
 				downloader.WithWriter(flag.Output),
-				downloader.WithTitle(),
 			))
 		}
 	}
@@ -132,6 +135,8 @@ func (flag Flag) unitsFromFileInput(units *[]spinner.UnitProvider) {
 		log.Fatal(err)
 	}
 
+	c := twitch.NewClient(nil)
+
 	for _, unit := range inputUnits {
 		if unit.Output == "" && flag.Output != "" {
 			unit.Output = flag.Output
@@ -150,6 +155,7 @@ func (flag Flag) unitsFromFileInput(units *[]spinner.UnitProvider) {
 		} else {
 			*units = append(*units, downloader.NewUnit(
 				unit.Input,
+				downloader.WithTitle(c),
 				downloader.WithQuality(unit.Quality),
 				downloader.WithTimestamps(unit.Start, unit.End),
 				downloader.WithWriter(flag.Output),
