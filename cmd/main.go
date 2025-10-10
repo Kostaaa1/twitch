@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,8 +41,8 @@ func main() {
 		return
 	}
 
-	if flag.Info != "" {
-		handlePrinting(flag.Info)
+	if flag.Channel != "" {
+		handlePrinting(context.Background(), flag.Channel)
 		return
 	}
 
@@ -259,6 +261,21 @@ func initChat(ctx context.Context, client *twitch.Client, conf *config.Config) {
 	chat.Open(client, conf)
 }
 
-func handlePrinting(media string) {
-	fmt.Println("handle printing for media")
+func handlePrinting(ctx context.Context, input string) {
+	fmt.Println("handle printing for input", input)
+
+	c := twitch.NewClient(nil)
+
+	videos, err := c.ListVideosByChannelName(ctx, input, 100)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, vod := range videos {
+		b, err := json.MarshalIndent(vod, "", " ")
+		if err != nil {
+			return
+		}
+		fmt.Println(b)
+	}
 }

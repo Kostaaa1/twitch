@@ -24,16 +24,15 @@ const (
 )
 
 type Flag struct {
-	Input      string        `json:"input"`
-	Output     string        `json:"output"`
-	Quality    string        `json:"quality"`
-	Start      time.Duration `json:"start"`
-	End        time.Duration `json:"end"`
-	Threads    int
-	Category   string
-	Info       string
-	Videos     bool
-	Clips      bool
+	Input    string        `json:"input"`
+	Output   string        `json:"output"`
+	Quality  string        `json:"quality"`
+	Start    time.Duration `json:"start"`
+	End      time.Duration `json:"end"`
+	Threads  int
+	Category string
+
+	Channel    string
 	Highlights bool
 	Authorize  bool
 	Subscribe  bool
@@ -80,7 +79,7 @@ func ParseFlags(conf config.Config) Flag {
 	flag.StringVar(&f.Quality, "q", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio")
 	flag.DurationVar(&f.Start, "s", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
 	flag.DurationVar(&f.End, "e", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
-	flag.StringVar(&f.Info, "info", "", "channel/vod id/slug for printing in JSON format")
+	flag.StringVar(&f.Channel, "channel", "", "Channel name of twitch user ti print VODs | Clips in JSON format")
 	flag.IntVar(&f.Threads, "threads", 10, "Number of parallel downloads (batch mode only)")
 	flag.BoolVar(&f.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
 	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")

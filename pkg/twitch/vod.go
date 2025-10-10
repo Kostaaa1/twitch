@@ -2,6 +2,7 @@ package twitch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -92,10 +93,12 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 		if err != nil {
 			return nil, err
 		}
+
 		previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
 		if err != nil {
 			return nil, err
 		}
+
 		return m3u8.MasterPlaylistMock(tw.http, vodID, previewURL, subVOD.Video.BroadcastType), nil
 	}
 
@@ -114,6 +117,7 @@ func (tw *Client) FetchAndParseMediaPlaylist(u string) (*m3u8.MediaPlaylist, err
 	defer resp.Body.Close()
 
 	parsed := m3u8.ParseMediaPlaylist(resp.Body)
+
 	return &parsed, nil
 }
 
@@ -217,7 +221,11 @@ type FilterableVideoTower_Videos struct {
 	} `json:"data"`
 }
 
-func (tw *Client) GetVideosByChannelName(ctx context.Context, channelName string, limit int) ([]Video, error) {
+func (tw *Client) ListVideosByChannelName(ctx context.Context, channelName string, limit int) ([]Video, error) {
+	if limit > 100 {
+		return nil, errors.New("limit value must be between 1 and 100")
+	}
+
 	gqlPl := `{
 		"operationName": "FilterableVideoTower_Videos",
 		"variables": {
@@ -233,6 +241,7 @@ func (tw *Client) GetVideosByChannelName(ctx context.Context, channelName string
 			}
 		}
 	}`
+
 	body := strings.NewReader(fmt.Sprintf(gqlPl, limit, channelName))
 
 	type data struct {
@@ -280,13 +289,16 @@ func (tw *Client) SubVodData(ctx context.Context, vodID string) (SubVODResponse,
 	gqlPayload := `{
  	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
 	}`
+
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
 
 	var subVodResponse struct {
 		Data SubVODResponse `json:"data"`
 	}
+
 	if err := tw.sendGqlLoadAndDecode(ctx, body, &subVodResponse); err != nil {
 		return SubVODResponse{}, err
 	}
+
 	return subVodResponse.Data, nil
 }

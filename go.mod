@@ -14,6 +14,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.17.0
 )
 
@@ -29,6 +30,7 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gaukas/clienthellod v0.4.2 // indirect
@@ -56,6 +58,7 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.23.4 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.53.0 // indirect
 	github.com/refraction-networking/uquic v0.0.6 // indirect

@@ -3,6 +3,7 @@ package twitch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,6 +60,10 @@ func (tw *Client) HelixRequest(
 	body io.Reader,
 	src interface{},
 ) error {
+	if tw.creds == nil {
+		return errors.New("cannot call the helix request without credentials")
+	}
+
 	retryCount := 0
 	var errResp ErrorResponse
 
@@ -168,13 +173,16 @@ func (tw *Client) UserByID(ctx context.Context, id string) (*User, error) {
 
 func (tw *Client) ChannelInfo(ctx context.Context, broadcasterID string) (*Channel, error) {
 	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
+
 	var body helixEnvelope[Channel]
 	if err := tw.HelixRequest(ctx, u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+
 	if len(body.Data) > 0 {
 		return &body.Data[0], nil
 	}
+
 	return nil, fmt.Errorf("failed to get the channel info for: %s", broadcasterID)
 }
 

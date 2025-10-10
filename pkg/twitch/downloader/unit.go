@@ -37,24 +37,10 @@ func (v MediaType) String() string {
 	}
 }
 
-func GetMediaType(s string) MediaType {
-	switch s {
-	case "clip":
-		return TypeClip
-	case "video":
-		return TypeVOD
-	case "stream":
-		return TypeLivestream
-	default:
-		return -1
-	}
-}
-
 type Unit struct {
-	// ID can be: vod id, clip slug or channel name (livestream)
-	ID   string
-	Type MediaType
-	// Quality of media - 1080p60, 720p60, 480p60 ....
+	// ID can be: vod ID, clip slug or channel name (livestream)
+	ID      string
+	Type    MediaType
 	Quality QualityType
 	// Used when wanting to download the part of the VOD
 	Start  time.Duration
@@ -90,6 +76,18 @@ func (u *Unit) FetchTitle(ctx context.Context, c *twitch.Client) {
 	}
 }
 
+func parseMediaInput(input string) MediaType {
+	if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
+		return TypeVOD
+	}
+
+	if len(input) >= 25 {
+		return TypeClip
+	}
+
+	return TypeLivestream
+}
+
 // Used for creating downloadable unit from raw input. Input could either be clip slug, vod id, channel name or url. Based on the input it will detect media type such as livestream, vod, clip. If the input is URL, it will parse the params such as timestamps and those will be represented as Start and End only if those values are not provided in function parameters.Q
 func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := new(Unit)
@@ -102,20 +100,16 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	u, err := url.ParseRequestURI(input)
 	if err != nil {
 		unit.ID = input
-		if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
-			unit.Type = TypeVOD
-		} else if len(input) >= 25 {
-			unit.Type = TypeClip
-		} else {
-			unit.Type = TypeLivestream
-		}
+		unit.Type = parseMediaInput(input)
 	} else {
 		if !strings.Contains(u.Hostname(), "twitch.tv") {
-			unit.Error = errors.New("URL must belong to 'twitch.tv'")
+			unit.Error = errors.New("'twitch.tv' missing from the URL")
 			return unit
 		}
 
 		_, unit.ID = path.Split(u.Path)
+		unit.Type = parseMediaInput(unit.ID)
+
 		extractParamsFromURL(u, unit)
 	}
 
@@ -158,7 +152,23 @@ func WithTimestamps(start, end time.Duration) unitOption {
 
 func WithQuality(q string) unitOption {
 	return func(u *Unit) {
-		u.Quality, u.Error = getQuality(q)
+		switch {
+		case q == "" || q == "best" || strings.HasPrefix(q, "1080"):
+			u.Quality = Quality1080p60
+		case strings.HasPrefix(q, "720"):
+			u.Quality = Quality720p60
+		case strings.HasPrefix(q, "480"):
+			u.Quality = Quality480p30
+		case strings.HasPrefix(q, "360"):
+			u.Quality = Quality360p30
+		case q == "worst" || strings.HasPrefix(q, "160"):
+			u.Quality = Quality160p30
+		case strings.HasPrefix(q, "audio"):
+			u.Quality = QualityAudioOnly
+		default:
+			u.Quality = 0
+			u.Error = fmt.Errorf("invalid quality was provided: %s. valid are: %s", q, strings.Join(qualities, ", "))
+		}
 	}
 }
 
@@ -182,25 +192,6 @@ func (u Unit) GetID() string {
 		return u.ID
 	}
 	return u.Title
-}
-
-func getQuality(quality string) (QualityType, error) {
-	switch {
-	case quality == "" || quality == "best" || strings.HasPrefix(quality, "1080"):
-		return Quality1080p60, nil
-	case strings.HasPrefix(quality, "720"):
-		return Quality720p60, nil
-	case strings.HasPrefix(quality, "480"):
-		return Quality480p30, nil
-	case strings.HasPrefix(quality, "360"):
-		return Quality360p30, nil
-	case quality == "worst" || strings.HasPrefix(quality, "160"):
-		return Quality160p30, nil
-	case strings.HasPrefix(quality, "audio"):
-		return QualityAudioOnly, nil
-	default:
-		return 0, fmt.Errorf("invalid quality was provided: %s. valid are: %s", quality, strings.Join(qualities, ", "))
-	}
 }
 
 func extractParamsFromURL(u *url.URL, unit *Unit) error {
