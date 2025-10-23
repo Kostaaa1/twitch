@@ -58,10 +58,9 @@ func (c *Client) getMediaPlaylist(
 }
 
 func (c *Client) Download(ctx context.Context, u Unit) error {
-	// downloadVod is blocking, when done, notify
-	err := c.downloadVO(ctx, u)
+	err := c.downloadVOD(ctx, u)
 
-	c.notify(ProgressMessage{
+	c.notify(Progress{
 		ID:    u.GetID(),
 		Bytes: 0,
 		Error: err,
@@ -71,7 +70,7 @@ func (c *Client) Download(ctx context.Context, u Unit) error {
 	return err
 }
 
-func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
+func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 	u, playlist, err := c.getMediaPlaylist(ctx, unit)
 	if err != nil {
 		return err
@@ -82,30 +81,48 @@ func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
 
 	g.Go(func() error {
 		for _, seg := range playlist.Segments {
-			g.Go(func() error {
-				if strings.HasSuffix(seg.URL, ".ts") {
-					segmentURL, _ := url.JoinPath(u, seg.URL)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				seg := seg
 
-					res, err := c.cycletls.Do(segmentURL, c.defaultCycleTLSOpts(), http.MethodGet)
-					if err != nil {
-						return err
+				g.Go(func() error {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					default:
 					}
 
-					seg.Data <- io.NopCloser(bytes.NewReader(res.BodyBytes))
-					close(seg.Data)
-				}
+					if strings.HasSuffix(seg.URL, ".ts") {
+						segmentURL, _ := url.JoinPath(u, seg.URL)
 
-				return nil
-			})
+						res, err := c.cycletls.Do(segmentURL, c.defaultCycleTLSOpts(), http.MethodGet)
+						if err != nil {
+							return err
+						}
+
+						seg.Data <- io.NopCloser(bytes.NewReader(res.BodyBytes))
+						close(seg.Data)
+					}
+					return nil
+				})
+			}
 		}
 		return nil
 	})
 
 	g.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		for i := 0; i < len(playlist.Segments); i++ {
 			select {
 			case <-ctx.Done():
-				return nil
+				return ctx.Err()
 
 			case chunk := <-playlist.Segments[i].Data:
 				n, err := io.Copy(unit.W, chunk)
@@ -113,7 +130,7 @@ func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
 					return err
 				}
 
-				c.notify(ProgressMessage{
+				c.notify(Progress{
 					ID:    unit.GetID(),
 					Error: unit.GetError(),
 					Bytes: int64(n),
@@ -129,125 +146,3 @@ func (c *Client) downloadVO(ctx context.Context, unit Unit) error {
 
 	return nil
 }
-
-// func (c *Client) downloadVod(ctx context.Context, unit Unit) error {
-// 	// MASTER URL NEEDS TO BE FETCHED AND PARSED SO WE CAN GET PLAYLIST QUALITY
-// 	// TODO: WHOLE m3u8 PACKAGE NEEDS TO BE IMPROVED
-// 	basePath, playlist, err := c.getMediaPlaylist(ctx, unit)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	jobsChan := make(chan segmentJob)
-// 	resultsChan := make(chan segmentJob)
-
-// 	go func() {
-// 		for i, seg := range playlist.Segments {
-// 			if strings.HasSuffix(seg.URL, ".ts") {
-// 				fullSegURL, _ := url.JoinPath(basePath, seg.URL)
-// 				select {
-// 				case <-ctx.Done():
-// 					return
-// 				case jobsChan <- segmentJob{
-// 					index: i,
-// 					url:   fullSegURL,
-// 				}:
-// 				}
-// 			}
-// 		}
-// 	}()
-
-// 	const maxWorkers = 8
-// 	var wg sync.WaitGroup
-
-// 	for i := 0; i < maxWorkers; i++ {
-// 		wg.Add(1)
-
-// 		go func() {
-// 			defer wg.Done()
-
-// 			for {
-// 				select {
-// 				case <-ctx.Done():
-// 					return
-// 				case job, ok := <-jobsChan:
-// 					if !ok {
-// 						return
-// 					}
-
-// 					req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.url, nil)
-// 					if err != nil {
-// 						return
-// 					}
-
-// 					resp, err := c.httpClient.Do(req)
-// 					if err != nil {
-// 						job.err = err
-// 					} else {
-// 						data, err := io.ReadAll(resp.Body)
-// 						job.err = err
-// 						job.data = data
-// 						resp.Body.Close()
-
-// 						select {
-// 						case <-ctx.Done():
-// 							return
-// 						case resultsChan <- job:
-// 						}
-// 					}
-
-// 				}
-// 			}
-// 		}()
-// 	}
-
-// 	go func() {
-// 		wg.Wait()
-// 		close(resultsChan)
-// 	}()
-
-// 	segmentBuffer := make(map[int]segmentJob)
-// 	nextIndexToWrite := 0
-
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return nil
-// 		case result, ok := <-resultsChan:
-// 			if !ok {
-// 				return nil
-// 			}
-// 			if result.err != nil {
-// 				return fmt.Errorf("error downloading segment %s: %v", result.url, result.err)
-// 			}
-
-// 			segmentBuffer[result.index] = result
-
-// 			for {
-// 				if job, exists := segmentBuffer[nextIndexToWrite]; exists {
-// 					delete(segmentBuffer, nextIndexToWrite)
-// 					nextIndexToWrite++
-
-// 					n, err := unit.W.Write(job.data)
-// 					if err != nil {
-// 						return fmt.Errorf("error writing segment: %v", err)
-// 					}
-
-// 					if ctx.Err() != nil {
-// 						return ctx.Err()
-// 					}
-
-// 					msg := ProgressMessage{
-// 						ID:    unit.GetID(),
-// 						Error: unit.GetError(),
-// 						Bytes: int64(n),
-// 						Done:  false,
-// 					}
-// 					c.notify(msg)
-// 				} else {
-// 					break
-// 				}
-// 			}
-// 		}
-// 	}
-// }

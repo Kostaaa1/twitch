@@ -10,21 +10,21 @@ import (
 	"time"
 )
 
-func (c *Client) MasterPlaylistURL(channel *string, uuid string) (string, error) {
-	if channel == nil && uuid == "" {
+func (c *Client) MasterPlaylistURL(channelName *string, uuid string) (string, error) {
+	if channelName == nil && uuid == "" {
 		return "", errors.New("error: missing channel and uuid")
 	}
 
-	if channel == nil {
+	if channelName == nil {
 		data, err := c.V1Video(uuid)
 		if err != nil {
 			return "", err
 		}
 		ch := data.Livestream.Channel.Slug
-		channel = &ch
+		channelName = &ch
 	}
 
-	videos, err := c.V2Videos(*channel)
+	videos, err := c.V2Videos(*channelName)
 	if err != nil {
 		return "", err
 	}

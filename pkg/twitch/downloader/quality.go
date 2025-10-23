@@ -1,5 +1,10 @@
 package downloader
 
+import (
+	"fmt"
+	"strings"
+)
+
 type Quality struct {
 	Res string
 	FPS int32
@@ -8,8 +13,7 @@ type Quality struct {
 type QualityType int
 
 const (
-	QualityBest QualityType = iota
-	Quality1080p60
+	Quality1080p60 QualityType = iota
 	Quality720p60
 	Quality480p30
 	Quality360p30
@@ -61,4 +65,23 @@ var qualities = []string{
 	"360p30",
 	"160p30",
 	"worst",
+}
+
+func ParseQuality(q string) (QualityType, error) {
+	switch {
+	case q == "" || q == "best" || strings.HasPrefix(q, "1080"):
+		return Quality1080p60, nil
+	case strings.HasPrefix(q, "720"):
+		return Quality720p60, nil
+	case strings.HasPrefix(q, "480"):
+		return Quality480p30, nil
+	case strings.HasPrefix(q, "360"):
+		return Quality360p30, nil
+	case q == "worst" || strings.HasPrefix(q, "160"):
+		return Quality160p30, nil
+	case strings.HasPrefix(q, "audio"):
+		return QualityAudioOnly, nil
+	default:
+		return 0, fmt.Errorf("invalid quality was provided: %s. valid are: %s", q, strings.Join(qualities, ", "))
+	}
 }

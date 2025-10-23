@@ -32,10 +32,10 @@ type Flag struct {
 	Threads  int
 	Category string
 
-	Channel    string
-	Highlights bool
-	Authorize  bool
-	Subscribe  bool
+	Channel      string
+	Highlights   bool
+	Authenticate bool
+	Subscribe    bool
 }
 
 func (p *Flag) UnmarshalJSON(b []byte) error {
@@ -80,9 +80,9 @@ func ParseFlags(conf config.Config) Flag {
 	flag.DurationVar(&f.Start, "s", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
 	flag.DurationVar(&f.End, "e", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
 	flag.StringVar(&f.Channel, "channel", "", "Channel name of twitch user ti print VODs | Clips in JSON format")
-	flag.IntVar(&f.Threads, "threads", 10, "Number of parallel downloads (batch mode only)")
+	flag.IntVar(&f.Threads, "threads", 0, "Number of parallel downloads (batch mode only)")
 	flag.BoolVar(&f.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
-	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
+	flag.BoolVar(&f.Authenticate, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
 
 	flag.Parse()
 
