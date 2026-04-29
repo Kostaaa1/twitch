@@ -33,7 +33,7 @@ func main() {
 
 	flag := cli.ParseFlags(*conf)
 
-	if flag.Authorize {
+	if flag.Authenticate {
 		tw := twitch.NewClient(&conf.Creds)
 		if err := tw.Authorize(); err != nil {
 			panic(err)
@@ -68,6 +68,7 @@ func initDownloader(conf *config.Config, option cli.Flag) {
 
 	if conf.Downloader.ShowSpinner {
 		spin = spinner.New(ctx, units, spinner.WithCancelFunc(cancel))
+
 		g.Go(func() error {
 			spin.Run()
 			return nil
@@ -82,7 +83,7 @@ func initDownloader(conf *config.Config, option cli.Flag) {
 		}
 
 		if len(kickUnits) > 0 {
-			startKickDownloader(ctx, spin, option, kickUnits, downloadGroup)
+			startKickDownloader(ctx, spin, option.Threads, kickUnits, downloadGroup)
 		}
 
 		// TODO: If error happens when downloading i want spinner to cancel the context, but if there is no errors, cancel needs to happen after downloading of batches finishes. Problem is that i cannot return
@@ -109,7 +110,7 @@ func startTwitchDownloader(
 	dl := downloader.New(tw, conf.Downloader)
 
 	if spin != nil {
-		dl.SetProgressNotifier(func(pm downloader.ProgressMessage) {
+		dl.SetProgressNotifier(func(pm downloader.Progress) {
 			if ctx.Err() != nil {
 				return
 			}
@@ -126,7 +127,7 @@ func startTwitchDownloader(
 		if option.Subscribe {
 			return initTwitchEventSub(ctx, tw, dl, twitchUnits)
 		} else {
-			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl, tw)
+			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl)
 		}
 	})
 }
@@ -136,10 +137,11 @@ func batchDownloadTwitchUnits(
 	threads int,
 	units []downloader.Unit,
 	dl *downloader.Downloader,
-	tw *twitch.Client,
 ) error {
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(threads)
+	if threads > 0 {
+		g.SetLimit(threads)
+	}
 
 	var err error
 
@@ -148,26 +150,26 @@ func batchDownloadTwitchUnits(
 			if e := dl.Download(ctx, unit); e != nil {
 				err = errors.Join(err, e)
 			}
-
 			return nil
 		})
 	}
 
 	g.Wait()
+
 	return err
 }
 
 func startKickDownloader(
 	ctx context.Context,
 	spin *spinner.Model,
-	flag cli.Flag,
+	threads int,
 	kickUnits []kick.Unit,
 	g *errgroup.Group,
 ) {
 	c := kick.New()
 
 	if spin != nil {
-		c.SetProgressNotifier(func(pm kick.ProgressMessage) {
+		c.SetProgressNotifier(func(pm kick.Progress) {
 			if ctx.Err() != nil {
 				return
 			}
@@ -182,7 +184,9 @@ func startKickDownloader(
 
 	g.Go(func() error {
 		g, ctx := errgroup.WithContext(ctx)
-		g.SetLimit(flag.Threads)
+		if threads > 0 {
+			g.SetLimit(threads)
+		}
 
 		var err error
 
@@ -236,7 +240,6 @@ func initTwitchEventSub(
 							if !isLive {
 								fmt.Println("Stream went offline!")
 							}
-
 							return
 						}
 

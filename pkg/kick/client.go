@@ -9,7 +9,7 @@ import (
 	"github.com/Danny-Dasilva/CycleTLS/cycletls"
 )
 
-type ProgressMessage struct {
+type Progress struct {
 	ID    string
 	Bytes int64
 	Error error
@@ -20,7 +20,7 @@ type Client struct {
 	ctx        context.Context
 	cycletls   cycletls.CycleTLS
 	httpClient *http.Client
-	notifyFn   func(ProgressMessage)
+	notifyFn   func(Progress)
 }
 
 func New() *Client {
@@ -30,11 +30,11 @@ func New() *Client {
 	}
 }
 
-func (c *Client) SetProgressNotifier(fn func(ProgressMessage)) {
+func (c *Client) SetProgressNotifier(fn func(Progress)) {
 	c.notifyFn = fn
 }
 
-func (c *Client) notify(msg ProgressMessage) {
+func (c *Client) notify(msg Progress) {
 	if c.notifyFn != nil {
 		c.notifyFn(msg)
 	}

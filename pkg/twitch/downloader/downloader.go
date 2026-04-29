@@ -9,7 +9,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
 
-type ProgressMessage struct {
+type Progress struct {
 	ID    string
 	Bytes int64
 	Err   error
@@ -21,7 +21,7 @@ type Downloader struct {
 	config   Config
 	// TODO: this should not depend on spinner package
 	// progCh chan spinner.Message
-	notifyFn func(ProgressMessage)
+	notifyFn func(Progress)
 }
 
 type Config struct {
@@ -37,11 +37,11 @@ func New(twClient *twitch.Client, conf Config) *Downloader {
 	}
 }
 
-func (c *Downloader) SetProgressNotifier(fn func(ProgressMessage)) {
+func (c *Downloader) SetProgressNotifier(fn func(Progress)) {
 	c.notifyFn = fn
 }
 
-func (c *Downloader) notify(msg ProgressMessage) {
+func (c *Downloader) notify(msg Progress) {
 	if c.notifyFn != nil {
 		c.notifyFn(msg)
 	}
@@ -52,7 +52,7 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 
 	err := u.Error
 	if err != nil {
-		dl.notify(ProgressMessage{
+		dl.notify(Progress{
 			ID:    u.GetID(),
 			Err:   err,
 			Bytes: 0,
@@ -70,7 +70,7 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 		err = dl.recordStream(ctx, u)
 	}
 
-	dl.notify(ProgressMessage{
+	dl.notify(Progress{
 		ID:    u.GetID(),
 		Err:   err,
 		Bytes: 0,

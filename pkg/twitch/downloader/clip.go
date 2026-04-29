@@ -42,7 +42,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	dl.notify(ProgressMessage{
+	dl.notify(Progress{
 		ID:    unit.GetID(),
 		Bytes: n,
 		Err:   unit.Error,
