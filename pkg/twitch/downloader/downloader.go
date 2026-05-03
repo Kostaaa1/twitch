@@ -2,9 +2,6 @@ package downloader
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -51,6 +48,7 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 	defer u.CloseWriter()
 
 	err := u.Error
+
 	if err != nil {
 		dl.notify(Progress{
 			ID:    u.GetID(),
@@ -80,20 +78,20 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 	return err
 }
 
-func (dl *Downloader) fetch(ctx context.Context, url string) (io.ReadCloser, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to create request with context: %v", err)
-	}
+// func (dl *Downloader) fetch(ctx context.Context, url string) (io.ReadCloser, int, error) {
+// 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// 	if err != nil {
+// 		return nil, 0, fmt.Errorf("failed to create request with context: %v", err)
+// 	}
 
-	resp, err := dl.twClient.HttpClient().Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get response: %w", err)
-	}
+// 	resp, err := dl.twClient.HttpClient().Do(req)
+// 	if err != nil {
+// 		return nil, 0, fmt.Errorf("failed to get response: %w", err)
+// 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, resp.StatusCode, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
-	}
+// 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+// 		return nil, resp.StatusCode, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
+// 	}
 
-	return resp.Body, resp.StatusCode, err
-}
+// 	return resp.Body, resp.StatusCode, err
+// }

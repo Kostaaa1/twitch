@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -41,13 +42,13 @@ type model struct {
 
 type notifyMsg string
 
-func ConnectWithRetry(ws *chat.WSClient, tw *twitch.Client, cfg *config.Config) error {
+func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *twitch.Client, cfg *config.Config) error {
 	err := ws.Connect()
 	if err == nil {
 		return nil
 	}
 	if errors.Is(err, chat.ErrAuthFailed) {
-		if err := tw.RefetchAccesToken(); err != nil {
+		if err := tw.FetchAccesToken(ctx); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}
 		if err := ws.Connect(); err != nil {
@@ -55,10 +56,11 @@ func ConnectWithRetry(ws *chat.WSClient, tw *twitch.Client, cfg *config.Config) 
 		}
 		return nil
 	}
+
 	return fmt.Errorf("connect failed: %w", err)
 }
 
-func Open(tw *twitch.Client, cfg *config.Config) {
+func Open(ctx context.Context, tw *twitch.Client, cfg *config.Config) error {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 
@@ -78,20 +80,25 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 
 	msgChan := make(chan interface{})
 
-	ws, err := chat.DialWS(cfg.User.Login, cfg.Creds.AccessToken, cfg.Chat.OpenedChats)
+	ws, err := chat.DialWS(
+		cfg.User.Login,
+		cfg.OAuthCreds.AccessToken,
+		cfg.CommandLineChat.OpenedChats,
+	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
 	ws.SetMessageChan(msgChan)
 
 	go func() {
-		if err := ConnectWithRetry(ws, tw, cfg); err != nil {
+		if err := ConnectWithRetry(ctx, ws, tw, cfg); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
 	var chats []Chat
-	for i, channel := range cfg.Chat.OpenedChats {
+	for i, channel := range cfg.CommandLineChat.OpenedChats {
 		chats = append(chats, createNewChat(channel, i == 0))
 	}
 
@@ -102,7 +109,7 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 		width:           0,
 		height:          0,
 		msgChan:         msgChan,
-		labelBox:        NewBoxWithLabel(cfg.Chat.Colors.Primary),
+		labelBox:        NewBoxWithLabel(cfg.CommandLineChat.Colors.Primary),
 		viewport:        vp,
 		showHelpMenu:    false,
 		helperMenuWidth: 32,
@@ -110,9 +117,12 @@ func Open(tw *twitch.Client, cfg *config.Config) {
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
+
 	if _, err := p.Run(); err != nil {
-		log.Fatal(err)
+		return nil
 	}
+
+	return nil
 }
 
 func (m model) Init() tea.Cmd {
@@ -365,11 +375,11 @@ func (m *model) addChat(channelName string) {
 		}
 		chats = append(chats, m.chats[i].Channel)
 	}
-	m.conf.Chat.OpenedChats = chats
+	m.conf.CommandLineChat.OpenedChats = chats
 }
 
 func (m *model) removeActiveChatAndDisconnect() {
-	openedChats := m.conf.Chat.OpenedChats
+	openedChats := m.conf.CommandLineChat.OpenedChats
 	var chats []Chat
 	newActiveId := -1
 
@@ -394,7 +404,7 @@ func (m *model) removeActiveChatAndDisconnect() {
 		m.showNoActiveChatsMessage()
 	}
 
-	m.conf.Chat.OpenedChats = openedChats
+	m.conf.CommandLineChat.OpenedChats = openedChats
 	m.chats = chats
 }
 

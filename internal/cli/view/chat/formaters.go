@@ -77,7 +77,7 @@ func wrapText(s string, limit, padding int) string {
 }
 
 func (m model) FormatMessage(message chat.Message, width int) string {
-	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
+	icon := GenerateIcon(message.Metadata.UserType, m.conf.CommandLineChat.Colors)
 	if message.Metadata.Color == "" {
 		message.Metadata.Color = fmt.Sprintf("%d", rand.Intn(257))
 	}
@@ -96,7 +96,7 @@ func (m model) FormatMessage(message chat.Message, width int) string {
 		msg := wrapText(msgStr.String(), width-6, len(timestampMsg)+1)
 		return fmt.Sprintf("%s %s", timestamp, strings.TrimSpace(msg))
 	} else {
-		firstMsgColor := m.conf.Chat.Colors.Messages.First
+		firstMsgColor := m.conf.CommandLineChat.Colors.Messages.First
 		box := NewBoxWithLabel(firstMsgColor)
 		msg := wrapText(msgStr.String(), width-6, 0)
 		return box.RenderBox(msgStyle.Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
@@ -108,8 +108,7 @@ func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 		message.Metadata.Color = fmt.Sprintf("%d", rand.Intn(257))
 	}
 	msg := fmt.Sprintf(" ✯ %s", message.Metadata.SystemMsg)
-
-	subColor := m.conf.Chat.Colors.Messages.Sub
+	subColor := m.conf.CommandLineChat.Colors.Messages.Sub
 	box := NewBoxWithLabel(subColor)
 	msg = wrapText(msg, width-50, 0)
 	color := lipgloss.Color(subColor)
@@ -118,7 +117,7 @@ func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 }
 
 func (m model) FormatRaidMessage(message chat.RaidNotice, width int) string {
-	icon := GenerateIcon(message.Metadata.UserType, m.conf.Chat.Colors)
+	icon := GenerateIcon(message.Metadata.UserType, m.conf.CommandLineChat.Colors)
 	if message.Metadata.Color == "" {
 		message.Metadata.Color = fmt.Sprintf("%d", rand.Intn(257))
 	}
@@ -128,7 +127,7 @@ func (m model) FormatRaidMessage(message chat.RaidNotice, width int) string {
 		colorStyle(message.Metadata.Color).Render(message.Metadata.DisplayName+":"),
 		message.Metadata.SystemMsg,
 	)
-	raidColor := m.conf.Chat.Colors.Messages.Raid
+	raidColor := m.conf.CommandLineChat.Colors.Messages.Raid
 	box := NewBoxWithLabel(raidColor)
 	msg = wrapText(msg, width-50, 0)
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color(raidColor)).Render("Raid")

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,28 +27,17 @@ type User struct {
 	CreatedAt       string `json:"created_at"`
 }
 
-type Chat struct {
+type CommandLineChat struct {
 	OpenedChats    []string `json:"opened_chats"`
 	ShowTimestamps bool     `json:"show_timestamps"`
 	Colors         Colors   `json:"colors"`
 }
 
-type Creds struct {
-	RefreshToken string   `json:"refresh_token"`
-	AccessToken  string   `json:"access_token"`
-	ClientID     string   `json:"client_id"`
-	ExpiresIn    int      `json:"expires_in"`
-	ClientSecret string   `json:"client_secret"`
-	RedirectURL  string   `json:"redirect_url"`
-	TokenType    string   `json:"token_type"`
-	Scope        []string `json:"scope"`
-}
-
 type Config struct {
-	User       User              `json:"user"`
-	Downloader downloader.Config `json:"downloader"`
-	Chat       Chat              `json:"chat"`
-	Creds      twitch.Creds      `json:"creds"`
+	User            User              `json:"user"`
+	Downloader      downloader.Config `json:"downloader"`
+	CommandLineChat CommandLineChat   `json:"chat"`
+	OAuthCreds      twitch.OAuthCreds `json:"creds"`
 }
 
 type Colors struct {
@@ -86,7 +74,7 @@ func initConfigData() Config {
 			OfflineImageURL: "",
 			Type:            "",
 		},
-		Creds: twitch.Creds{
+		OAuthCreds: twitch.OAuthCreds{
 			AccessToken:  "",
 			ClientID:     "",
 			RefreshToken: "",
@@ -106,7 +94,7 @@ func initConfigData() Config {
 			// 	KickColor:   "#29d416",
 			// },
 		},
-		Chat: Chat{
+		CommandLineChat: CommandLineChat{
 			OpenedChats:    []string{},
 			ShowTimestamps: true,
 			Colors: Colors{
@@ -186,7 +174,7 @@ func (conf *Config) Save() error {
 	return os.WriteFile(fpath, b, 0644)
 }
 
-func Get() (*Config, error) {
+func Read() (*Config, error) {
 	var data Config
 
 	configPath, err := getConfigPath()
@@ -202,11 +190,9 @@ func Get() (*Config, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
 			return nil, err
 		}
-
 		if err := os.WriteFile(configPath, b, 0644); err != nil {
 			return nil, err
 		}
@@ -226,31 +212,4 @@ func Get() (*Config, error) {
 	}
 
 	return &data, nil
-}
-
-func (conf *Config) AuthorizeAndSaveUserData(ctx context.Context, client *twitch.Client) error {
-	if err := client.Authorize(); err != nil {
-		return err
-	}
-
-	user, err := client.UserByChannelName(ctx, "")
-	if err != nil {
-		return fmt.Errorf("failed to get the user data: %v", err)
-	}
-
-	conf.User = User{
-		BroadcasterType: user.BroadcasterType,
-		CreatedAt:       user.CreatedAt,
-		Description:     user.Description,
-		DisplayName:     user.DisplayName,
-		ID:              user.ID,
-		Login:           user.Login,
-		OfflineImageURL: user.OfflineImageURL,
-		ProfileImageURL: user.ProfileImageURL,
-		Type:            user.Type,
-	}
-
-	conf.Save()
-
-	return nil
 }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"time"
 )
@@ -28,7 +27,7 @@ type MediaPlaylist struct {
 	Segments        []Segment
 }
 
-func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) {
+func (mp *MediaPlaylist) Truncate(start, end time.Duration) {
 	if start < 0 || end < 0 || start == end || start > end {
 		return
 	}
@@ -55,8 +54,8 @@ func (mp *MediaPlaylist) TruncateSegments(start, end time.Duration) {
 	mp.Segments = mp.Segments[startIndex : endIndex+1]
 }
 
-func ParseMediaPlaylist(r io.Reader) MediaPlaylist {
-	var mediaList MediaPlaylist
+func ParseMediaPlaylist(r io.Reader) (*MediaPlaylist, error) {
+	mediaList := new(MediaPlaylist)
 	reader := bufio.NewReader(r)
 
 	for {
@@ -65,8 +64,7 @@ func ParseMediaPlaylist(r io.Reader) MediaPlaylist {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			fmt.Printf("failed to parsed media playlist: %s\n", err.Error())
-			break
+			return nil, fmt.Errorf("failed to parsed media playlist: %s\n", err.Error())
 		}
 
 		id := bytes.IndexByte(line, ':')
@@ -79,40 +77,55 @@ func ParseMediaPlaylist(r io.Reader) MediaPlaylist {
 
 		switch key {
 		case "#EXT-X-VERSION":
-			value, _ := strconv.ParseInt(v, 10, 64)
+			value, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return nil, err
+			}
 			mediaList.Version = value
 		case "#EXT-X-TARGETDURATION":
-			value, _ := strconv.ParseFloat(v, 64)
+			value, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return nil, err
+			}
 			mediaList.TargetDuration = value
 		case "#EXT-X-PLAYLIST-TYPE":
 			mediaList.PlaylistType = v
 		case "#EXT-X-TWITCH-ELAPSED-SECS":
-			value, _ := strconv.ParseFloat(v, 64)
+			value, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return nil, err
+			}
 			mediaList.ElapsedSecs = value
 		case "#EXT-X-TWITCH-TOTAL-SECS":
-			value, _ := strconv.ParseFloat(v, 64)
+			value, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return nil, err
+			}
 			mediaList.TotalSecs = value
 		case "#ID3-EQUIV-TDTG":
 			mediaList.Timestamp = v
 		case "#EXTINF":
 			trimmed := v[:len(v)-1]
-			seconds, _ := strconv.ParseFloat(trimmed, 64)
+
+			seconds, err := strconv.ParseFloat(trimmed, 64)
+			if err != nil {
+				return nil, err
+			}
+
 			duration := time.Duration(seconds * float64(time.Second))
 
 			segmentURL, _, err := reader.ReadLine()
 			if err != nil {
-				log.Fatalf("failed to read next line: %s", err)
-				break
+				return nil, fmt.Errorf("failed to read next line: %s", err)
 			}
 
-			seg := Segment{
+			mediaList.Segments = append(mediaList.Segments, Segment{
 				URL:      string(segmentURL),
 				Duration: duration,
 				Data:     make(chan io.ReadCloser, 1),
-			}
-			mediaList.Segments = append(mediaList.Segments, seg)
+			})
 		}
 	}
 
-	return mediaList
+	return mediaList, nil
 }

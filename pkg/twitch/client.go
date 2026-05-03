@@ -11,7 +11,7 @@ import (
 
 type Client struct {
 	http       *http.Client
-	creds      *Creds
+	oauthCreds *OAuthCreds
 	retryCount int
 }
 
@@ -23,9 +23,9 @@ const (
 	oauthURL    = "https://id.twitch.tv/oauth2"
 )
 
-func NewClient(creds *Creds) *Client {
+func NewClient(c *OAuthCreds) *Client {
 	return &Client{
-		creds:      creds,
+		oauthCreds: c,
 		http:       http.DefaultClient,
 		retryCount: 3,
 		// httpClient: &http.Client{
@@ -39,43 +39,6 @@ func NewClient(creds *Creds) *Client {
 		// 	},
 		// },
 	}
-}
-
-func (tw *Client) HttpClient() *http.Client {
-	return tw.http
-}
-
-func (tw *Client) SetHttpClient(c *http.Client) {
-	tw.http = c
-}
-
-func (tw *Client) fetchWithCode(ctx context.Context, url string) ([]byte, int, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	resp, err := tw.http.Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("[http] fetching failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, resp.StatusCode, fmt.Errorf("[http] non-success status code: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, resp.StatusCode, fmt.Errorf("reading response body failed: %w", err)
-	}
-
-	return bytes, resp.StatusCode, nil
-}
-
-func (tw *Client) fetch(ctx context.Context, url string) ([]byte, error) {
-	b, _, err := tw.fetchWithCode(ctx, url)
-	return b, err
 }
 
 func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, body *strings.Reader, v any) error {
@@ -100,4 +63,28 @@ func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, body *strings.Reader
 	}
 
 	return nil
+}
+
+func (tw *Client) fetch(ctx context.Context, url string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	resp, err := tw.http.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("[http] failed whend sending the request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, resp.StatusCode, fmt.Errorf("[http] non-success status code: %d %s", resp.StatusCode, resp.Status)
+	}
+
+	bytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("reading response body failed: %w", err)
+	}
+
+	return bytes, resp.StatusCode, nil
 }

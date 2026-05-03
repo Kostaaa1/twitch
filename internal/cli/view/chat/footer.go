@@ -29,7 +29,7 @@ func (footer footer) Render(m model) string {
 		Width(m.viewport.Width).
 		Height(footer.height).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.conf.Chat.Colors.Primary))
+		BorderForeground(lipgloss.Color(m.conf.CommandLineChat.Colors.Primary))
 
 	var str strings.Builder
 	if footer.roomState.Len() > 0 {

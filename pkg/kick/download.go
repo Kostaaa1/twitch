@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Kostaaa1/twitch/pkg/m3u8"
+	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -19,10 +19,7 @@ type segmentJob struct {
 	err   error
 }
 
-func (c *Client) getMediaPlaylist(
-	ctx context.Context,
-	unit Unit,
-) (string, *m3u8.MediaPlaylist, error) {
+func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.MediaPlaylist, error) {
 	masterURL, err := c.MasterPlaylistURL(unit.Channel, unit.UUID.String())
 	if err != nil {
 		return "", nil, err
@@ -51,10 +48,13 @@ func (c *Client) getMediaPlaylist(
 		return "", nil, err
 	}
 
-	playlist := m3u8.ParseMediaPlaylist(bytes.NewReader(res.BodyBytes))
-	playlist.TruncateSegments(unit.Start, unit.End)
+	playlist, err := m3u8.ParseMediaPlaylist(bytes.NewReader(res.BodyBytes))
+	if err != nil {
+		return "", nil, err
+	}
+	playlist.Truncate(unit.Start, unit.End)
 
-	return basePath, &playlist, nil
+	return basePath, playlist, nil
 }
 
 func (c *Client) Download(ctx context.Context, u Unit) error {
@@ -71,7 +71,7 @@ func (c *Client) Download(ctx context.Context, u Unit) error {
 }
 
 func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
-	u, playlist, err := c.getMediaPlaylist(ctx, unit)
+	u, playlist, err := c.mediaPlaylist(ctx, unit)
 	if err != nil {
 		return err
 	}

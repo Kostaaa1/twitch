@@ -10,7 +10,7 @@ func (m *model) moveTabForward() {
 		}
 		openedChats[i] = m.chats[i].Channel
 	}
-	m.conf.Chat.OpenedChats = openedChats
+	m.conf.CommandLineChat.OpenedChats = openedChats
 }
 
 func (m *model) addRoomToChat(chanMsg chat.Room) {
@@ -31,7 +31,7 @@ func (m *model) moveTabBack() {
 		}
 		openedChats[i] = m.chats[i].Channel
 	}
-	m.conf.Chat.OpenedChats = openedChats
+	m.conf.CommandLineChat.OpenedChats = openedChats
 }
 
 func (m *model) nextTab() {

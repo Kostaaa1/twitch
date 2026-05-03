@@ -22,41 +22,35 @@ import (
 )
 
 func main() {
-	conf, err := config.Get()
+	conf, err := config.Read()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-
-	defer func() {
-		conf.Save()
-	}()
+	defer conf.Save()
 
 	flag := cli.ParseFlags(*conf)
 
-	if flag.Authenticate {
-		tw := twitch.NewClient(&conf.Creds)
-		if err := tw.Authorize(); err != nil {
-			panic(err)
+	ctx := context.Background()
+
+	switch {
+	case flag.Authenticate:
+		tw := twitch.NewClient(&conf.OAuthCreds)
+		if err := tw.Authorize(ctx); err != nil {
+			log.Fatal(err)
 		}
-		return
+	case flag.Channel != "":
+		tw := twitch.NewClient(&conf.OAuthCreds)
+		handlePrinting(ctx, tw, flag.Channel)
+	case len(os.Args) == 1:
+		tw := twitch.NewClient(&conf.OAuthCreds)
+		initChat(ctx, tw, conf)
+	default:
+		initDownloader(ctx, conf, flag)
 	}
-
-	if flag.Channel != "" {
-		handlePrinting(context.Background(), flag.Channel)
-		return
-	}
-
-	if len(os.Args) == 1 {
-		tw := twitch.NewClient(&conf.Creds)
-		initChat(context.Background(), tw, conf)
-		return
-	}
-
-	initDownloader(conf, flag)
 }
 
-func initDownloader(conf *config.Config, option cli.Flag) {
-	ctx, cancel := context.WithCancel(context.Background())
+func initDownloader(ctx context.Context, conf *config.Config, option cli.Flag) {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -65,10 +59,8 @@ func initDownloader(conf *config.Config, option cli.Flag) {
 	twitchUnits, kickUnits := cli.FilterUnits(units)
 
 	var spin *spinner.Model
-
 	if conf.Downloader.ShowSpinner {
 		spin = spinner.New(ctx, units, spinner.WithCancelFunc(cancel))
-
 		g.Go(func() error {
 			spin.Run()
 			return nil
@@ -81,14 +73,12 @@ func initDownloader(conf *config.Config, option cli.Flag) {
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, spin, conf, option, twitchUnits, downloadGroup)
 		}
-
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, option.Threads, kickUnits, downloadGroup)
 		}
 
 		// TODO: If error happens when downloading i want spinner to cancel the context, but if there is no errors, cancel needs to happen after downloading of batches finishes. Problem is that i cannot return
-		err := downloadGroup.Wait()
-		if err == nil {
+		if err := downloadGroup.Wait(); err == nil {
 			cancel()
 		}
 
@@ -106,7 +96,7 @@ func startTwitchDownloader(
 	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
-	tw := twitch.NewClient(&conf.Creds)
+	tw := twitch.NewClient(&conf.OAuthCreds)
 	dl := downloader.New(tw, conf.Downloader)
 
 	if spin != nil {
@@ -217,7 +207,7 @@ func initTwitchEventSub(
 
 	events, err := eventsub.FromUnits(units)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	event := eventsub.New(tw)
@@ -257,28 +247,46 @@ func initTwitchEventSub(
 	return nil
 }
 
-func initChat(ctx context.Context, client *twitch.Client, conf *config.Config) {
-	if err := conf.AuthorizeAndSaveUserData(ctx, client); err != nil {
-		panic(err)
+func initChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
+	if err := tw.Authorize(ctx); err != nil {
+		return err
 	}
-	chat.Open(client, conf)
+
+	user, err := tw.UserByChannelName(ctx, "")
+	if err != nil {
+		return fmt.Errorf("failed fetching user data for cli chat: %v", err)
+	}
+
+	conf.User = config.User{
+		BroadcasterType: user.BroadcasterType,
+		CreatedAt:       user.CreatedAt,
+		Description:     user.Description,
+		DisplayName:     user.DisplayName,
+		ID:              user.ID,
+		Login:           user.Login,
+		OfflineImageURL: user.OfflineImageURL,
+		ProfileImageURL: user.ProfileImageURL,
+		Type:            user.Type,
+	}
+
+	chat.Open(ctx, tw, conf)
+
+	return nil
 }
 
-func handlePrinting(ctx context.Context, input string) {
-	fmt.Println("handle printing for input", input)
-
-	c := twitch.NewClient(nil)
-
-	videos, err := c.ListVideosByChannelName(ctx, input, 100)
+func handlePrinting(ctx context.Context, tw *twitch.Client, input string) error {
+	videos, err := tw.ListVideosByChannelName(ctx, input, 100)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	for _, vod := range videos {
 		b, err := json.MarshalIndent(vod, "", " ")
 		if err != nil {
-			return
+			return err
 		}
 		fmt.Println(b)
 	}
+
+	return nil
 }

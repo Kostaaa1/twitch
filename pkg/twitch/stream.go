@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/m3u8"
+	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 )
 
 type UseLiveBroadcast struct {
@@ -141,7 +141,7 @@ func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3
 
 	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
-	b, err := tw.fetch(ctx, url)
+	b, _, err := tw.fetch(ctx, url)
 	if err != nil {
 		return nil, err
 	}

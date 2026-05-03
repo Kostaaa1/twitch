@@ -3,9 +3,7 @@ package root
 import (
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/charmbracelet/bubbles/list"
@@ -37,23 +35,35 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
+		case "enter":
+			// item := m.list.SelectedItem().FilterValue()
+			// if strings.HasPrefix(item, "Chats") {
+			// chat.Open(m.twitch, m.cfg)
+			// }
+			// return m, tea.Quit
 		}
 
-		if msg.String() == "enter" {
-			item := m.list.SelectedItem().FilterValue()
-			if strings.HasPrefix(item, "Chats") {
-				chat.Open(m.twitch, m.cfg)
-			}
-			return m, tea.Quit
-		}
+		// if msg.String() == "ctrl+c" {
+		// 	return m, tea.Quit
+		// }
+		// if msg.String() == "enter" {
+		// 	item := m.list.SelectedItem().FilterValue()
+		// 	if strings.HasPrefix(item, "Chats") {
+		// 		chat.Open(m.twitch, m.cfg)
+		// 	}
+		// }
+
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
 	}
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
+
+	list, cmd := m.list.Update(msg)
+	m.list = list
+
 	return m, cmd
 }
 

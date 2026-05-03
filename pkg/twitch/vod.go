@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/m3u8"
+	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 )
 
 type VideoCredResponse struct {
@@ -78,6 +78,18 @@ func (tw *Client) PlaybackAccessToken(ctx context.Context, login string) error {
 	return nil
 }
 
+func (tw *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
+	subVOD, err := tw.SubVodData(ctx, vodID)
+	if err != nil {
+		return nil, err
+	}
+	previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
+	if err != nil {
+		return nil, err
+	}
+	return m3u8.MasterPlaylistMock(tw.http, vodID, previewURL, subVOD.Video.BroadcastType), nil
+}
+
 func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
 	value, sig, err := tw.vodTokenAndSignature(ctx, vodID)
 	if err != nil {
@@ -86,20 +98,9 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, value, sig)
 
-	b, code, err := tw.fetchWithCode(ctx, m3u8Url)
+	b, code, err := tw.fetch(ctx, m3u8Url)
 	if code == http.StatusForbidden {
-		// 403 - you need to be subscribed to access the m3u8 master. In that case, we are creating fake playlist.
-		subVOD, err := tw.SubVodData(ctx, vodID)
-		if err != nil {
-			return nil, err
-		}
-
-		previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
-		if err != nil {
-			return nil, err
-		}
-
-		return m3u8.MasterPlaylistMock(tw.http, vodID, previewURL, subVOD.Video.BroadcastType), nil
+		return tw.mockMasterPlaylist(ctx, vodID)
 	}
 
 	if err != nil {
@@ -109,16 +110,20 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 	return m3u8.Master(b), nil
 }
 
-func (tw *Client) FetchAndParseMediaPlaylist(u string) (*m3u8.MediaPlaylist, error) {
+func (tw *Client) FetchAndParseMediaPlaylist(u string, s, e time.Duration) (*m3u8.MediaPlaylist, error) {
 	resp, err := tw.http.Get(u)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	parsed := m3u8.ParseMediaPlaylist(resp.Body)
+	playlist, err := m3u8.ParseMediaPlaylist(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	playlist.Truncate(s, e)
 
-	return &parsed, nil
+	return playlist, nil
 }
 
 type VideoMetadata struct {

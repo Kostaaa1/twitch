@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type Creds struct {
+type OAuthCreds struct {
 	ClientID     string   `json:"client_id"`
 	ClientSecret string   `json:"client_secret"`
 	RedirectURL  string   `json:"redirect_url"`
@@ -24,21 +24,33 @@ type Creds struct {
 }
 
 func (tw *Client) GetBearerToken() string {
-	return fmt.Sprintf("Bearer %s", tw.creds.AccessToken)
+	return fmt.Sprintf("Bearer %s", tw.oauthCreds.AccessToken)
 }
 
-func (tw *Client) RefetchAccesToken() error {
+func (tw *Client) FetchAccesToken(ctx context.Context) error {
 	values := url.Values{
-		"client_id":     {tw.creds.ClientID},
-		"client_secret": {tw.creds.ClientSecret},
-		"refresh_token": {tw.creds.RefreshToken},
+		"client_id":     {tw.oauthCreds.ClientID},
+		"client_secret": {tw.oauthCreds.ClientSecret},
+		"refresh_token": {tw.oauthCreds.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 
-	resp, err := tw.http.PostForm("https://id.twitch.tv/oauth2/token", values)
+	accessTokenEndpoint := "https://id.twitch.tv/oauth2/token?" + values.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, accessTokenEndpoint, nil)
 	if err != nil {
 		return err
 	}
+
+	resp, err := tw.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	// resp, err := tw.http.PostForm("https://id.twitch.tv/oauth2/token", values)
+	// if err != nil {
+	// 	return err
+	// }
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -46,34 +58,32 @@ func (tw *Client) RefetchAccesToken() error {
 		return fmt.Errorf("token refresh failed: status %d\nresponse: %s", resp.StatusCode, body)
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&tw.creds)
+	err = json.NewDecoder(resp.Body).Decode(&tw.oauthCreds)
 	return err
 }
 
-func (tw *Client) Authorize() error {
-	if tw.creds.ClientID == "" {
+func (tw *Client) Authorize(ctx context.Context) error {
+	if tw.oauthCreds.ClientID == "" {
 		return errors.New("error: Client-ID is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Client-ID in config")
 	}
-
-	if tw.creds.RedirectURL == "" {
+	if tw.oauthCreds.RedirectURL == "" {
 		return errors.New("error: Redirect URL is missing from the config file. Please create an application via dev.twitch.tv/console and provide the Redirect URL in config")
 	}
-
-	if tw.creds.RefreshToken != "" && tw.creds.AccessToken == "" {
-		if err := tw.RefetchAccesToken(); err != nil {
+	if tw.oauthCreds.RefreshToken != "" && tw.oauthCreds.AccessToken == "" {
+		if err := tw.FetchAccesToken(ctx); err != nil {
 			return err
 		}
 	}
 
-	if tw.creds.RefreshToken == "" {
-		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", tw.creds.ClientID, tw.creds.RedirectURL)
+	if tw.oauthCreds.RefreshToken == "" {
+		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", tw.oauthCreds.ClientID, tw.oauthCreds.RedirectURL)
 
-		u, err := url.Parse(tw.creds.RedirectURL)
+		redirectURL, err := url.Parse(tw.oauthCreds.RedirectURL)
 		if err != nil {
 			return err
 		}
-		srv := &http.Server{Addr: ":" + u.Port()}
 
+		srv := &http.Server{Addr: ":" + redirectURL.Port()}
 		fmt.Printf("Please visit this link to authorize: \n%s\n", codeURL)
 
 		http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
@@ -81,12 +91,26 @@ func (tw *Client) Authorize() error {
 			if code != "" {
 				values := url.Values{
 					"code":          {code},
-					"client_id":     {tw.creds.ClientID},
-					"client_secret": {tw.creds.ClientSecret},
+					"client_id":     {tw.oauthCreds.ClientID},
+					"client_secret": {tw.oauthCreds.ClientSecret},
 					"grant_type":    {"authorization_code"},
-					"redirect_uri":  {tw.creds.RedirectURL},
+					"redirect_uri":  {tw.oauthCreds.RedirectURL},
 				}
-				resp, err := tw.http.PostForm("https://id.twitch.tv/oauth2/token", values)
+
+				// resp, err := tw.http.PostForm("https://id.twitch.tv/oauth2/token", values)
+				// if err != nil {
+				// 	log.Fatalf("failed to exchange code for refresh token: %v", err)
+				// }
+				// defer resp.Body.Close()
+
+				tokenEndpoint := "https://id.twitch.tv/oauth2/token?" + values.Encode()
+
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, tokenEndpoint, nil)
+				if err != nil {
+					log.Fatalf("failed to exchange code for refresh token: %v", err)
+				}
+
+				resp, err := tw.http.Do(req)
 				if err != nil {
 					log.Fatalf("failed to exchange code for refresh token: %v", err)
 				}
@@ -97,7 +121,7 @@ func (tw *Client) Authorize() error {
 					log.Fatalf("token exchange failed: status %d\nresponse: %s", resp.StatusCode, body)
 				}
 
-				if err := json.NewDecoder(resp.Body).Decode(&tw.creds); err != nil {
+				if err := json.NewDecoder(resp.Body).Decode(&tw.oauthCreds); err != nil {
 					log.Fatalf("failed to decode the exchange response: %v", err)
 				}
 

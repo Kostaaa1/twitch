@@ -60,7 +60,7 @@ func (tw *Client) HelixRequest(
 	body io.Reader,
 	src interface{},
 ) error {
-	if tw.creds == nil {
+	if tw.oauthCreds == nil {
 		return errors.New("cannot call the helix request without credentials")
 	}
 
@@ -79,7 +79,7 @@ func (tw *Client) HelixRequest(
 		if err != nil {
 			return fmt.Errorf("failed to create request: %w", err)
 		}
-		req.Header.Set("Client-Id", tw.creds.ClientID)
+		req.Header.Set("Client-Id", tw.oauthCreds.ClientID)
 		req.Header.Set("Authorization", tw.GetBearerToken())
 		req.Header.Set("Content-Type", "application/json")
 
@@ -93,15 +93,12 @@ func (tw *Client) HelixRequest(
 			if retryCount >= tw.retryCount {
 				return fmt.Errorf("max retries (%d) reached for unauthorized requests", tw.retryCount)
 			}
-
 			if err := decodeErr(resp.Body); err != nil {
 				return fmt.Errorf("failed to decode error response: %v", err)
 			}
-
-			if err := tw.RefetchAccesToken(); err != nil {
+			if err := tw.FetchAccesToken(ctx); err != nil {
 				return fmt.Errorf("failed to refresh access token: %v", err)
 			}
-
 			retryCount++
 			continue
 		}
