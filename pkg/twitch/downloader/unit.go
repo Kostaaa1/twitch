@@ -38,16 +38,14 @@ func (v MediaType) String() string {
 }
 
 type Unit struct {
-	// ID can be: vod ID, clip slug or channel name (livestream)
 	ID      string
 	Type    MediaType
 	Quality QualityType
-	// Used when wanting to download the part of the VOD
-	Start  time.Duration
-	End    time.Duration
-	Title  string
-	Writer io.Writer
-	Error  error
+	Start   time.Duration
+	End     time.Duration
+	Title   string
+	Writer  io.Writer
+	Error   error
 }
 
 func (u *Unit) FetchTitle(ctx context.Context, c *twitch.Client) {
@@ -122,11 +120,12 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 
 type unitOption func(*Unit)
 
-func WithTitle(c *twitch.Client) unitOption {
-	return func(u *Unit) {
-		u.FetchTitle(context.Background(), c)
-	}
-}
+// func WithTitle(c *twitch.Client) unitOption {
+// 	return func(u *Unit) {
+// 		u.Title =
+// u.FetchTitle(context.Background(), c)
+// 	}
+// }
 
 func WithWriter(dir string) unitOption {
 	return func(u *Unit) {
@@ -134,9 +133,13 @@ func WithWriter(dir string) unitOption {
 			return
 		}
 
-		ext := "mp4"
+		// TODO: for vod/streams, media data bytes are .ts
+		ext := "ts"
 		if strings.HasPrefix(u.Quality.String(), "audio") {
 			ext = "mp3"
+		}
+		if u.Type == TypeClip {
+			ext = "mp4"
 		}
 
 		u.Writer, u.Error = fileutil.CreateFile(dir, u.GetID(), ext)

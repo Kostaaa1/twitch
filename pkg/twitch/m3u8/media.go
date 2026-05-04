@@ -17,6 +17,7 @@ type Segment struct {
 }
 
 type MediaPlaylist struct {
+	URL             string
 	Version         int64
 	TargetDuration  float64
 	Timestamp       string
@@ -54,8 +55,8 @@ func (mp *MediaPlaylist) Truncate(start, end time.Duration) {
 	mp.Segments = mp.Segments[startIndex : endIndex+1]
 }
 
-func ParseMediaPlaylist(r io.Reader) (*MediaPlaylist, error) {
-	mediaList := new(MediaPlaylist)
+func ParseMediaPlaylist(r io.Reader, url string) (*MediaPlaylist, error) {
+	mediaList := &MediaPlaylist{URL: url}
 	reader := bufio.NewReader(r)
 
 	for {

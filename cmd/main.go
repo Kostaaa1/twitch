@@ -28,34 +28,32 @@ func main() {
 	}
 	defer conf.Save()
 
-	flag := cli.ParseFlags(*conf)
-
 	ctx := context.Background()
+
+	flag := cli.ParseFlags(*conf)
+	tw := twitch.NewClient(&conf.OAuthCreds)
 
 	switch {
 	case flag.Authenticate:
-		tw := twitch.NewClient(&conf.OAuthCreds)
 		if err := tw.Authorize(ctx); err != nil {
 			log.Fatal(err)
 		}
 	case flag.Channel != "":
-		tw := twitch.NewClient(&conf.OAuthCreds)
 		handlePrinting(ctx, tw, flag.Channel)
 	case len(os.Args) == 1:
-		tw := twitch.NewClient(&conf.OAuthCreds)
 		initChat(ctx, tw, conf)
 	default:
-		initDownloader(ctx, conf, flag)
+		initDownloader(ctx, tw, conf, flag)
 	}
 }
 
-func initDownloader(ctx context.Context, conf *config.Config, option cli.Flag) {
+func initDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	units := option.UnitsFromInput()
+	units := opt.UnitsFromInput()
 	twitchUnits, kickUnits := cli.FilterUnits(units)
 
 	var spin *spinner.Model
@@ -71,10 +69,10 @@ func initDownloader(ctx context.Context, conf *config.Config, option cli.Flag) {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
 
 		if len(twitchUnits) > 0 {
-			startTwitchDownloader(ctx, spin, conf, option, twitchUnits, downloadGroup)
+			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
 		}
 		if len(kickUnits) > 0 {
-			startKickDownloader(ctx, spin, option.Threads, kickUnits, downloadGroup)
+			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}
 
 		// TODO: If error happens when downloading i want spinner to cancel the context, but if there is no errors, cancel needs to happen after downloading of batches finishes. Problem is that i cannot return
@@ -90,13 +88,13 @@ func initDownloader(ctx context.Context, conf *config.Config, option cli.Flag) {
 
 func startTwitchDownloader(
 	ctx context.Context,
+	tw *twitch.Client,
 	spin *spinner.Model,
 	conf *config.Config,
 	option cli.Flag,
 	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
-	tw := twitch.NewClient(&conf.OAuthCreds)
 	dl := downloader.New(tw, conf.Downloader)
 
 	if spin != nil {
@@ -279,7 +277,6 @@ func handlePrinting(ctx context.Context, tw *twitch.Client, input string) error 
 	if err != nil {
 		return err
 	}
-
 	for _, vod := range videos {
 		b, err := json.MarshalIndent(vod, "", " ")
 		if err != nil {
@@ -287,6 +284,5 @@ func handlePrinting(ctx context.Context, tw *twitch.Client, input string) error 
 		}
 		fmt.Println(b)
 	}
-
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -98,11 +99,17 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 
 	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", usherURL, vodID, value, sig)
 
-	b, code, err := tw.fetch(ctx, m3u8Url)
-	if code == http.StatusForbidden {
+	resp, err := tw.request(ctx, m3u8Url, http.MethodGet, nil, nil)
+	if resp.StatusCode == http.StatusForbidden {
 		return tw.mockMasterPlaylist(ctx, vodID)
 	}
 
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -110,21 +117,19 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 	return m3u8.Master(b), nil
 }
 
-func (tw *Client) FetchAndParseMediaPlaylist(u string, s, e time.Duration) (*m3u8.MediaPlaylist, error) {
-	resp, err := tw.http.Get(u)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	playlist, err := m3u8.ParseMediaPlaylist(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	playlist.Truncate(s, e)
-
-	return playlist, nil
-}
+// func (tw *Client) FetchAndParseMediaPlaylist(u string, s, e time.Duration) (*m3u8.MediaPlaylist, error) {
+// 	resp, err := tw.http.Get(u)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer resp.Body.Close()
+// 	playlist, err := m3u8.ParseMediaPlaylist(resp.Body)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	playlist.Truncate(s, e)
+// 	return playlist, nil
+// }
 
 type VideoMetadata struct {
 	User struct {

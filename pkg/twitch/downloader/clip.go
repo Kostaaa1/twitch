@@ -2,9 +2,8 @@ package downloader
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"os/exec"
+	"net/http"
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -16,29 +15,34 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	usherURL, err := dl.clipVideoURL(clip.PlaybackAccessToken, clip.Assets[0].VideoQualities, unit.Quality.String())
-
+	clipDataURL := extractClipSourceURL(
+		clip.Assets[0].VideoQualities,
+		unit.Quality.String(),
+	)
+	usherURL, err := dl.twClient.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
 	if err != nil {
 		return err
 	}
 
 	var n int64
-	if unit.Quality == QualityAudioOnly {
-		n, err = extractAudio(usherURL, unit.Writer)
+
+	if unit.Quality != QualityAudioOnly {
+		req, err := http.NewRequestWithContext(ctx, usherURL, http.MethodGet, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := dl.http.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		n, err = io.Copy(unit.Writer, resp.Body)
+		if err != nil {
+			return err
+		}
 	} else {
-		reader, _, err := dl.fetch(ctx, usherURL)
-		if err != nil {
-			return err
-		}
-
-		n, err = io.Copy(unit.Writer, reader)
-		if err != nil {
-			return err
-		}
-	}
-
-	if err != nil {
-		return err
+		// n, err = extractAudio(usherURL, unit.Writer)
 	}
 
 	dl.notify(Progress{
@@ -78,38 +82,30 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 	}
 }
 
-func (dl *Downloader) clipVideoURL(token twitch.PlaybackAccessToken, qualities []twitch.VideoQuality, quality string) (string, error) {
-	sourceURL := extractClipSourceURL(qualities, quality)
-	usherURL, err := dl.twClient.ConstructUsherURL(token, sourceURL)
-	if err != nil {
-		return "", err
-	}
-	return usherURL, nil
-}
-
+// TODO: remove?
 // uses ffmpeg for getting the audio from a segment
-func extractAudio(url string, w io.Writer) (int64, error) {
-	cmd := exec.Command("ffmpeg", "-i", url, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+// func extractAudio(url string, w io.Writer) (int64, error) {
+// 	cmd := exec.Command("ffmpeg", "-i", url, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
+// 	cmd.Stdout = nil
+// 	cmd.Stderr = nil
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
+// 	stdout, err := cmd.StdoutPipe()
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
+// 	}
 
-	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
-	}
+// 	if err := cmd.Start(); err != nil {
+// 		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
+// 	}
 
-	n, err := io.Copy(w, stdout)
-	if err != nil {
-		return 0, fmt.Errorf("failed to copy audio data: %w", err)
-	}
+// 	n, err := io.Copy(w, stdout)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to copy audio data: %w", err)
+// 	}
 
-	if err := cmd.Wait(); err != nil {
-		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
-	}
+// 	if err := cmd.Wait(); err != nil {
+// 		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
+// 	}
 
-	return n, nil
-}
+// 	return n, nil
+// }

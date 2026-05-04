@@ -2,7 +2,6 @@ package twitch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,14 +41,14 @@ type Channel struct {
 	IsBrandedContent            bool     `json:"is_branded_content"`
 }
 
-type helixEnvelope[T any] struct {
-	Data []T `json:"data"`
-}
-
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Status  int    `json:"status"`
 	Message string `json:"message"`
+}
+
+type helixEnvelope[T any] struct {
+	Data []T `json:"data"`
 }
 
 // It has retry mechanism for 401 Unauthorized responses, it will attempt to refresh the access token and retry the request up to Client.retryCount times.
@@ -60,66 +59,65 @@ func (tw *Client) HelixRequest(
 	body io.Reader,
 	src interface{},
 ) error {
-	if tw.oauthCreds == nil {
-		return errors.New("cannot call the helix request without credentials")
-	}
+	return errors.New("helix request not implemented")
 
-	retryCount := 0
-	var errResp ErrorResponse
+	// if err := tw.ensureValidCreds(ctx); err != nil {
+	// 	return err
+	// }
 
-	decodeErr := func(r io.Reader) error {
-		if err := json.NewDecoder(r).Decode(&errResp); err != nil {
-			return err
-		}
-		return nil
-	}
+	// retryCount := 0
+	// var errResp ErrorResponse
 
-	for {
-		req, err := http.NewRequestWithContext(ctx, httpMethod, url, body)
-		if err != nil {
-			return fmt.Errorf("failed to create request: %w", err)
-		}
-		req.Header.Set("Client-Id", tw.oauthCreds.ClientID)
-		req.Header.Set("Authorization", tw.GetBearerToken())
-		req.Header.Set("Content-Type", "application/json")
+	// decodeErr := func(r io.Reader) error {
+	// 	return json.NewDecoder(r).Decode(&errResp)
+	// }
 
-		resp, err := tw.http.Do(req)
-		if err != nil {
-			return fmt.Errorf("request failed: %v", err)
-		}
-		defer resp.Body.Close()
+	// for {
+	// 	req, err := http.NewRequestWithContext(ctx, httpMethod, url, body)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to create request: %w", err)
+	// 	}
+	// 	req.Header.Set("Client-Id", tw.oauthCreds.ClientID)
+	// 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tw.oauthCreds.AccessToken))
+	// 	req.Header.Set("Content-Type", "application/json")
 
-		if resp.StatusCode == http.StatusUnauthorized {
-			if retryCount >= tw.retryCount {
-				return fmt.Errorf("max retries (%d) reached for unauthorized requests", tw.retryCount)
-			}
-			if err := decodeErr(resp.Body); err != nil {
-				return fmt.Errorf("failed to decode error response: %v", err)
-			}
-			if err := tw.FetchAccesToken(ctx); err != nil {
-				return fmt.Errorf("failed to refresh access token: %v", err)
-			}
-			retryCount++
-			continue
-		}
+	// 	resp, err := tw.http.Do(req)
+	// 	if err != nil {
+	// 		return fmt.Errorf("request failed: %v", err)
+	// 	}
+	// 	defer resp.Body.Close()
 
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			if err := decodeErr(resp.Body); err != nil {
-				return fmt.Errorf("failed to decode error response: %v", err)
-			}
-			return fmt.Errorf("invalid status code: message=%s | code=%d", errResp.Message, resp.StatusCode)
-		}
+	// 	if resp.StatusCode == http.StatusUnauthorized {
+	// 		if retryCount >= tw.retryCount {
+	// 			return fmt.Errorf("max retries (%d) reached for unauthorized requests", tw.retryCount)
+	// 		}
+	// 		if err := decodeErr(resp.Body); err != nil {
+	// 			return fmt.Errorf("failed to decode error response: %v", err)
+	// 		}
+	// 		if err := tw.FetchAccesToken(ctx); err != nil {
+	// 			return fmt.Errorf("failed to refresh access token: %v", err)
+	// 		}
+	// 		retryCount++
+	// 		continue
+	// 	}
 
-		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-			return nil
-		}
+	// 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	// 		if err := decodeErr(resp.Body); err != nil {
+	// 			return fmt.Errorf("failed to decode error response: %v", err)
+	// 		}
+	// 		return fmt.Errorf("invalid status code: message=%s | code=%d", errResp.Message, resp.StatusCode)
+	// 	}
 
-		if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
-			return fmt.Errorf("failed to decode response: %v", err)
-		}
+	// 	if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
+	// 		return nil
+	// 	}
 
-		return nil
-	}
+	// 	if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
+	// 		return fmt.Errorf("failed to decode response: %v", err)
+	// 	}
+
+	// 	return nil
+	// }
 }
 
 type User struct {
@@ -136,7 +134,6 @@ type User struct {
 	CreatedAt       string `json:"created_at"`
 }
 
-// Returns user data by channel name. If channel name is empty, it returns data for authenticated user
 func (tw *Client) UserByChannelName(ctx context.Context, channelName string) (*User, error) {
 	url := fmt.Sprintf("%s/users", helixURL)
 
@@ -158,13 +155,16 @@ func (tw *Client) UserByChannelName(ctx context.Context, channelName string) (*U
 
 func (tw *Client) UserByID(ctx context.Context, id string) (*User, error) {
 	url := fmt.Sprintf("%s/users?id=%s", helixURL, id)
+
 	var body helixEnvelope[User]
 	if err := tw.HelixRequest(ctx, url, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+
 	if len(body.Data) > 0 {
 		return &body.Data[0], nil
 	}
+
 	return nil, fmt.Errorf("failed to get user data by id: %s", id)
 }
 
@@ -185,10 +185,12 @@ func (tw *Client) ChannelInfo(ctx context.Context, broadcasterID string) (*Chann
 
 func (tw *Client) FollowedStreams(ctx context.Context, id string) (*[]Stream, error) {
 	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
+
 	var body helixEnvelope[[]Stream]
 	if err := tw.HelixRequest(ctx, u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+
 	if len(body.Data) > 0 {
 		return &body.Data[0], nil
 	}
@@ -197,10 +199,12 @@ func (tw *Client) FollowedStreams(ctx context.Context, id string) (*[]Stream, er
 
 func (tw *Client) Stream(ctx context.Context, userId string) (*[]Stream, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
+
 	var body []Stream
 	if err := tw.HelixRequest(ctx, u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+
 	return &body, nil
 }
 
@@ -210,6 +214,5 @@ func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, 
 	if err != nil {
 		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
 	}
-
 	return len(data.Stream.ID) > 0, nil
 }

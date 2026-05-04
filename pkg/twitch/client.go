@@ -3,10 +3,10 @@ package twitch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 )
 
 type Client struct {
@@ -28,25 +28,32 @@ func NewClient(c *OAuthCreds) *Client {
 		oauthCreds: c,
 		http:       http.DefaultClient,
 		retryCount: 3,
-		// httpClient: &http.Client{
-		// 	// Timeout: 15 * time.Second,
-		// 	Transport: &http.Transport{
-		// 		MaxIdleConns:          100,
-		// 		MaxIdleConnsPerHost:   100,
-		// 		IdleConnTimeout:       90 * time.Second,
-		// 		TLSHandshakeTimeout:   10 * time.Second,
-		// 		ExpectContinueTimeout: 1 * time.Second,
-		// 	},
-		// },
 	}
 }
 
-func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, body *strings.Reader, v any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, body)
-	if err != nil {
-		return fmt.Errorf("failed to create request to get the access token: %s", err)
+func (tw *Client) fetchWithDecode(
+	ctx context.Context,
+	url string,
+	method string,
+	body io.Reader,
+	dst any,
+	h http.Header,
+) error {
+	if dst == nil {
+		return errors.New("dst cannot be nil")
 	}
-	req.Header.Set("Client-Id", gqlClientID)
+	if url == "" {
+		return errors.New("failed to fetch: missing url")
+	}
+	if method == "" {
+		return errors.New("failed to fetch: missing method")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
+	}
+	req.Header = h.Clone()
 
 	resp, err := tw.http.Do(req)
 	if err != nil {
@@ -55,36 +62,69 @@ func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, body *strings.Reader
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unsupported response status code for graphql: %v", resp.StatusCode)
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read the error response: %v", err)
+		}
+		return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
-		return err
+	if resp.Body != nil {
+		if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (tw *Client) fetch(ctx context.Context, url string) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, 0, err
+func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, r io.Reader, dst any) error {
+	h := http.Header{}
+	h.Set("Client-Id", gqlClientID)
+	h.Set("Content-Type", "application/json")
+	return tw.fetchWithDecode(ctx, gqlURL, http.MethodPost, r, dst, h)
+}
+
+func (tw *Client) request(
+	ctx context.Context,
+	url string,
+	method string,
+	body io.Reader,
+	h http.Header,
+) (*http.Response, error) {
+	if url == "" {
+		return nil, errors.New("failed to fetch: missing url")
 	}
+	if method == "" {
+		return nil, errors.New("failed to fetch: missing method")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
+	}
+	req.Header = h.Clone()
 
 	resp, err := tw.http.Do(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("[http] failed whend sending the request: %w", err)
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (tw *Client) requestAndReadResponse(
+	ctx context.Context,
+	url string,
+	method string,
+	body io.Reader,
+	h http.Header,
+) ([]byte, error) {
+	resp, err := tw.request(ctx, url, method, body, h)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, resp.StatusCode, fmt.Errorf("[http] non-success status code: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, resp.StatusCode, fmt.Errorf("reading response body failed: %w", err)
-	}
-
-	return bytes, resp.StatusCode, nil
+	return io.ReadAll(resp.Body)
 }

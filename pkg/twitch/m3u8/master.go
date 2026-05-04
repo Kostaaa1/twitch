@@ -25,6 +25,7 @@ type MasterPlaylist struct {
 	Serialized      string
 }
 
+// TODO: ALL PARSING MUST GO THROUGH READER
 func Master(fetchedPlaylist []byte) *MasterPlaylist {
 	master := &MasterPlaylist{Serialized: string(fetchedPlaylist)}
 	master.parse()
@@ -177,16 +178,14 @@ func (m *MasterPlaylist) parse() {
 	}
 }
 
-func (playlist *MasterPlaylist) GetVariantPlaylistByQuality(quality string) (*VariantPlaylist, error) {
+func (playlist *MasterPlaylist) VariantPlaylistByQuality(quality string) (*VariantPlaylist, error) {
 	for _, list := range playlist.Lists {
 		if strings.HasPrefix(list.Video, quality) {
 			return list, nil
 		}
 	}
-
 	if len(playlist.Lists) > 0 {
 		return playlist.Lists[0], nil
 	}
-
 	return nil, fmt.Errorf("error: quality not found in master.m3u8: %s", quality)
 }

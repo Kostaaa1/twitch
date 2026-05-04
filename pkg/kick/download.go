@@ -32,7 +32,7 @@ func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.Me
 
 	master := m3u8.Master(res.BodyBytes)
 
-	list, err := master.GetVariantPlaylistByQuality(unit.Quality)
+	list, err := master.VariantPlaylistByQuality(unit.Quality)
 	if err != nil {
 		return "", nil, err
 	}
@@ -48,7 +48,7 @@ func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.Me
 		return "", nil, err
 	}
 
-	playlist, err := m3u8.ParseMediaPlaylist(bytes.NewReader(res.BodyBytes))
+	playlist, err := m3u8.ParseMediaPlaylist(bytes.NewReader(res.BodyBytes), playlistURL)
 	if err != nil {
 		return "", nil, err
 	}

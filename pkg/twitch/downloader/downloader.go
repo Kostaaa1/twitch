@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 )
@@ -15,9 +16,8 @@ type Progress struct {
 
 type Downloader struct {
 	twClient *twitch.Client
+	http     *http.Client
 	config   Config
-	// TODO: this should not depend on spinner package
-	// progCh chan spinner.Message
 	notifyFn func(Progress)
 }
 
@@ -65,7 +65,7 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 	case TypeClip:
 		err = dl.downloadClip(ctx, u)
 	case TypeLivestream:
-		err = dl.recordStream(ctx, u)
+		err = dl.recordLivestream(ctx, u)
 	}
 
 	dl.notify(Progress{
@@ -77,21 +77,3 @@ func (dl *Downloader) Download(ctx context.Context, u Unit) error {
 
 	return err
 }
-
-// func (dl *Downloader) fetch(ctx context.Context, url string) (io.ReadCloser, int, error) {
-// 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-// 	if err != nil {
-// 		return nil, 0, fmt.Errorf("failed to create request with context: %v", err)
-// 	}
-
-// 	resp, err := dl.twClient.HttpClient().Do(req)
-// 	if err != nil {
-// 		return nil, 0, fmt.Errorf("failed to get response: %w", err)
-// 	}
-
-// 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-// 		return nil, resp.StatusCode, fmt.Errorf("non-success HTTP status: %d %s", resp.StatusCode, resp.Status)
-// 	}
-
-// 	return resp.Body, resp.StatusCode, err
-// }

@@ -12,57 +12,50 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (dl *Downloader) getPlaylistsForUnit(ctx context.Context, unit Unit) (*m3u8.VariantPlaylist, *m3u8.MediaPlaylist, error) {
+func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u8.MediaPlaylist, error) {
+	// Get master playlist for VOD by its ID
 	master, err := dl.twClient.MasterPlaylistVOD(ctx, unit.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	playlist, err := dl.twClient.FetchAndParseMediaPlaylist(variant.URL, unit.Start, unit.End)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return variant, playlist, nil
-}
-
-func buildTSURL(baseURL, segment string) string {
-	lastIndex := strings.LastIndex(baseURL, "/")
-	return fmt.Sprintf("%s/%s", baseURL[:lastIndex], segment)
-}
-
-func (dl *Downloader) fetchSegmentWithRetry(ctx context.Context, u string) (io.ReadCloser, error) {
-	data, status, err := dl.fetch(ctx, u)
-	if status == http.StatusForbidden {
-		switch {
-		case strings.Contains(u, "unmuted"):
-			u = strings.Replace(u, "-unmuted", "-muted", 1)
-			data, _, err = dl.fetch(ctx, u)
-		case strings.Contains(u, "muted"):
-			u = strings.Replace(u, "-muted", "", 1)
-			data, _, err = dl.fetch(ctx, u)
-		}
-	}
-
 	if err != nil {
 		return nil, err
 	}
+	// Get playlist URL by specified quality
+	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
+	if err != nil {
+		return nil, err
+	}
+	// Fetch playlist
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := dl.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	// Parse it
+	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.URL)
+	if err != nil {
+		return nil, err
+	}
+	// Truncate
+	playlist.Truncate(unit.Start, unit.End)
 
-	return data, nil
+	return playlist, nil
 }
 
 func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
-	variant, playlist, _ := dl.getPlaylistsForUnit(ctx, unit)
+	playlist, err := dl.mediaPlaylistForUnit(ctx, unit)
+	if err != nil {
+		return err
+	}
+
+	workerCount := 4
 
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
 
-	for i := 0; i < 8; i++ {
+	for i := 0; i < workerCount; i++ {
 		g.Go(func() error {
 			for {
 				chunkInx := int(currentChunk.Add(1) - 1)
@@ -73,14 +66,42 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 				seg := playlist.Segments[chunkInx]
 
 				if strings.HasSuffix(seg.URL, ".ts") {
-					fullSegURL := buildTSURL(variant.URL, seg.URL)
+					lastIndex := strings.LastIndex(playlist.URL, "/")
+					tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
 
-					reader, err := dl.fetchSegmentWithRetry(ctx, fullSegURL)
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
+					if err != nil {
+						return err
+					}
+					resp, err := dl.http.Do(req)
 					if err != nil {
 						return err
 					}
 
-					seg.Data <- reader
+					if resp.StatusCode == http.StatusForbidden {
+						switch {
+						case strings.Contains(tsURL, "unmuted"):
+							tsURL = strings.Replace(tsURL, "-unmuted", "-muted", 1)
+						case strings.Contains(tsURL, "muted"):
+							tsURL = strings.Replace(tsURL, "-muted", "", 1)
+						default:
+							return fmt.Errorf("forbidden for segment: %s", tsURL)
+						}
+						req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
+						if err != nil {
+							return err
+						}
+						resp, err = dl.http.Do(req)
+						if err != nil {
+							return err
+						}
+					}
+
+					if err != nil {
+						return err
+					}
+
+					seg.Data <- resp.Body
 					close(seg.Data)
 				}
 			}
@@ -91,21 +112,28 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 		for i := 0; i < len(playlist.Segments); i++ {
 			select {
 			case <-ctx.Done():
-				return nil
-			case chunk, ok := <-playlist.Segments[i].Data:
-				if !ok {
-					continue
-				}
-				n, err := io.Copy(unit.Writer, chunk)
+				return ctx.Err()
+			case chunk := <-playlist.Segments[i].Data:
+				err := func() error {
+					defer chunk.Close()
+
+					n, err := io.Copy(unit.Writer, chunk)
+					if err != nil {
+						return err
+					}
+
+					dl.notify(Progress{
+						ID:    unit.GetID(),
+						Err:   unit.Error,
+						Bytes: n,
+					})
+
+					return nil
+				}()
+
 				if err != nil {
 					return err
 				}
-				dl.notify(Progress{
-					ID:    unit.GetID(),
-					Err:   unit.Error,
-					Bytes: n,
-				})
-				chunk.Close()
 			}
 		}
 
@@ -115,43 +143,35 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	return g.Wait()
 }
 
+// NOT USED
 func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
-	master, err := dl.twClient.MasterPlaylistVOD(ctx, unit.ID)
+	playlist, err := dl.mediaPlaylistForUnit(ctx, unit)
 	if err != nil {
 		return err
 	}
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
-	if err != nil {
-		return err
-	}
-	resp, err := dl.twClient.HttpClient().Get(variant.URL)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	playlist, err := m3u8.ParseMediaPlaylist(resp.Body)
-	if err != nil {
-		return err
-	}
-	playlist.Truncate(unit.Start, unit.End)
 
 	for _, seg := range playlist.Segments {
 		if strings.HasSuffix(seg.URL, ".ts") {
-			lastIndex := strings.LastIndex(variant.URL, "/")
-			fullSegURL := fmt.Sprintf("%s/%s", variant.URL[:lastIndex], seg.URL)
+			lastIndex := strings.LastIndex(playlist.URL, "/")
+			tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
 
-			reader, _, err := dl.fetch(ctx, fullSegURL)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
 			if err != nil {
 				return err
 			}
 
-			_, err = io.Copy(unit.Writer, reader)
+			resp, err := dl.http.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			_, err = io.Copy(unit.Writer, resp.Body)
 			if err != nil {
 				return err
 			}
 
-			// msg := spinner.Message{ID: unit.GetID(), Bytes: n}
-			// dl.NotifyProgressChannel(msg, unit)
+			// TODO: notify progress
 		}
 	}
 

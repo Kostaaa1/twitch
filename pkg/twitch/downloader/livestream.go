@@ -35,7 +35,11 @@ func (h *segmentHistory) Seen(url string) bool {
 	return false
 }
 
-func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
+// TODO: IMPROVE THIS
+// 1.) improve fetching
+// 2.) avoid map?
+// 3.)
+func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	isLive, err := dl.twClient.IsChannelLive(ctx, unit.ID)
 	if err != nil {
 		return err
@@ -50,7 +54,7 @@ func (dl *Downloader) recordStream(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	variant, err := master.GetVariantPlaylistByQuality(unit.Quality.String())
+	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err
 	}
