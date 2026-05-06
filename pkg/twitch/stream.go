@@ -144,10 +144,11 @@ func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3
 
 	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
 
-	req, err := http.NewRequestWithContext(ctx, url, http.MethodGet, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+
 	resp, err := tw.http.Do(req)
 	if err != nil {
 		return nil, err

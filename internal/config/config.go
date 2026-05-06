@@ -133,7 +133,7 @@ func initConfigData() Config {
 }
 
 func getConfigPath() (string, error) {
-	filename := "config.json"
+	filename := "twitch_config.json"
 
 	// execPath, err := os.Executable()
 	// if err == nil && strings.HasPrefix(execPath, os.TempDir()) {
@@ -202,6 +202,8 @@ func Read() (*Config, error) {
 		return nil, err
 	}
 
+	fmt.Println("config path: ", configPath)
+
 	b, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
@@ -210,6 +212,8 @@ func Read() (*Config, error) {
 	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}
+
+	fmt.Println("CONFIG DATA: ", data)
 
 	return &data, nil
 }

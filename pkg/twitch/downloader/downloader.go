@@ -17,7 +17,7 @@ type Progress struct {
 type Downloader struct {
 	twClient *twitch.Client
 	http     *http.Client
-	config   Config
+	config   *Config
 	notifyFn func(Progress)
 }
 
@@ -27,10 +27,11 @@ type Config struct {
 	Output          string `json:"output"`
 }
 
-func New(twClient *twitch.Client, conf Config) *Downloader {
+func New(twClient *twitch.Client, conf *Config) *Downloader {
 	return &Downloader{
 		twClient: twClient,
 		config:   conf,
+		http:     http.DefaultClient,
 	}
 }
 

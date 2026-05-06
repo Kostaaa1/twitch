@@ -1,50 +1,48 @@
 package downloader
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 )
 
-type segmentHistory struct {
-	seen map[string]struct{}
-	list []string
-	max  int
+func (dl *Downloader) download(ctx context.Context, unit Unit, tsURL string) error {
+	fmt.Println("downloading", tsURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := dl.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	n, err := io.Copy(unit.Writer, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dl.notify(Progress{
+		ID:    unit.GetID(),
+		Err:   unit.Error,
+		Bytes: n,
+	})
+
+	return nil
 }
 
-func (h *segmentHistory) Add(url string) {
-	if _, ok := h.seen[url]; ok {
-		return
-	}
-	h.seen[url] = struct{}{}
-	h.list = append(h.list, url)
-
-	if len(h.list) > h.max {
-		old := h.list[0]
-		h.list = h.list[:1]
-		delete(h.seen, old)
-	}
-}
-
-func (h *segmentHistory) Seen(url string) bool {
-	if _, ok := h.seen[url]; ok {
-		return true
-	}
-	return false
-}
-
-// TODO: IMPROVE THIS
-// 1.) improve fetching
-// 2.) avoid map?
-// 3.)
 func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	isLive, err := dl.twClient.IsChannelLive(ctx, unit.ID)
 	if err != nil {
 		return err
 	}
-
 	if !isLive {
 		return fmt.Errorf("%s is offline", unit.ID)
 	}
@@ -53,73 +51,92 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	if err != nil {
 		return err
 	}
-
 	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err
 	}
 
-	segHist := segmentHistory{
-		seen: make(map[string]struct{}),
-		list: make([]string, 0),
-		max:  500,
-	}
+	// producer
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	segURLChan := make(chan string, 32)
+	defer close(segURLChan)
+
+	errCh := make(chan error, 1)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				return
+			case tsURL, ok := <-segURLChan:
+				if !ok {
+					return
+				}
+				if err := dl.download(ctx, unit, tsURL); err != nil {
+					errCh <- err
+					return
+				}
+			}
+		}
+	}()
+
+	lastSegURL := ""
+	firstPollPassed := false
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
-		case <-time.After(1 * time.Second):
-			// TODO: we do not really need to fetch segments all the time.
-			reader, _, err := dl.fetch(ctx, variant.URL)
+			return ctx.Err()
+		case <-ticker.C:
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
 			if err != nil {
 				return err
 			}
-			defer reader.Close()
-
-			b, err := io.ReadAll(reader)
+			resp, err := dl.http.Do(req)
 			if err != nil {
 				return err
 			}
 
-			lines := strings.Split(string(b), "\n")
+			if resp.StatusCode == http.StatusNotFound {
+				return errors.New("playlist not found - channel is not live anymore")
+			}
 
-			for i := 0; i < len(lines)-1; i++ {
-				select {
-				case <-ctx.Done():
-					return nil
-				default:
-					line := lines[i]
-					if strings.HasPrefix(line, "#EXTINF") {
-						if strings.Contains(line, "Amazon") {
-							continue
-						}
+			s := bufio.NewScanner(resp.Body)
+			foundSegURL := false
 
-						segURL := lines[i+1]
-						if segHist.Seen(segURL) {
-							continue
-						}
+			for s.Scan() {
+				line := s.Text()
 
-						reader, _, err := dl.fetch(ctx, segURL)
-						if err != nil {
-							return err
-						}
+				if strings.HasPrefix(line, "#EXTINF") {
+					// if strings.Contains(line, "Amazon") {
+					// 	fmt.Println("Skipping AD")
+					// 	continue
+					// }
 
-						n, err := io.Copy(unit.Writer, reader)
-						if err != nil {
-							return err
-						}
-
-						dl.notify(Progress{
-							ID:    unit.GetID(),
-							Err:   unit.Error,
-							Bytes: n,
-						})
-
-						segHist.Add(segURL)
+					if !s.Scan() {
+						break
 					}
+					tsURL := s.Text()
+
+					if lastSegURL == tsURL {
+						foundSegURL = true
+						continue
+					}
+
+					if firstPollPassed && !foundSegURL {
+						continue
+					}
+
+					lastSegURL = tsURL
+					segURLChan <- tsURL
 				}
 			}
+
+			firstPollPassed = true
+			resp.Body.Close()
 		}
 	}
 }

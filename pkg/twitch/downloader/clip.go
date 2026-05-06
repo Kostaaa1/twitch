@@ -27,7 +27,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 	var n int64
 
 	if unit.Quality != QualityAudioOnly {
-		req, err := http.NewRequestWithContext(ctx, usherURL, http.MethodGet, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, usherURL, nil)
 		if err != nil {
 			return err
 		}

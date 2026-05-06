@@ -53,6 +53,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	workerCount := 4
 
 	g, ctx := errgroup.WithContext(ctx)
+
 	currentChunk := atomic.Uint32{}
 
 	for i := 0; i < workerCount; i++ {
@@ -87,6 +88,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 						default:
 							return fmt.Errorf("forbidden for segment: %s", tsURL)
 						}
+
 						req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
 						if err != nil {
 							return err
@@ -95,10 +97,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 						if err != nil {
 							return err
 						}
-					}
-
-					if err != nil {
-						return err
 					}
 
 					seg.Data <- resp.Body
@@ -155,23 +153,9 @@ func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
 			lastIndex := strings.LastIndex(playlist.URL, "/")
 			tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
-			if err != nil {
+			if err := dl.download(ctx, unit, tsURL); err != nil {
 				return err
 			}
-
-			resp, err := dl.http.Do(req)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-
-			_, err = io.Copy(unit.Writer, resp.Body)
-			if err != nil {
-				return err
-			}
-
-			// TODO: notify progress
 		}
 	}
 

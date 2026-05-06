@@ -65,6 +65,10 @@ func initDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config,
 		})
 	}
 
+	for _, unit := range units {
+		fmt.Println("UNITS:", unit)
+	}
+
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
 
@@ -95,7 +99,7 @@ func startTwitchDownloader(
 	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
-	dl := downloader.New(tw, conf.Downloader)
+	dl := downloader.New(tw, &conf.Downloader)
 
 	if spin != nil {
 		dl.SetProgressNotifier(func(pm downloader.Progress) {
