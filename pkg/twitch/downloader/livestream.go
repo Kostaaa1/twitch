@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -56,7 +57,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	// producer
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -64,8 +64,10 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	defer close(segURLChan)
 
 	errCh := make(chan error, 1)
+	defer close(errCh)
 
 	go func() {
+		dups := make(map[string]struct{})
 		for {
 			select {
 			case <-ctx.Done():
@@ -75,6 +77,12 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 				if !ok {
 					return
 				}
+
+				if _, ok := dups[tsURL]; ok {
+					log.Fatalf("duplicate: %s", tsURL)
+				}
+				dups[tsURL] = struct{}{}
+
 				if err := dl.download(ctx, unit, tsURL); err != nil {
 					errCh <- err
 					return
@@ -83,13 +91,16 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 		}
 	}()
 
-	lastSegURL := ""
-	firstPollPassed := false
+	lastSegmentURL := ""
+	_ = lastSegmentURL
+	pollCount := 0
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-errCh:
+			return err
 		case <-ticker.C:
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
 			if err != nil {
@@ -104,38 +115,43 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 				return errors.New("playlist not found - channel is not live anymore")
 			}
 
+			pollCount++
 			s := bufio.NewScanner(resp.Body)
-			foundSegURL := false
+
+			lastPollURL := ""
+			seenLastSegURL := false
+			_ = seenLastSegURL
 
 			for s.Scan() {
 				line := s.Text()
 
 				if strings.HasPrefix(line, "#EXTINF") {
-					// if strings.Contains(line, "Amazon") {
-					// 	fmt.Println("Skipping AD")
-					// 	continue
-					// }
-
-					if !s.Scan() {
-						break
+					if strings.Contains(line, "Amazon") {
+						continue
 					}
+					s.Scan()
+
 					tsURL := s.Text()
-
-					if lastSegURL == tsURL {
-						foundSegURL = true
-						continue
+					lastPollURL = tsURL
+					if tsURL == lastSegmentURL {
+						seenLastSegURL = true
 					}
 
-					if firstPollPassed && !foundSegURL {
-						continue
-					}
+					fmt.Println("")
+					fmt.Printf("\n#%d Poll\n", pollCount)
+					fmt.Println("lastSegmentURL", lastSegmentURL)
+					fmt.Println("seenLastSegURL", seenLastSegURL)
+					fmt.Println("tsURL", tsURL)
+					fmt.Println("downloaded", lastSegmentURL == "" || seenLastSegURL && tsURL != lastSegmentURL)
 
-					lastSegURL = tsURL
-					segURLChan <- tsURL
+					if lastSegmentURL == "" || seenLastSegURL && tsURL != lastSegmentURL {
+						segURLChan <- tsURL
+					}
 				}
 			}
 
-			firstPollPassed = true
+			lastSegmentURL = lastPollURL
+			fmt.Println("polling ended, setting last segment for current poll", lastSegmentURL)
 			resp.Body.Close()
 		}
 	}

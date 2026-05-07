@@ -2,6 +2,7 @@ package twitch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -48,6 +49,105 @@ func (tw *Client) vodTokenAndSignature(ctx context.Context, id string) (string, 
 	}
 
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
+}
+
+type VideoCommentsByOffsetOrCursor struct {
+	Data struct {
+		Video struct {
+			Typename string `json:"__typename"`
+			Comments struct {
+				Typename string `json:"__typename"`
+				Edges    []struct {
+					Typename string `json:"__typename"`
+					Cursor   string `json:"cursor"`
+					Node     struct {
+						Typename  string `json:"__typename"`
+						Commenter struct {
+							Typename    string `json:"__typename"`
+							DisplayName string `json:"displayName"`
+							ID          string `json:"id"`
+							Login       string `json:"login"`
+						} `json:"commenter"`
+						ContentOffsetSeconds int       `json:"contentOffsetSeconds"`
+						CreatedAt            time.Time `json:"createdAt"`
+						ID                   string    `json:"id"`
+						Message              struct {
+							Typename  string `json:"__typename"`
+							Fragments []struct {
+								Typename string      `json:"__typename"`
+								Emote    interface{} `json:"emote"`
+								Text     string      `json:"text"`
+							} `json:"fragments"`
+							UserBadges []struct {
+								Typename string `json:"__typename"`
+								ID       string `json:"id"`
+								SetID    string `json:"setID"`
+								Version  string `json:"version"`
+							} `json:"userBadges"`
+							UserColor string `json:"userColor"`
+						} `json:"message"`
+					} `json:"node"`
+				} `json:"edges"`
+				PageInfo struct {
+					Typename        string `json:"__typename"`
+					HasNextPage     bool   `json:"hasNextPage"`
+					HasPreviousPage bool   `json:"hasPreviousPage"`
+				} `json:"pageInfo"`
+			} `json:"comments"`
+			Creator struct {
+				Typename string `json:"__typename"`
+				Channel  struct {
+					Typename string `json:"__typename"`
+					ID       string `json:"id"`
+				} `json:"channel"`
+				ID string `json:"id"`
+			} `json:"creator"`
+			ID string `json:"id"`
+		} `json:"video"`
+	} `json:"data"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
+}
+
+func (tw *Client) Chat(ctx context.Context, vodID string, offset int) error {
+	gqlPayload := `{
+        "operationName": "VideoCommentsByOffsetOrCursor",
+        "variables": {
+            "videoID": "%s",
+            "contentOffsetSeconds": %d
+        },
+        "extensions": {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a"
+            }
+        }
+    }`
+
+	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID, offset))
+	// type payload struct {
+	// 	Data struct {
+	// 		VideoPlaybackAccessToken VideoCredResponse `json:"videoPlaybackAccessToken"`
+	// 	} `json:"data"`
+	// }
+	// var p payload
+
+	var p interface{}
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
+		return err
+	}
+
+	b, err := json.MarshalIndent(p, "", " ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(b))
+
+	return nil
 }
 
 func (tw *Client) PlaybackAccessToken(ctx context.Context, login string) error {

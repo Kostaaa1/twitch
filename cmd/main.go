@@ -22,6 +22,12 @@ import (
 )
 
 func main() {
+	twc := twitch.NewClient(nil)
+	if err := twc.Chat(context.Background(), "2765764996", 0); err != nil {
+		log.Fatal(err)
+	}
+	panic("")
+
 	conf, err := config.Read()
 	if err != nil {
 		log.Fatal(err)
