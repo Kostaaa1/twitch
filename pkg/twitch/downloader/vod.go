@@ -18,26 +18,31 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u
 	if err != nil {
 		return nil, err
 	}
+
 	// Get playlist URL by specified quality
 	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return nil, err
 	}
+
 	// Fetch playlist
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
 	if err != nil {
 		return nil, err
 	}
+
 	resp, err := dl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	// Parse it
 	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.URL)
 	if err != nil {
 		return nil, err
 	}
+
 	// Truncate
 	playlist.Truncate(unit.Start, unit.End)
 

@@ -15,10 +15,8 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	clipDataURL := extractClipSourceURL(
-		clip.Assets[0].VideoQualities,
-		unit.Quality.String(),
-	)
+	clipDataURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality.String())
+
 	usherURL, err := dl.twClient.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
 	if err != nil {
 		return err
@@ -61,7 +59,6 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 	if quality == "worst" {
 		return videoQualities[len(videoQualities)-1].SourceURL
 	}
-
 	for _, q := range videoQualities {
 		if strings.HasPrefix(quality, q.Quality) || strings.HasPrefix(q.Quality, quality) {
 			return q.SourceURL
@@ -82,8 +79,6 @@ func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) 
 	}
 }
 
-// TODO: remove?
-// uses ffmpeg for getting the audio from a segment
 // func extractAudio(url string, w io.Writer) (int64, error) {
 // 	cmd := exec.Command("ffmpeg", "-i", url, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
 // 	cmd.Stdout = nil

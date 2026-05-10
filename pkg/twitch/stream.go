@@ -6,23 +6,16 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 )
 
-type UseLiveBroadcast struct {
-	ID            string `json:"id"`
-	LastBroadcast struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-		Game  struct {
-			ID          string `json:"id"`
-			Slug        string `json:"slug"`
-			Name        string `json:"name"`
-			DisplayName string `json:"displayName"`
-		} `json:"game"`
-	} `json:"lastBroadcast"`
+func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, error) {
+	data, err := tw.StreamMetadata(ctx, channelName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
+	}
+	return len(data.Stream.ID) > 0, nil
 }
 
 func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*UseLiveBroadcast, error) {
@@ -53,22 +46,6 @@ func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*Us
 	}
 
 	return &resp.Data.User, nil
-}
-
-type StreamMetadata struct {
-	ID                string `json:"id"`
-	BroadcastSettings struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-	} `json:"broadcastSettings"`
-	Stream struct {
-		ID        string    `json:"id"`
-		CreatedAt time.Time `json:"createdAt"`
-		Game      struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"displayName"`
-		} `json:"game"`
-	} `json:"stream"`
 }
 
 type envelope[T any] struct {
@@ -122,7 +99,7 @@ func (tw *Client) streamCreds(ctx context.Context, id string) (string, string, e
 
 	type payload struct {
 		Data struct {
-			VideoPlaybackAccessToken VideoCredResponse `json:"streamPlaybackAccessToken"`
+			VideoPlaybackAccessToken VideoPlaybackAccessToken `json:"streamPlaybackAccessToken"`
 		} `json:"data"`
 	}
 	var data payload

@@ -112,19 +112,3 @@ func (tw *Client) request(
 
 	return resp, nil
 }
-
-func (tw *Client) requestAndReadResponse(
-	ctx context.Context,
-	url string,
-	method string,
-	body io.Reader,
-	h http.Header,
-) ([]byte, error) {
-	resp, err := tw.request(ctx, url, method, body, h)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	return io.ReadAll(resp.Body)
-}

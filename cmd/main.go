@@ -23,9 +23,15 @@ import (
 
 func main() {
 	twc := twitch.NewClient(nil)
-	if err := twc.Chat(context.Background(), "2765764996", 0); err != nil {
+	p, err := twc.VideoCommentsByOffsetOrCursor(context.Background(), "2765764996", 0)
+	if err != nil {
 		log.Fatal(err)
 	}
+	b, err := json.MarshalIndent(p, "", " ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
 	panic("")
 
 	conf, err := config.Read()

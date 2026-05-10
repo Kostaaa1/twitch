@@ -6,46 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
-
-type Stream struct {
-	ID           string        `json:"id"`
-	UserID       string        `json:"user_id"`
-	UserLogin    string        `json:"user_login"`
-	UserName     string        `json:"user_name"`
-	GameID       string        `json:"game_id"`
-	GameName     string        `json:"game_name"`
-	Type         string        `json:"type"`
-	Title        string        `json:"title"`
-	ViewerCount  int           `json:"viewer_count"`
-	StartedAt    time.Time     `json:"started_at"`
-	Language     string        `json:"language"`
-	ThumbnailURL string        `json:"thumbnail_url"`
-	TagIds       []interface{} `json:"tag_ids"`
-	Tags         []string      `json:"tags"`
-	IsMature     bool          `json:"is_mature"`
-}
-
-type Channel struct {
-	BroadcasterID               string   `json:"broadcaster_id"`
-	BroadcasterLogin            string   `json:"broadcaster_login"`
-	BroadcasterName             string   `json:"broadcaster_name"`
-	BroadcasterLanguage         string   `json:"broadcaster_language"`
-	GameID                      string   `json:"game_id"`
-	GameName                    string   `json:"game_name"`
-	Title                       string   `json:"title"`
-	Delay                       int      `json:"delay"`
-	Tags                        []string `json:"tags"`
-	ContentClassificationLabels []string `json:"content_classification_labels"`
-	IsBrandedContent            bool     `json:"is_branded_content"`
-}
-
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Status  int    `json:"status"`
-	Message string `json:"message"`
-}
 
 type helixEnvelope[T any] struct {
 	Data []T `json:"data"`
@@ -120,20 +81,6 @@ func (tw *Client) HelixRequest(
 	// }
 }
 
-type User struct {
-	ID              string `json:"id"`
-	Login           string `json:"login"`
-	DisplayName     string `json:"display_name"`
-	Type            string `json:"type"`
-	BroadcasterType string `json:"broadcaster_type"`
-	Description     string `json:"description"`
-	ProfileImageURL string `json:"profile_image_url"`
-	OfflineImageURL string `json:"offline_image_url"`
-	ViewCount       int    `json:"view_count"`
-	Email           string `json:"email"`
-	CreatedAt       string `json:"created_at"`
-}
-
 func (tw *Client) UserByChannelName(ctx context.Context, channelName string) (*User, error) {
 	url := fmt.Sprintf("%s/users", helixURL)
 
@@ -206,13 +153,4 @@ func (tw *Client) Stream(ctx context.Context, userId string) (*[]Stream, error) 
 	}
 
 	return &body, nil
-}
-
-// remove decapi - handle this with graphql
-func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, error) {
-	data, err := tw.StreamMetadata(ctx, channelName)
-	if err != nil {
-		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
-	}
-	return len(data.Stream.ID) > 0, nil
 }

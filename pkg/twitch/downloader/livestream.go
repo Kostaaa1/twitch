@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -67,7 +66,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	defer close(errCh)
 
 	go func() {
-		dups := make(map[string]struct{})
 		for {
 			select {
 			case <-ctx.Done():
@@ -77,12 +75,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 				if !ok {
 					return
 				}
-
-				if _, ok := dups[tsURL]; ok {
-					log.Fatalf("duplicate: %s", tsURL)
-				}
-				dups[tsURL] = struct{}{}
-
 				if err := dl.download(ctx, unit, tsURL); err != nil {
 					errCh <- err
 					return
@@ -92,8 +84,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	}()
 
 	lastSegmentURL := ""
-	_ = lastSegmentURL
-	pollCount := 0
 
 	for {
 		select {
@@ -115,12 +105,10 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 				return errors.New("playlist not found - channel is not live anymore")
 			}
 
-			pollCount++
 			s := bufio.NewScanner(resp.Body)
 
 			lastPollURL := ""
 			seenLastSegURL := false
-			_ = seenLastSegURL
 
 			for s.Scan() {
 				line := s.Text()
@@ -131,27 +119,18 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 					}
 					s.Scan()
 
-					tsURL := s.Text()
-					lastPollURL = tsURL
-					if tsURL == lastSegmentURL {
+					lastPollURL = s.Text()
+					if lastPollURL == lastSegmentURL {
 						seenLastSegURL = true
 					}
 
-					fmt.Println("")
-					fmt.Printf("\n#%d Poll\n", pollCount)
-					fmt.Println("lastSegmentURL", lastSegmentURL)
-					fmt.Println("seenLastSegURL", seenLastSegURL)
-					fmt.Println("tsURL", tsURL)
-					fmt.Println("downloaded", lastSegmentURL == "" || seenLastSegURL && tsURL != lastSegmentURL)
-
-					if lastSegmentURL == "" || seenLastSegURL && tsURL != lastSegmentURL {
-						segURLChan <- tsURL
+					if lastSegmentURL == "" || seenLastSegURL && lastPollURL != lastSegmentURL {
+						segURLChan <- lastPollURL
 					}
 				}
 			}
 
 			lastSegmentURL = lastPollURL
-			fmt.Println("polling ended, setting last segment for current poll", lastSegmentURL)
 			resp.Body.Close()
 		}
 	}

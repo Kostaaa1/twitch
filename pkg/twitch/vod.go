@@ -2,7 +2,6 @@ package twitch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,11 +12,6 @@ import (
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 )
-
-type VideoCredResponse struct {
-	Signature string `json:"signature"`
-	Value     string `json:"value"`
-}
 
 func (tw *Client) vodTokenAndSignature(ctx context.Context, id string) (string, string, error) {
 	gqlPayload := `{
@@ -35,7 +29,7 @@ func (tw *Client) vodTokenAndSignature(ctx context.Context, id string) (string, 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
 	type payload struct {
 		Data struct {
-			VideoPlaybackAccessToken VideoCredResponse `json:"videoPlaybackAccessToken"`
+			VideoPlaybackAccessToken VideoPlaybackAccessToken `json:"videoPlaybackAccessToken"`
 		} `json:"data"`
 	}
 	var p payload
@@ -51,68 +45,7 @@ func (tw *Client) vodTokenAndSignature(ctx context.Context, id string) (string, 
 	return p.Data.VideoPlaybackAccessToken.Value, p.Data.VideoPlaybackAccessToken.Signature, nil
 }
 
-type VideoCommentsByOffsetOrCursor struct {
-	Data struct {
-		Video struct {
-			Typename string `json:"__typename"`
-			Comments struct {
-				Typename string `json:"__typename"`
-				Edges    []struct {
-					Typename string `json:"__typename"`
-					Cursor   string `json:"cursor"`
-					Node     struct {
-						Typename  string `json:"__typename"`
-						Commenter struct {
-							Typename    string `json:"__typename"`
-							DisplayName string `json:"displayName"`
-							ID          string `json:"id"`
-							Login       string `json:"login"`
-						} `json:"commenter"`
-						ContentOffsetSeconds int       `json:"contentOffsetSeconds"`
-						CreatedAt            time.Time `json:"createdAt"`
-						ID                   string    `json:"id"`
-						Message              struct {
-							Typename  string `json:"__typename"`
-							Fragments []struct {
-								Typename string      `json:"__typename"`
-								Emote    interface{} `json:"emote"`
-								Text     string      `json:"text"`
-							} `json:"fragments"`
-							UserBadges []struct {
-								Typename string `json:"__typename"`
-								ID       string `json:"id"`
-								SetID    string `json:"setID"`
-								Version  string `json:"version"`
-							} `json:"userBadges"`
-							UserColor string `json:"userColor"`
-						} `json:"message"`
-					} `json:"node"`
-				} `json:"edges"`
-				PageInfo struct {
-					Typename        string `json:"__typename"`
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-				} `json:"pageInfo"`
-			} `json:"comments"`
-			Creator struct {
-				Typename string `json:"__typename"`
-				Channel  struct {
-					Typename string `json:"__typename"`
-					ID       string `json:"id"`
-				} `json:"channel"`
-				ID string `json:"id"`
-			} `json:"creator"`
-			ID string `json:"id"`
-		} `json:"video"`
-	} `json:"data"`
-	Extensions struct {
-		DurationMilliseconds int    `json:"durationMilliseconds"`
-		OperationName        string `json:"operationName"`
-		RequestID            string `json:"requestID"`
-	} `json:"extensions"`
-}
-
-func (tw *Client) Chat(ctx context.Context, vodID string, offset int) error {
+func (tw *Client) VideoCommentsByOffsetOrCursor(ctx context.Context, vodID string, offset int) (*VideoCommentsByOffsetOrCursor, error) {
 	gqlPayload := `{
         "operationName": "VideoCommentsByOffsetOrCursor",
         "variables": {
@@ -128,26 +61,13 @@ func (tw *Client) Chat(ctx context.Context, vodID string, offset int) error {
     }`
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID, offset))
-	// type payload struct {
-	// 	Data struct {
-	// 		VideoPlaybackAccessToken VideoCredResponse `json:"videoPlaybackAccessToken"`
-	// 	} `json:"data"`
-	// }
-	// var p payload
 
-	var p interface{}
+	var p VideoCommentsByOffsetOrCursor
 	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
-		return err
+		return nil, err
 	}
 
-	b, err := json.MarshalIndent(p, "", " ")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(b))
-
-	return nil
+	return &p, nil
 }
 
 func (tw *Client) PlaybackAccessToken(ctx context.Context, login string) error {
@@ -167,7 +87,7 @@ func (tw *Client) PlaybackAccessToken(ctx context.Context, login string) error {
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, login))
 	type payload struct {
 		Data struct {
-			VideoPlaybackAccessToken VideoCredResponse `json:"videoPlaybackAccessToken"`
+			VideoPlaybackAccessToken VideoPlaybackAccessToken `json:"videoPlaybackAccessToken"`
 		} `json:"data"`
 	}
 	var p payload
@@ -217,39 +137,6 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 	return m3u8.Master(b), nil
 }
 
-// func (tw *Client) FetchAndParseMediaPlaylist(u string, s, e time.Duration) (*m3u8.MediaPlaylist, error) {
-// 	resp, err := tw.http.Get(u)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer resp.Body.Close()
-// 	playlist, err := m3u8.ParseMediaPlaylist(resp.Body)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	playlist.Truncate(s, e)
-// 	return playlist, nil
-// }
-
-type VideoMetadata struct {
-	User struct {
-		ID              string `json:"id"`
-		PrimaryColorHex string `json:"primaryColorHex"`
-		IsPartner       bool   `json:"isPartner"`
-		ProfileImageURL string `json:"profileImageURL"`
-		LastBroadcast   struct {
-			ID        string    `json:"id"`
-			StartedAt time.Time `json:"startedAt"`
-		} `json:"lastBroadcast"`
-		Stream    any `json:"stream"`
-		Followers struct {
-			TotalCount int `json:"totalCount"`
-		} `json:"followers"`
-	} `json:"user"`
-	CurrentUser any   `json:"currentUser"`
-	Video       Video `json:"video"`
-}
-
 func (tw *Client) VideoMetadata(ctx context.Context, id string) (VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
@@ -283,52 +170,91 @@ func (tw *Client) VideoMetadata(ctx context.Context, id string) (VideoMetadata, 
 	return p.Data, nil
 }
 
-type Video struct {
-	ID                  string        `json:"id"`
-	Title               string        `json:"title"`
-	PreviewThumbnailURL string        `json:"previewThumbnailURL"`
-	PublishedAt         time.Time     `json:"publishedAt"`
-	ViewCount           int64         `json:"viewCount"`
-	LengthSeconds       int64         `json:"lengthSeconds"`
-	AnimatedPreviewURL  string        `json:"animatedPreviewURL"`
-	ContentTags         []interface{} `json:"contentTags"`
-	Self                struct {
-		IsRestricted   bool `json:"isRestricted"`
-		ViewingHistory struct {
-			Position int `json:"position"`
-		} `json:"viewingHistory"`
-	} `json:"self"`
-	Game struct {
-		ID          string `json:"id"`
-		Slug        string `json:"slug"`
-		BoxArtURL   string `json:"boxArtURL"`
-		DisplayName string `json:"displayName"`
-		Name        string `json:"name"`
-	} `json:"game"`
-	Owner struct {
-		ID              string `json:"id"`
-		DisplayName     string `json:"displayName"`
-		Login           string `json:"login"`
-		ProfileImageURL string `json:"profileImageURL"`
-		PrimaryColorHex string `json:"primaryColorHex"`
-	} `json:"owner"`
-}
+// type FilterableVideoTower_Videos struct {
+// 	Data struct {
+// 		User struct {
+// 			ID     string `json:"id"`
+// 			Videos struct {
+// 				Edges []struct {
+// 					Cursor interface{} `json:"cursor"`
+// 					Node   Video       `json:"node"`
+// 				} `json:"edges"`
+// 				PageInfo struct {
+// 					HasNextPage bool `json:"hasNextPage"`
+// 				} `json:"pageInfo"`
+// 			} `json:"videos"`
+// 		} `json:"user"`
+// 	} `json:"data"`
+// }
 
-type FilterableVideoTower_Videos struct {
+type FilterableVideoTower_Videos []struct {
 	Data struct {
 		User struct {
 			ID     string `json:"id"`
 			Videos struct {
 				Edges []struct {
-					Cursor interface{} `json:"cursor"`
-					Node   Video       `json:"node"`
+					Cursor time.Time `json:"cursor"`
+					Node   struct {
+						AnimatedPreviewURL string `json:"animatedPreviewURL"`
+						Game               struct {
+							BoxArtURL   string `json:"boxArtURL"`
+							ID          string `json:"id"`
+							Slug        string `json:"slug"`
+							DisplayName string `json:"displayName"`
+							Name        string `json:"name"`
+							Typename    string `json:"__typename"`
+						} `json:"game"`
+						BroadcastIdentifier struct {
+							ID       string `json:"id"`
+							Typename string `json:"__typename"`
+						} `json:"broadcastIdentifier"`
+						ID            string `json:"id"`
+						LengthSeconds int    `json:"lengthSeconds"`
+						Owner         struct {
+							DisplayName     string `json:"displayName"`
+							ID              string `json:"id"`
+							Login           string `json:"login"`
+							ProfileImageURL string `json:"profileImageURL"`
+							PrimaryColorHex any    `json:"primaryColorHex"`
+							Roles           struct {
+								IsPartner bool   `json:"isPartner"`
+								Typename  string `json:"__typename"`
+							} `json:"roles"`
+							Typename string `json:"__typename"`
+						} `json:"owner"`
+						PreviewThumbnailURL string    `json:"previewThumbnailURL"`
+						PublishedAt         time.Time `json:"publishedAt"`
+						Self                struct {
+							IsRestricted   bool `json:"isRestricted"`
+							ViewingHistory struct {
+								Position  int       `json:"position"`
+								UpdatedAt time.Time `json:"updatedAt"`
+								Typename  string    `json:"__typename"`
+							} `json:"viewingHistory"`
+							Typename string `json:"__typename"`
+						} `json:"self"`
+						Title               string `json:"title"`
+						ViewCount           int    `json:"viewCount"`
+						ResourceRestriction any    `json:"resourceRestriction"`
+						ContentTags         []any  `json:"contentTags"`
+						Typename            string `json:"__typename"`
+					} `json:"node"`
+					Typename string `json:"__typename"`
 				} `json:"edges"`
 				PageInfo struct {
-					HasNextPage bool `json:"hasNextPage"`
+					HasNextPage bool   `json:"hasNextPage"`
+					Typename    string `json:"__typename"`
 				} `json:"pageInfo"`
+				Typename string `json:"__typename"`
 			} `json:"videos"`
+			Typename string `json:"__typename"`
 		} `json:"user"`
 	} `json:"data"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
 }
 
 func (tw *Client) ListVideosByChannelName(ctx context.Context, channelName string, limit int) ([]Video, error) {
@@ -382,17 +308,6 @@ func (tw *Client) ListVideosByChannelName(ctx context.Context, channelName strin
 	}
 
 	return videos, nil
-}
-
-type SubVODResponse struct {
-	Video struct {
-		BroadcastType string    `json:"broadcastType"`
-		CreatedAt     time.Time `json:"createdAt"`
-		Owner         struct {
-			Login string `json:"login"`
-		} `json:"owner"`
-		SeekPreviewsURL string `json:"seekPreviewsURL"`
-	} `json:"video"`
 }
 
 func (tw *Client) SubVodData(ctx context.Context, vodID string) (SubVODResponse, error) {
