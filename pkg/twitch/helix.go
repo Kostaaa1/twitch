@@ -83,7 +83,6 @@ func (tw *Client) HelixRequest(
 
 func (tw *Client) UserByChannelName(ctx context.Context, channelName string) (*User, error) {
 	url := fmt.Sprintf("%s/users", helixURL)
-
 	if channelName != "" {
 		url += "?login=" + channelName
 	}
@@ -141,16 +140,15 @@ func (tw *Client) FollowedStreams(ctx context.Context, id string) (*[]Stream, er
 	if len(body.Data) > 0 {
 		return &body.Data[0], nil
 	}
+
 	return nil, fmt.Errorf("failed to get followed streams by user id: %s", id)
 }
 
 func (tw *Client) Stream(ctx context.Context, userId string) (*[]Stream, error) {
 	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
-
 	var body []Stream
 	if err := tw.HelixRequest(ctx, u, http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-
 	return &body, nil
 }

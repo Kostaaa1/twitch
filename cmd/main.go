@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -22,18 +21,6 @@ import (
 )
 
 func main() {
-	twc := twitch.NewClient(nil)
-	p, err := twc.VideoCommentsByOffsetOrCursor(context.Background(), "2765764996", 0)
-	if err != nil {
-		log.Fatal(err)
-	}
-	b, err := json.MarshalIndent(p, "", " ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(b))
-	panic("")
-
 	conf, err := config.Read()
 	if err != nil {
 		log.Fatal(err)
@@ -289,16 +276,16 @@ func initChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error
 }
 
 func handlePrinting(ctx context.Context, tw *twitch.Client, input string) error {
-	videos, err := tw.ListVideosByChannelName(ctx, input, 100)
-	if err != nil {
-		return err
-	}
-	for _, vod := range videos {
-		b, err := json.MarshalIndent(vod, "", " ")
-		if err != nil {
-			return err
-		}
-		fmt.Println(b)
-	}
+	// videos, err := tw.ListVideosByChannelName(ctx, input, 100)
+	// if err != nil {
+	// 	return err
+	// }
+	// for _, vod := range videos {
+	// 	b, err := json.MarshalIndent(vod, "", " ")
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	fmt.Println(b)
+	// }
 	return nil
 }

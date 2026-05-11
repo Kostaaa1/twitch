@@ -62,9 +62,16 @@ type HelixErrResponse struct {
 	Message string `json:"message"`
 }
 
-type VideoPlaybackAccessToken struct {
-	Signature string `json:"signature"`
-	Value     string `json:"value"`
+type Authorization struct {
+	IsForbidden         bool   `json:"isForbidden"`
+	ForbiddenReasonCode string `json:"forbiddenReasonCode"`
+}
+
+type PlaybackAccessToken struct {
+	Value         string        `json:"value"`
+	Signature     string        `json:"signature"`
+	Authorization Authorization `json:"authorization"`
+	Typename      string        `json:"__typename"`
 }
 
 type VideoQuality struct {
@@ -79,6 +86,7 @@ type Owner struct {
 	Login           string `json:"login"`
 	ProfileImageURL string `json:"profileImageURL"`
 	PrimaryColorHex string `json:"primaryColorHex"`
+	Typename        string `json:"__typename"`
 }
 
 type Self struct {
@@ -86,12 +94,11 @@ type Self struct {
 	ViewingHistory struct {
 		Position int `json:"position"`
 	} `json:"viewingHistory"`
-	IsEditor bool `json:"isEditor"`
+	IsEditor bool   `json:"isEditor"`
+	Typename string `json:"__typename"`
 }
 
 type Video struct {
-	CreatedAt           time.Time     `json:"createdAt"`
-	SeekPreviewsURL     string        `json:"seekPreviewsURL"`
 	ID                  string        `json:"id"`
 	Title               string        `json:"title"`
 	PreviewThumbnailURL string        `json:"previewThumbnailURL"`
@@ -104,11 +111,8 @@ type Video struct {
 	Self                Self          `json:"self"`
 	Game                Game          `json:"game"`
 	Owner               Owner         `json:"owner"`
-}
-
-type PlaybackAccessToken struct {
-	Signature string `json:"signature"`
-	Value     string `json:"value"`
+	CreatedAt           time.Time     `json:"createdAt"`
+	SeekPreviewsURL     string        `json:"seekPreviewsURL"`
 }
 
 type ClipAccessToken struct {
@@ -227,6 +231,28 @@ type Creator struct {
 	ID      string  `json:"id"`
 }
 
+type VideoMetadata struct {
+	User        User  `json:"user"`
+	CurrentUser any   `json:"currentUser"`
+	Video       Video `json:"video"`
+}
+
+type SubVODResponse struct {
+	Video Video `json:"video"`
+}
+
+type UseLiveBroadcast struct {
+	ID            string    `json:"id"`
+	LastBroadcast Broadcast `json:"lastBroadcast"`
+}
+
+type BroadcastSettings struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// GraphQL Responses
+
 type VideoCommentsByOffsetOrCursor struct {
 	Data struct {
 		Video struct {
@@ -254,28 +280,79 @@ type VideoCommentsByOffsetOrCursor struct {
 	} `json:"extensions"`
 }
 
-type VideoMetadata struct {
-	User        User  `json:"user"`
-	CurrentUser any   `json:"currentUser"`
-	Video       Video `json:"video"`
+type PlaybackAccessToken_Template struct {
+	Data struct {
+		PlaybackAccessToken PlaybackAccessToken `json:"streamPlaybackAccessToken"`
+	} `json:"data"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
 }
 
-type SubVODResponse struct {
-	Video Video `json:"video"`
+type NielsenContentMetadata struct {
+	Data struct {
+		Video Video `json:"video"`
+	} `json:"data"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
 }
 
-type UseLiveBroadcast struct {
-	ID            string    `json:"id"`
-	LastBroadcast Broadcast `json:"lastBroadcast"`
-}
-
-type BroadcastSettings struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-}
-
-type StreamMetadata struct {
-	ID                string            `json:"id"`
-	BroadcastSettings BroadcastSettings `json:"broadcastSettings"`
-	Stream            Stream            `json:"stream"`
+type FilterableVideoTower_Videos struct {
+	Data struct {
+		User struct {
+			ID     string `json:"id"`
+			Videos struct {
+				Edges []struct {
+					Cursor time.Time `json:"cursor"`
+					Node   struct {
+						AnimatedPreviewURL  string `json:"animatedPreviewURL"`
+						Game                Game   `json:"game"`
+						BroadcastIdentifier struct {
+							ID       string `json:"id"`
+							Typename string `json:"__typename"`
+						} `json:"broadcastIdentifier"`
+						ID            string `json:"id"`
+						LengthSeconds int    `json:"lengthSeconds"`
+						Owner         struct {
+							DisplayName     string      `json:"displayName"`
+							ID              string      `json:"id"`
+							Login           string      `json:"login"`
+							ProfileImageURL string      `json:"profileImageURL"`
+							PrimaryColorHex interface{} `json:"primaryColorHex"`
+							Roles           struct {
+								IsPartner bool   `json:"isPartner"`
+								Typename  string `json:"__typename"`
+							} `json:"roles"`
+							Typename string `json:"__typename"`
+						} `json:"owner"`
+						PreviewThumbnailURL string        `json:"previewThumbnailURL"`
+						PublishedAt         time.Time     `json:"publishedAt"`
+						Self                Self          `json:"self"`
+						Title               string        `json:"title"`
+						ViewCount           int           `json:"viewCount"`
+						ResourceRestriction interface{}   `json:"resourceRestriction"`
+						ContentTags         []interface{} `json:"contentTags"`
+						Typename            string        `json:"__typename"`
+					} `json:"node"`
+					Typename string `json:"__typename"`
+				} `json:"edges"`
+				PageInfo struct {
+					HasNextPage bool   `json:"hasNextPage"`
+					Typename    string `json:"__typename"`
+				} `json:"pageInfo"`
+				Typename string `json:"__typename"`
+			} `json:"videos"`
+			Typename string `json:"__typename"`
+		} `json:"user"`
+	} `json:"data"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
 }

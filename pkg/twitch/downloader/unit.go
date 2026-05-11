@@ -70,7 +70,7 @@ func (u *Unit) FetchTitle(ctx context.Context, c *twitch.Client) {
 			u.Error = err
 			return
 		}
-		u.Title = stream.BroadcastSettings.Title
+		u.Title = stream.Title
 	}
 }
 
@@ -78,11 +78,9 @@ func parseMediaInput(input string) MediaType {
 	if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
 		return TypeVOD
 	}
-
 	if len(input) >= 25 {
 		return TypeClip
 	}
-
 	return TypeLivestream
 }
 

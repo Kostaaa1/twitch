@@ -15,7 +15,7 @@ func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, 
 	if err != nil {
 		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
 	}
-	return len(data.Stream.ID) > 0, nil
+	return len(data.ID) > 0, nil
 }
 
 func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*UseLiveBroadcast, error) {
@@ -37,7 +37,6 @@ func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*Us
 			User UseLiveBroadcast `json:"user"`
 		} `json:"data"`
 	}
-
 	var resp payload
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
@@ -48,11 +47,7 @@ func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*Us
 	return &resp.Data.User, nil
 }
 
-type envelope[T any] struct {
-	Data T `json:"data"`
-}
-
-func (tw *Client) StreamMetadata(ctx context.Context, channelName string) (*StreamMetadata, error) {
+func (tw *Client) StreamMetadata(ctx context.Context, channelName string) (*Video, error) {
 	gqlPl := `{
 		"operationName": "NielsenContentMetadata",
 		"variables": {
@@ -71,20 +66,17 @@ func (tw *Client) StreamMetadata(ctx context.Context, channelName string) (*Stre
 		}
 	}`
 
-	type payload struct {
-		User StreamMetadata `json:"user"`
-	}
-	var resp envelope[payload]
+	var resp NielsenContentMetadata
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
 	if err := tw.sendGqlLoadAndDecode(ctx, body, &resp); err != nil {
 		return nil, err
 	}
 
-	return &resp.Data.User, nil
+	return &resp.Data.Video, nil
 }
 
-func (tw *Client) streamCreds(ctx context.Context, id string) (string, string, error) {
+func (tw *Client) StreamPlaybackAccessToken(ctx context.Context, channel string) (*PlaybackAccessToken, error) {
 	gqlPl := `{
 		"operationName": "PlaybackAccessToken_Template",
 		"query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
@@ -97,29 +89,23 @@ func (tw *Client) streamCreds(ctx context.Context, id string) (string, string, e
 		}
 	}`
 
-	type payload struct {
-		Data struct {
-			VideoPlaybackAccessToken VideoPlaybackAccessToken `json:"streamPlaybackAccessToken"`
-		} `json:"data"`
-	}
-	var data payload
-
-	body := strings.NewReader(fmt.Sprintf(gqlPl, id))
+	var data PlaybackAccessToken_Template
+	body := strings.NewReader(fmt.Sprintf(gqlPl, channel))
 
 	if err := tw.sendGqlLoadAndDecode(ctx, body, &data); err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	return data.Data.VideoPlaybackAccessToken.Value, data.Data.VideoPlaybackAccessToken.Signature, nil
+	return &data.Data.PlaybackAccessToken, nil
 }
 
 func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u8.MasterPlaylist, error) {
-	tok, sig, err := tw.streamCreds(ctx, channel)
+	tok, err := tw.StreamPlaybackAccessToken(ctx, channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok, sig)
+	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok.Value, tok.Signature)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
