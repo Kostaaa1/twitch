@@ -25,24 +25,24 @@ import (
 func main() {
 	tw := twitch.NewClient()
 
-	parts, err := tw.VideoPreviewURLParts(context.Background(), "2766330803")
+	b, err := tw.VideoPlaylistBuilder(context.Background(), "2279431034")
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(parts)
 
-	u := fmt.Sprintf("https://%s.cloudfront.net/%s/%s/index-dvr.m3u8", parts.Subdomain, parts.Source, "chunked")
+	u := b.PlaylistURL()
 	fmt.Println(u)
 
 	resp, err := http.Get(u)
 	if err != nil {
 		log.Fatal(err)
 	}
-	b, err := io.ReadAll(resp.Body)
+
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(string(b))
+	fmt.Println(string(data))
 
 	// parsed, err := url.Parse("https://d3vd9lfkzbru3h.cloudfront.net/6d06e268d17b051dde79_sera_promisu_315855972593_1778166843/storyboards/2766330803-info.json")
 	// if err != nil {

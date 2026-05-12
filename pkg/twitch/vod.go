@@ -270,13 +270,32 @@ func (tw *Client) ListVideosByChannelName(ctx context.Context, channel string, l
 	return videos, nil
 }
 
-type PreviewURLParts struct {
+type VideoPlaylistURLBuilder struct {
+	VodID           string
 	Subdomain       string
 	Source          string
 	BroadcasterType string
+	Quality         string
 }
 
-func (pup PreviewURLParts) validate() error {
+func (pup VideoPlaylistURLBuilder) PlaylistURL() string {
+	var u string
+
+	switch strings.ToLower(pup.BroadcasterType) {
+	case "live":
+	case "clip":
+	case "premiere":
+	case "upload":
+	case "highlight":
+		u = fmt.Sprintf("https://%s.cloudfront.net/%s/%s/highlight-%s.m3u8", pup.Subdomain, pup.Source, "chunked", pup.VodID)
+	case "archive":
+		u = fmt.Sprintf("https://%s.cloudfront.net/%s/%s/index-dvr.m3u8", pup.Subdomain, pup.Source, "chunked")
+	}
+
+	return u
+}
+
+func (pup VideoPlaylistURLBuilder) validate() error {
 	// pup.Subdomain
 	// pup.Source
 	// pup.BroadcasterType
@@ -285,7 +304,7 @@ func (pup PreviewURLParts) validate() error {
 
 func (tw *Client) querySeekPreviewsURL(ctx context.Context, vodID string) (string, string, error) {
 	gqlPayload := `{
-	 	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
+	 	   "query": "query { video(id: \"%s\") { broadcastType, id, createdAt, seekPreviewsURL, owner { login } } }"
 		}`
 
 	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
@@ -300,18 +319,18 @@ func (tw *Client) querySeekPreviewsURL(ctx context.Context, vodID string) (strin
 		return "", "", err
 	}
 
-	fmt.Println("SeekPreviewsURL", vod.Data.Video.SeekPreviewsURL)
+	video := vod.Data.Video
 
-	return vod.Data.Video.BroadcastType, vod.Data.Video.SeekPreviewsURL, nil
+	return video.BroadcastType, video.SeekPreviewsURL, nil
 }
 
-func (tw *Client) VideoPreviewURLParts(ctx context.Context, vodID string) (*PreviewURLParts, error) {
+func (tw *Client) VideoPlaylistBuilder(ctx context.Context, vodID string) (*VideoPlaylistURLBuilder, error) {
 	broadcasterType, seekPreviewURL, err := tw.querySeekPreviewsURL(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
 
-	pup := new(PreviewURLParts)
+	pup := new(VideoPlaylistURLBuilder)
 
 	if seekPreviewURL != "" {
 		u, err := url.Parse(seekPreviewURL)
@@ -325,6 +344,7 @@ func (tw *Client) VideoPreviewURLParts(ctx context.Context, vodID string) (*Prev
 		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 		pup.Source = parts[0]
 		pup.BroadcasterType = broadcasterType
+		pup.VodID = vodID
 	} else {
 		data, err := tw.VideoMetadata(context.Background(), "2766330803")
 		if err != nil {
@@ -340,6 +360,7 @@ func (tw *Client) VideoPreviewURLParts(ctx context.Context, vodID string) (*Prev
 		pup.Subdomain = parts[1]
 		pup.Source = parts[2]
 		pup.BroadcasterType = data.Video.BroadcastType
+		pup.VodID = data.Video.ID
 	}
 
 	if err := pup.validate(); err != nil {
