@@ -63,6 +63,14 @@ func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broad
 		}
 	}
 
+	fmt.Println("PREVIEW URL:", previewURL)
+	fmt.Println("PREVIEW URL:", previewURL.Host)
+	fmt.Println("PREVIEW URL:", previewURL.Path)
+	fmt.Println("PREVIEW URL:", previewURL.RawPath)
+	fmt.Println("PREVIEW URL:", previewURL.Query())
+	fmt.Println("arg:", vodID)
+	fmt.Println("test:", vodId)
+
 	res := map[string]struct {
 		Res string
 		FPS string
@@ -85,17 +93,20 @@ func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broad
 		return resp.StatusCode == http.StatusOK
 	}
 
+	bcType := strings.ToLower(broadcastType)
+
 	for key, value := range res {
 		// [NOT TESTED]
 		// This method works for older uploaded VODS
 		// days_difference - difference between current date and p.Data.Video.CreatedAt
+
 		// if broadcastType == "upload" && days_difference > 7 {
 		// url = fmt.Sprintf(`https://${domain}/${channelData.login}/${vodId}/${vodSpecialID}/${resKey}/index-dvr.m3u8`, previewURL.Host, p.Data.Video.Owner.Login, slug, vodId, resolution)
 		// }
 		// resolution := getResolution(quality, v)
 
 		var URL string
-		if strings.ToLower(broadcastType) == "highlight" {
+		if bcType == "highlight" {
 			// https://${domain}/${vodSpecialID}/${resKey}/highlight-${vodId}.m3u8
 			URL = fmt.Sprintf(`https://%s/%s/%s/highlight-%s.m3u8`, previewURL.Host, vodId, key, vodID)
 			// } else if broadcastType != "upload" {
@@ -119,6 +130,10 @@ func MasterPlaylistMock(c *http.Client, vodID string, previewURL *url.URL, broad
 			}
 			master.Lists = append(master.Lists, vp)
 		}
+	}
+
+	for _, list := range master.Lists {
+		fmt.Println("List:", list)
 	}
 
 	return &master

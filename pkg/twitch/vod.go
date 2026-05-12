@@ -2,11 +2,9 @@ package twitch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -72,45 +70,109 @@ func (tw *Client) VideoCommentsByOffsetOrCursor(ctx context.Context, vodID strin
 	return &p, nil
 }
 
-// func (tw *Client) StreamPlaybackAccessToken(ctx context.Context, login string) (*PlaybackAccessToken, error) {
-// 	gqlPayload := `{
-// 	    "operationName": "PlaybackAccessToken_Template",
-// 	    "query": "query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isLive) {    value    signature   authorization { isForbidden forbiddenReasonCode }   __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: $playerType}) @include(if: $isVod) {    value    signature   __typename  }}",
-// 	    "variables": {
-// 			"isLive": true,
-// 			"login": "%s",
-// 			"isVod": false,
-// 			"vodID": "",
-// 			"playerType": "site",
-// 			"platform": "web"
-// 		}
-// 	}`
-
-// 	body := strings.NewReader(fmt.Sprintf(gqlPayload, login))
-// 	type payload struct {
-// 		Data struct {
-// 			PlaybackAccessToken PlaybackAccessToken `json:"videoPlaybackAccessToken"`
-// 		} `json:"data"`
-// 	}
-// 	var p payload
-
-// 	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
 func (tw *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
-	subVOD, err := tw.SubVodData(ctx, vodID)
-	if err != nil {
-		return nil, err
-	}
-	previewURL, err := url.Parse(subVOD.Video.SeekPreviewsURL)
-	if err != nil {
-		return nil, err
-	}
-	return m3u8.MasterPlaylistMock(tw.http, vodID, previewURL, subVOD.Video.BroadcastType), nil
+	return nil, errors.New("not impl")
+
+	// subVOD, err := tw.SubVodData(ctx, vodID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// bcType := strings.ToLower(subVOD.Video.BroadcastType)
+
+	// previewURL := subVOD.Video.SeekPreviewsURL
+	// if previewURL != "" {
+	// 	// other way
+	// }
+	// // d3vd9lfkzbru3h.cloudfront.net
+
+	// if previewURL == "" {
+	// 	return nil, fmt.Errorf("failed to acquire previewURL for video: %s", vodID)
+	// }
+
+	// parsed, err := url.Parse(previewURL)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// listHost := parsed.Host
+	// paths := strings.Split(parsed.Path, "/")
+	// var listSourceID string
+	// for i, p := range paths {
+	// 	if p == "storyboards" {
+	// 		listSourceID = paths[i-1]
+	// 	}
+	// }
+
+	// if listHost == "" || listSourceID == "" {
+	// 	return nil, fmt.Errorf("failed to find the host and source ID for mock master playlist: host=%s source=%s", listHost, listSourceID)
+	// }
+
+	// master := m3u8.MasterPlaylist{
+	// 	Origin: "s3",
+	// 	B:      false,
+	// 	Region: "EU",
+	// 	UserIP: "127.0.0.1",
+	// 	// ServingID:       createServingID(),
+	// 	Cluster:         "cloudfront_vod",
+	// 	UserCountry:     "BE",
+	// 	ManifestCluster: "cloudfront_vod",
+	// }
+
+	// resolutions := map[string]struct {
+	// 	Res string
+	// 	FPS string
+	// }{
+	// 	"chunked":    {Res: "1920x1080", FPS: "60"},
+	// 	"720p60":     {Res: "1280x720", FPS: "60"},
+	// 	"720p30":     {Res: "1280x720", FPS: "30"},
+	// 	"480p30":     {Res: "854x480", FPS: "30"},
+	// 	"360p30":     {Res: "640x360", FPS: "30"},
+	// 	"160p30":     {Res: "284x160", FPS: "30"},
+	// 	"audio_only": {Res: "audio_only", FPS: ""},
+	// }
+
+	// isQualityValid := func(u string) bool {
+	// 	resp, err := tw.http.Get(u)
+	// 	if err != nil {
+	// 		return false
+	// 	}
+	// 	defer resp.Body.Close()
+	// 	return resp.StatusCode == http.StatusOK
+	// }
+
+	// for key, value := range resolutions {
+	// 	var listURL string
+
+	// 	switch bcType {
+	// 	case "upload":
+	// 	case "highlight":
+	// 	case "archive":
+	// 	default:
+	// 		listURL = fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, listHost, listSourceID, key)
+	// 	}
+
+	// 	if listURL == "" {
+	// 		log.Fatalf("failed to build listURL for vod: %s", vodID)
+	// 	}
+
+	// 	if isQualityValid(listURL) {
+	// 		if key == "chunked" {
+	// 			key = "1080p60"
+	// 		}
+	// 		vp := &m3u8.VariantPlaylist{
+	// 			URL:        listURL,
+	// 			Bandwidth:  "", // ????
+	// 			Codecs:     "avc1.64002A,mp4a.40.2",
+	// 			Resolution: value.Res,
+	// 			FrameRate:  value.FPS,
+	// 			Video:      key,
+	// 		}
+	// 		master.Lists = append(master.Lists, vp)
+	// 	}
+	// }
+
+	// return &master, nil
 }
 
 func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
@@ -139,7 +201,11 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 	return m3u8.Master(b), nil
 }
 
-func (tw *Client) VideoMetadata(ctx context.Context, id string) (VideoMetadata, error) {
+// type PreviewParts struct{}
+
+// func (tw *Client) PreviewParts()
+
+func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
 		"variables": {
@@ -159,14 +225,14 @@ func (tw *Client) VideoMetadata(ctx context.Context, id string) (VideoMetadata, 
 	}
 	var p payload
 
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
+	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
 
 	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
 		return VideoMetadata{}, err
 	}
 
 	if p.Data.Video.ID == "" {
-		return VideoMetadata{}, fmt.Errorf("failed to get the video data for %s", id)
+		return VideoMetadata{}, fmt.Errorf("failed to get the video data for %s", vodID)
 	}
 
 	return p.Data, nil
@@ -204,43 +270,81 @@ func (tw *Client) ListVideosByChannelName(ctx context.Context, channel string, l
 	return videos, nil
 }
 
-func (tw *Client) SubVodData(ctx context.Context, vodID string) (SubVODResponse, error) {
-	gqlPayload := `{
- 	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
-	}`
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
-
-	var subVodResponse struct {
-		Data SubVODResponse `json:"data"`
-	}
-
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &subVodResponse); err != nil {
-		return SubVODResponse{}, err
-	}
-
-	return subVodResponse.Data, nil
+type PreviewURLParts struct {
+	Subdomain       string
+	Source          string
+	BroadcasterType string
 }
 
-func (tw *Client) GQLTest(ctx context.Context) {
+func (pup PreviewURLParts) validate() error {
+	// pup.Subdomain
+	// pup.Source
+	// pup.BroadcasterType
+	return nil
+}
+
+func (tw *Client) querySeekPreviewsURL(ctx context.Context, vodID string) (string, string, error) {
 	gqlPayload := `{
- 	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
-	}`
+	 	   "query": "query { video(id: \"%s\") { broadcastType, createdAt, seekPreviewsURL, owner { login } } }"
+		}`
 
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, "2766330803"))
-	var dst interface{}
+	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
 
-	h := http.Header{}
-	h.Set("Client-Id", "kimne78kx3ncx6brgo4mv6wki5h1ko")
-	h.Set("Content-Type", "application/json")
-
-	if err := tw.FetchWithDecode(context.Background(), "https://gql.twitch.tv/gql", http.MethodPost, body, &dst, h); err != nil {
-		log.Fatal(err)
+	var vod struct {
+		Data struct {
+			Video Video `json:"video"`
+		} `json:"data"`
 	}
 
-	b, err := json.MarshalIndent(dst, "", " ")
+	if err := tw.sendGqlLoadAndDecode(ctx, body, &vod); err != nil {
+		return "", "", err
+	}
+
+	fmt.Println("SeekPreviewsURL", vod.Data.Video.SeekPreviewsURL)
+
+	return vod.Data.Video.BroadcastType, vod.Data.Video.SeekPreviewsURL, nil
+}
+
+func (tw *Client) VideoPreviewURLParts(ctx context.Context, vodID string) (*PreviewURLParts, error) {
+	broadcasterType, seekPreviewURL, err := tw.querySeekPreviewsURL(ctx, vodID)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	fmt.Println(string(b))
 
+	pup := new(PreviewURLParts)
+
+	if seekPreviewURL != "" {
+		u, err := url.Parse(seekPreviewURL)
+		if err != nil {
+			return nil, err
+		}
+
+		subdomainParts := strings.Split(u.Hostname(), ".")
+		pup.Subdomain = subdomainParts[0]
+
+		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		pup.Source = parts[0]
+		pup.BroadcasterType = broadcasterType
+	} else {
+		data, err := tw.VideoMetadata(context.Background(), "2766330803")
+		if err != nil {
+			return nil, err
+		}
+
+		parsed, err := url.Parse(data.Video.PreviewThumbnailURL)
+		if err != nil {
+			return nil, err
+		}
+
+		parts := strings.Split(parsed.Path, "/")
+		pup.Subdomain = parts[1]
+		pup.Source = parts[2]
+		pup.BroadcasterType = data.Video.BroadcastType
+	}
+
+	if err := pup.validate(); err != nil {
+		return nil, err
+	}
+
+	return pup, nil
 }

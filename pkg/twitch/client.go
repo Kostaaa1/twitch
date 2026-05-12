@@ -23,11 +23,24 @@ const (
 	oauthURL    = "https://id.twitch.tv/oauth2"
 )
 
-func NewClient(c *OAuthCreds) *Client {
-	return &Client{
-		oauthCreds: c,
+type clientOpts func(*Client)
+
+func NewClient(opts ...clientOpts) *Client {
+	c := &Client{
 		http:       http.DefaultClient,
 		retryCount: 3,
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
+}
+
+func WithOAuthCreds(creds *OAuthCreds) clientOpts {
+	return func(c *Client) {
+		c.oauthCreds = creds
 	}
 }
 

@@ -237,10 +237,6 @@ type VideoMetadata struct {
 	Video       Video `json:"video"`
 }
 
-type SubVODResponse struct {
-	Video Video `json:"video"`
-}
-
 type UseLiveBroadcast struct {
 	ID            string    `json:"id"`
 	LastBroadcast Broadcast `json:"lastBroadcast"`
@@ -252,7 +248,6 @@ type BroadcastSettings struct {
 }
 
 // GraphQL Responses
-
 type VideoCommentsByOffsetOrCursor struct {
 	Data struct {
 		Video struct {

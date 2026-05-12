@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,29 +23,56 @@ import (
 )
 
 func main() {
-	conf, err := config.Read()
+	tw := twitch.NewClient()
+
+	parts, err := tw.VideoPreviewURLParts(context.Background(), "2766330803")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conf.Save()
+	fmt.Println(parts)
 
-	ctx := context.Background()
+	u := fmt.Sprintf("https://%s.cloudfront.net/%s/%s/index-dvr.m3u8", parts.Subdomain, parts.Source, "chunked")
+	fmt.Println(u)
 
-	flag := cli.ParseFlags(*conf)
-	tw := twitch.NewClient(&conf.OAuthCreds)
-
-	switch {
-	case flag.Authenticate:
-		if err := tw.Authorize(ctx); err != nil {
-			log.Fatal(err)
-		}
-	case flag.Channel != "":
-		handlePrinting(ctx, tw, flag.Channel)
-	case len(os.Args) == 1:
-		initChat(ctx, tw, conf)
-	default:
-		initDownloader(ctx, tw, conf, flag)
+	resp, err := http.Get(u)
+	if err != nil {
+		log.Fatal(err)
 	}
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
+
+	// parsed, err := url.Parse("https://d3vd9lfkzbru3h.cloudfront.net/6d06e268d17b051dde79_sera_promisu_315855972593_1778166843/storyboards/2766330803-info.json")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// m3u8.MasterPlaylistMock(http.DefaultClient, "2766330803", parsed, "ARCHIVE")
+
+	// conf, err := config.Read()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer conf.Save()
+
+	// ctx := context.Background()
+
+	// flag := cli.ParseFlags(*conf)
+	// tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
+
+	// switch {
+	// case flag.Authenticate:
+	// 	if err := tw.Authorize(ctx); err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// case flag.Channel != "":
+	// 	handlePrinting(ctx, tw, flag.Channel)
+	// case len(os.Args) == 1:
+	// 	initChat(ctx, tw, conf)
+	// default:
+	// 	initDownloader(ctx, tw, conf, flag)
+	// }
 }
 
 func initDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
@@ -74,6 +103,7 @@ func initDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config,
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
 		}
+
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}
