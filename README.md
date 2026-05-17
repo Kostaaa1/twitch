@@ -20,6 +20,7 @@
 	* listening to extreme change in rate of the messages that are being sent
 	* analyze messages, if emotes, high possibility of something funny happened
 	* problem: channel specific emote
+- All clips related to specific stream?
 
 ## IDEAS
 
@@ -36,5 +37,7 @@ Twitch-flavored extensions of what you built
 
 More ambitious
 1. Searchable VOD archive — download streams, transcribe with Whisper, full-text index. "Find the moment X said Y."
+
 2. HLS load tester — simulate N concurrent viewers, measure stalls, bitrate switches, segment fetch times. Good for testing your own streaming setup.
+
 3. Multi-stream viewer — watch 4 streams in one window, synced or independent, with audio routing.

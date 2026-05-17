@@ -39,7 +39,7 @@ func (sub *EventSubClient) Subscribe(ctx context.Context, body RequestBody) (*Su
 	}
 
 	var data SubscriptionResponse
-	if err := sub.tw.HelixRequest(ctx, subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
+	if err := sub.tw.Helix.Request(ctx, subscriptionsURL, http.MethodPost, bytes.NewBuffer(b), &data); err != nil {
 		return nil, err
 	}
 
@@ -49,7 +49,7 @@ func (sub *EventSubClient) Subscribe(ctx context.Context, body RequestBody) (*Su
 
 func (sub *EventSubClient) GetSubscriptions(ctx context.Context) (*SubscriptionResponse, error) {
 	var data SubscriptionResponse
-	if err := sub.tw.HelixRequest(ctx, subscriptionsURL, http.MethodGet, nil, &data); err != nil {
+	if err := sub.tw.Helix.Request(ctx, subscriptionsURL, http.MethodGet, nil, &data); err != nil {
 		return nil, err
 	}
 	return &data, nil
@@ -67,7 +67,7 @@ func (sub *EventSubClient) RemoveSubscriptionByID(id string) {
 
 func (sub *EventSubClient) Unsubscribe(ctx context.Context, subId string) error {
 	url := fmt.Sprintf("%s?id=%s", subscriptionsURL, subId)
-	if err := sub.tw.HelixRequest(ctx, url, http.MethodDelete, nil, nil); err != nil {
+	if err := sub.tw.Helix.Request(ctx, url, http.MethodDelete, nil, nil); err != nil {
 		return err
 	}
 	sub.RemoveSubscriptionByID(subId)

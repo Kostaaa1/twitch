@@ -19,8 +19,7 @@ type WSClient struct {
 }
 
 var (
-	re = regexp.MustCompile(`\b(PING|PRIVMSG|ROOMSTATE|USERNOTICE|USERSTATE|NOTICE|GLOBALUSERSTATE|CLEARMSG|CLEARCHAT)\b`)
-
+	re                    = regexp.MustCompile(`\b(PING|PRIVMSG|ROOMSTATE|USERNOTICE|USERSTATE|NOTICE|GLOBALUSERSTATE|CLEARMSG|CLEARCHAT)\b`)
 	ErrAuthFailed         = errors.New("login authentication failed")
 	ErrAuthImproperFormat = errors.New("improperly formatted auth")
 )

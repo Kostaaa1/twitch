@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,59 +22,58 @@ import (
 )
 
 func main() {
-	tw := twitch.NewClient()
-
-	b, err := tw.VideoPlaylistBuilder(context.Background(), "2279431034")
+	conf, err := config.Read()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer conf.Save()
 
-	u := b.PlaylistURL()
-	fmt.Println(u)
+	ctx := context.Background()
+	opt := cli.ParseFlags(*conf)
+	tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
 
-	resp, err := http.Get(u)
-	if err != nil {
-		log.Fatal(err)
+	switch {
+	case opt.Authenticate:
+		if err := tw.Helix.Authorize(ctx); err != nil {
+			log.Fatal(err)
+		}
+	case opt.Print:
+
+		fmt.Println(flag.Args())
+
+		args := flag.Args()
+		channel := args[0]
+
+		limit := 20
+
+		videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(videos)
+
+		// clips, err := tw.ClipsCardsUser(ctx, channel, limit, "ALL_TIME")
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// fmt.Println(clips)
+
+		// unit := downloader.NewUnit(input)
+		// fmt.Println(unit.Type)
+		// user, err := tw.Helix.UserByChannelName(ctx, input)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// fmt.Println(user)
+
+	case len(os.Args) == 1:
+		runChat(ctx, tw, conf)
+	default:
+		runDownloader(ctx, tw, conf, opt)
 	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(data))
-
-	// parsed, err := url.Parse("https://d3vd9lfkzbru3h.cloudfront.net/6d06e268d17b051dde79_sera_promisu_315855972593_1778166843/storyboards/2766330803-info.json")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// m3u8.MasterPlaylistMock(http.DefaultClient, "2766330803", parsed, "ARCHIVE")
-
-	// conf, err := config.Read()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer conf.Save()
-
-	// ctx := context.Background()
-
-	// flag := cli.ParseFlags(*conf)
-	// tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
-
-	// switch {
-	// case flag.Authenticate:
-	// 	if err := tw.Authorize(ctx); err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// case flag.Channel != "":
-	// 	handlePrinting(ctx, tw, flag.Channel)
-	// case len(os.Args) == 1:
-	// 	initChat(ctx, tw, conf)
-	// default:
-	// 	initDownloader(ctx, tw, conf, flag)
-	// }
 }
 
-func initDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
+func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -103,7 +101,6 @@ func initDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config,
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
 		}
-
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}
@@ -146,7 +143,7 @@ func startTwitchDownloader(
 
 	g.Go(func() error {
 		if option.Subscribe {
-			return initTwitchEventSub(ctx, tw, dl, twitchUnits)
+			return runTwitchEventSub(ctx, tw, dl, twitchUnits)
 		} else {
 			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl)
 		}
@@ -227,7 +224,7 @@ func startKickDownloader(
 	})
 }
 
-func initTwitchEventSub(
+func runTwitchEventSub(
 	ctx context.Context,
 	tw *twitch.Client,
 	dl *downloader.Downloader,
@@ -248,7 +245,7 @@ func initTwitchEventSub(
 			condition := resp.Payload.Subscription.Condition
 
 			if userID, ok := condition["broadcaster_user_id"].(string); ok {
-				user, _ := tw.UserByID(ctx, userID)
+				user, _ := tw.Helix.UserByID(ctx, userID)
 				unit := downloader.NewUnit(user.Login, downloader.WithQuality(""))
 
 				if unit.Error == nil {
@@ -278,12 +275,12 @@ func initTwitchEventSub(
 	return nil
 }
 
-func initChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
-	if err := tw.Authorize(ctx); err != nil {
+func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
+	if err := tw.Helix.Authorize(ctx); err != nil {
 		return err
 	}
 
-	user, err := tw.UserByChannelName(ctx, "")
+	user, err := tw.Helix.UserByChannelName(ctx, "")
 	if err != nil {
 		return fmt.Errorf("failed fetching user data for cli chat: %v", err)
 	}
@@ -302,20 +299,5 @@ func initChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error
 
 	chat.Open(ctx, tw, conf)
 
-	return nil
-}
-
-func handlePrinting(ctx context.Context, tw *twitch.Client, input string) error {
-	// videos, err := tw.ListVideosByChannelName(ctx, input, 100)
-	// if err != nil {
-	// 	return err
-	// }
-	// for _, vod := range videos {
-	// 	b, err := json.MarshalIndent(vod, "", " ")
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	fmt.Println(b)
-	// }
 	return nil
 }

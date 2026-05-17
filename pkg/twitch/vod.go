@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -71,108 +72,88 @@ func (tw *Client) VideoCommentsByOffsetOrCursor(ctx context.Context, vodID strin
 }
 
 func (tw *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
-	return nil, errors.New("not impl")
+	bt, previewURL, err := tw.querySeekPreviewsURL(ctx, vodID)
+	if err != nil {
+		return nil, err
+	}
 
-	// subVOD, err := tw.SubVodData(ctx, vodID)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	if previewURL == "" {
+		return nil, fmt.Errorf("failed to acquire previewURL for video: %s", vodID)
+	}
 
-	// bcType := strings.ToLower(subVOD.Video.BroadcastType)
+	u, err := url.Parse(previewURL)
+	if err != nil {
+		return nil, err
+	}
 
-	// previewURL := subVOD.Video.SeekPreviewsURL
-	// if previewURL != "" {
-	// 	// other way
-	// }
-	// // d3vd9lfkzbru3h.cloudfront.net
+	subdomain := strings.Split(u.Host, ".")[0]
+	fmt.Println("Subdomain", subdomain)
+	fmt.Println("Preview", previewURL)
 
-	// if previewURL == "" {
-	// 	return nil, fmt.Errorf("failed to acquire previewURL for video: %s", vodID)
-	// }
+	master := m3u8.MasterPlaylist{
+		Origin: "s3",
+		B:      false,
+		Region: "EU",
+		UserIP: "127.0.0.1",
+		// ServingID:       createServingID(),
+		Cluster:         "cloudfront_vod",
+		UserCountry:     "BE",
+		ManifestCluster: "cloudfront_vod",
+	}
 
-	// parsed, err := url.Parse(previewURL)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	resolutions := map[string]struct {
+		Res string
+		FPS string
+	}{
+		"chunked":    {Res: "1920x1080", FPS: "60"},
+		"720p60":     {Res: "1280x720", FPS: "60"},
+		"720p30":     {Res: "1280x720", FPS: "30"},
+		"480p30":     {Res: "854x480", FPS: "30"},
+		"360p30":     {Res: "640x360", FPS: "30"},
+		"160p30":     {Res: "284x160", FPS: "30"},
+		"audio_only": {Res: "audio_only", FPS: ""},
+	}
 
-	// listHost := parsed.Host
-	// paths := strings.Split(parsed.Path, "/")
-	// var listSourceID string
-	// for i, p := range paths {
-	// 	if p == "storyboards" {
-	// 		listSourceID = paths[i-1]
-	// 	}
-	// }
+	isQualityValid := func(u string) bool {
+		resp, err := tw.http.Get(u)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}
 
-	// if listHost == "" || listSourceID == "" {
-	// 	return nil, fmt.Errorf("failed to find the host and source ID for mock master playlist: host=%s source=%s", listHost, listSourceID)
-	// }
+	for key, value := range resolutions {
+		var listURL string
 
-	// master := m3u8.MasterPlaylist{
-	// 	Origin: "s3",
-	// 	B:      false,
-	// 	Region: "EU",
-	// 	UserIP: "127.0.0.1",
-	// 	// ServingID:       createServingID(),
-	// 	Cluster:         "cloudfront_vod",
-	// 	UserCountry:     "BE",
-	// 	ManifestCluster: "cloudfront_vod",
-	// }
+		switch bt {
+		case "UPLOAD":
+		case "HIGHLIGHT":
+		case "ARCHIVE":
+		}
 
-	// resolutions := map[string]struct {
-	// 	Res string
-	// 	FPS string
-	// }{
-	// 	"chunked":    {Res: "1920x1080", FPS: "60"},
-	// 	"720p60":     {Res: "1280x720", FPS: "60"},
-	// 	"720p30":     {Res: "1280x720", FPS: "30"},
-	// 	"480p30":     {Res: "854x480", FPS: "30"},
-	// 	"360p30":     {Res: "640x360", FPS: "30"},
-	// 	"160p30":     {Res: "284x160", FPS: "30"},
-	// 	"audio_only": {Res: "audio_only", FPS: ""},
-	// }
+		if listURL == "" {
+			log.Fatalf("failed to build listURL for vod: %s", vodID)
+		}
 
-	// isQualityValid := func(u string) bool {
-	// 	resp, err := tw.http.Get(u)
-	// 	if err != nil {
-	// 		return false
-	// 	}
-	// 	defer resp.Body.Close()
-	// 	return resp.StatusCode == http.StatusOK
-	// }
+		if isQualityValid(listURL) {
+			vp := &m3u8.VariantPlaylist{
+				URL:        listURL,
+				Bandwidth:  "", // ????
+				Codecs:     "avc1.64002A,mp4a.40.2",
+				Resolution: value.Res,
+				FrameRate:  value.FPS,
+				Video:      key,
+			}
+			master.Lists = append(master.Lists, vp)
+		}
+	}
 
-	// for key, value := range resolutions {
-	// 	var listURL string
+	for _, list := range master.Lists {
+		fmt.Println("List:", list)
+	}
 
-	// 	switch bcType {
-	// 	case "upload":
-	// 	case "highlight":
-	// 	case "archive":
-	// 	default:
-	// 		listURL = fmt.Sprintf(`https://%s/%s/%s/index-dvr.m3u8`, listHost, listSourceID, key)
-	// 	}
-
-	// 	if listURL == "" {
-	// 		log.Fatalf("failed to build listURL for vod: %s", vodID)
-	// 	}
-
-	// 	if isQualityValid(listURL) {
-	// 		if key == "chunked" {
-	// 			key = "1080p60"
-	// 		}
-	// 		vp := &m3u8.VariantPlaylist{
-	// 			URL:        listURL,
-	// 			Bandwidth:  "", // ????
-	// 			Codecs:     "avc1.64002A,mp4a.40.2",
-	// 			Resolution: value.Res,
-	// 			FrameRate:  value.FPS,
-	// 			Video:      key,
-	// 		}
-	// 		master.Lists = append(master.Lists, vp)
-	// 	}
-	// }
-
-	// return &master, nil
+	return &master, nil
 }
 
 func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
@@ -200,10 +181,6 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 
 	return m3u8.Master(b), nil
 }
-
-// type PreviewParts struct{}
-
-// func (tw *Client) PreviewParts()
 
 func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (VideoMetadata, error) {
 	gqlPayload := `{
@@ -238,68 +215,45 @@ func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (VideoMetadat
 	return p.Data, nil
 }
 
-// REVISIT: ..
-func (tw *Client) ListVideosByChannelName(ctx context.Context, channel string, limit int) ([]FilterableVideoTower_Videos, error) {
+// type broadcastType int // ARCHIVE | HIGHLIGHT | CLIP | LIVE
+// type videoSort int // TIME | VIEWS
+
+func (tw *Client) FilterableVideoTower_Videos(
+	ctx context.Context,
+	channel string,
+	limit int,
+) (*FilterableVideoTower_Videos, error) {
 	if limit > 100 {
 		return nil, errors.New("limit value must be between 1 and 100")
 	}
 
+	// cursor example: 2732435300|877053|2026-03-26T20:03:29Z|24387
+
 	gqlPl := `{
-		"operationName": "FilterableVideoTower_Videos",
-		"variables": {
-			"limit": %d,
-			"channelOwnerLogin": "%s",
-			"broadcastType": "ARCHIVE",
-			"videoSort": "TIME"
-		},
-		"extensions": {
-			"persistedQuery": {
-				"version": 1,
-				"sha256Hash": "acea7539a293dfd30f0b0b81a263134bb5d9a7175592e14ac3f7c77b192de416"
-			}
-		}
-	}`
+        "operationName": "FilterableVideoTower_Videos",
+        "variables": {
+            "includePreviewBlur": false,
+            "limit": %d,
+            "channelOwnerLogin": "%s",
+            "broadcastType": "ARCHIVE",
+            "videoSort": "TIME"
+        },
+        "extensions": {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": "67004f7881e65c297936f32c75246470629557a393788fb5a69d6d9a25a8fd5f"
+            }
+        }
+    }`
 
 	body := strings.NewReader(fmt.Sprintf(gqlPl, limit, channel))
 
-	var videos []FilterableVideoTower_Videos
+	var videos FilterableVideoTower_Videos
 	if err := tw.sendGqlLoadAndDecode(ctx, body, &videos); err != nil {
 		return nil, err
 	}
 
-	return videos, nil
-}
-
-type VideoPlaylistURLBuilder struct {
-	VodID           string
-	Subdomain       string
-	Source          string
-	BroadcasterType string
-	Quality         string
-}
-
-func (pup VideoPlaylistURLBuilder) PlaylistURL() string {
-	var u string
-
-	switch strings.ToLower(pup.BroadcasterType) {
-	case "live":
-	case "clip":
-	case "premiere":
-	case "upload":
-	case "highlight":
-		u = fmt.Sprintf("https://%s.cloudfront.net/%s/%s/highlight-%s.m3u8", pup.Subdomain, pup.Source, "chunked", pup.VodID)
-	case "archive":
-		u = fmt.Sprintf("https://%s.cloudfront.net/%s/%s/index-dvr.m3u8", pup.Subdomain, pup.Source, "chunked")
-	}
-
-	return u
-}
-
-func (pup VideoPlaylistURLBuilder) validate() error {
-	// pup.Subdomain
-	// pup.Source
-	// pup.BroadcasterType
-	return nil
+	return &videos, nil
 }
 
 func (tw *Client) querySeekPreviewsURL(ctx context.Context, vodID string) (string, string, error) {
@@ -322,50 +276,4 @@ func (tw *Client) querySeekPreviewsURL(ctx context.Context, vodID string) (strin
 	video := vod.Data.Video
 
 	return video.BroadcastType, video.SeekPreviewsURL, nil
-}
-
-func (tw *Client) VideoPlaylistBuilder(ctx context.Context, vodID string) (*VideoPlaylistURLBuilder, error) {
-	broadcasterType, seekPreviewURL, err := tw.querySeekPreviewsURL(ctx, vodID)
-	if err != nil {
-		return nil, err
-	}
-
-	pup := new(VideoPlaylistURLBuilder)
-
-	if seekPreviewURL != "" {
-		u, err := url.Parse(seekPreviewURL)
-		if err != nil {
-			return nil, err
-		}
-
-		subdomainParts := strings.Split(u.Hostname(), ".")
-		pup.Subdomain = subdomainParts[0]
-
-		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-		pup.Source = parts[0]
-		pup.BroadcasterType = broadcasterType
-		pup.VodID = vodID
-	} else {
-		data, err := tw.VideoMetadata(context.Background(), "2766330803")
-		if err != nil {
-			return nil, err
-		}
-
-		parsed, err := url.Parse(data.Video.PreviewThumbnailURL)
-		if err != nil {
-			return nil, err
-		}
-
-		parts := strings.Split(parsed.Path, "/")
-		pup.Subdomain = parts[1]
-		pup.Source = parts[2]
-		pup.BroadcasterType = data.Video.BroadcastType
-		pup.VodID = data.Video.ID
-	}
-
-	if err := pup.validate(); err != nil {
-		return nil, err
-	}
-
-	return pup, nil
 }

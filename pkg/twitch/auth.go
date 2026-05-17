@@ -44,22 +44,23 @@ func (creds *OAuthCreds) Validate() error {
 	return nil
 }
 
-func (tw *Client) AccesToken(ctx context.Context) error {
+func (h *Helix) AccesToken(ctx context.Context) error {
 	values := url.Values{
-		"client_id":     {tw.oauthCreds.ClientID},
-		"client_secret": {tw.oauthCreds.ClientSecret},
-		"refresh_token": {tw.oauthCreds.RefreshToken},
+		"client_id":     {h.oauthCreds.ClientID},
+		"client_secret": {h.oauthCreds.ClientSecret},
+		"refresh_token": {h.oauthCreds.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 
 	accessTokenURL := "https://id.twitch.tv/oauth2/token?" + values.Encode()
 
-	if err := tw.fetchWithDecode(
+	if err := fetchWithDecode(
 		ctx,
+		h.http,
 		accessTokenURL,
 		http.MethodPost,
 		nil,
-		&tw.oauthCreds,
+		&h.oauthCreds,
 		nil,
 	); err != nil {
 		return err
@@ -68,25 +69,25 @@ func (tw *Client) AccesToken(ctx context.Context) error {
 	return nil
 }
 
-func (tw *Client) ensureValidCreds(ctx context.Context) error {
-	if err := tw.oauthCreds.Validate(); err != nil {
+func (h *Helix) ensureValidCreds(ctx context.Context) error {
+	if err := h.oauthCreds.Validate(); err != nil {
 		if !errors.Is(err, oauthMissingAccessTokenErr) {
 			return err
 		}
-		return tw.AccesToken(ctx)
+		return h.AccesToken(ctx)
 	}
 	return nil
 }
 
-func (tw *Client) Authorize(ctx context.Context) error {
-	if err := tw.ensureValidCreds(ctx); err != nil {
+func (h *Helix) Authorize(ctx context.Context) error {
+	if err := h.ensureValidCreds(ctx); err != nil {
 		return err
 	}
 
-	if tw.oauthCreds.RefreshToken == "" {
-		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", tw.oauthCreds.ClientID, tw.oauthCreds.RedirectURL)
+	if h.oauthCreds.RefreshToken == "" {
+		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=channel:manage:redemptions+user:manage:blocked_users+user:read:blocked_users+user:read:follows+user:read:subscriptions+whispers:edit+whispers:read+channel:read:redemptions+channel:read:subscriptions+moderator:read:chatters+channel:read:hype_train+bits:read+chat:read+chat:edit", h.oauthCreds.ClientID, h.oauthCreds.RedirectURL)
 
-		redirectURL, err := url.Parse(tw.oauthCreds.RedirectURL)
+		redirectURL, err := url.Parse(h.oauthCreds.RedirectURL)
 		if err != nil {
 			return err
 		}
@@ -100,15 +101,15 @@ func (tw *Client) Authorize(ctx context.Context) error {
 			if code != "" {
 				values := url.Values{
 					"code":          {code},
-					"client_id":     {tw.oauthCreds.ClientID},
-					"client_secret": {tw.oauthCreds.ClientSecret},
+					"client_id":     {h.oauthCreds.ClientID},
+					"client_secret": {h.oauthCreds.ClientSecret},
 					"grant_type":    {"authorization_code"},
-					"redirect_uri":  {tw.oauthCreds.RedirectURL},
+					"redirect_uri":  {h.oauthCreds.RedirectURL},
 				}
 
 				tokenURL := "https://id.twitch.tv/oauth2/token?" + values.Encode()
 
-				if err := tw.fetchWithDecode(ctx, tokenURL, http.MethodGet, nil, &tw.oauthCreds, nil); err != nil {
+				if err := fetchWithDecode(ctx, h.http, tokenURL, http.MethodGet, nil, &h.oauthCreds, nil); err != nil {
 					log.Fatal(err)
 				}
 

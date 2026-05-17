@@ -9,12 +9,6 @@ import (
 	"net/http"
 )
 
-type Client struct {
-	http       *http.Client
-	oauthCreds *OAuthCreds
-	retryCount int
-}
-
 const (
 	gqlURL      = "https://gql.twitch.tv/gql"
 	gqlClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
@@ -23,24 +17,31 @@ const (
 	oauthURL    = "https://id.twitch.tv/oauth2"
 )
 
+type Client struct {
+	http       *http.Client
+	retryCount int
+	Helix      *Helix
+}
+
 type clientOpts func(*Client)
 
 func NewClient(opts ...clientOpts) *Client {
 	c := &Client{
 		http:       http.DefaultClient,
 		retryCount: 3,
+		Helix:      &Helix{},
 	}
-
 	for _, opt := range opts {
 		opt(c)
 	}
+	c.Helix.http = c.http
 
 	return c
 }
 
 func WithOAuthCreds(creds *OAuthCreds) clientOpts {
 	return func(c *Client) {
-		c.oauthCreds = creds
+		c.Helix.oauthCreds = creds
 	}
 }
 
@@ -91,8 +92,9 @@ func (tw *Client) FetchWithDecode(
 	return nil
 }
 
-func (tw *Client) fetchWithDecode(
+func fetchWithDecode(
 	ctx context.Context,
+	httpClient *http.Client,
 	url string,
 	method string,
 	body io.Reader,
@@ -115,11 +117,13 @@ func (tw *Client) fetchWithDecode(
 	}
 	req.Header = h.Clone()
 
-	resp, err := tw.http.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	fmt.Println("STATUS CODE:", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, err := io.ReadAll(resp.Body)
@@ -127,6 +131,10 @@ func (tw *Client) fetchWithDecode(
 			return fmt.Errorf("failed to read the error response: %v", err)
 		}
 		return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
+	}
+
+	if err != nil {
+		return err
 	}
 
 	if resp.Body != nil {
@@ -142,7 +150,7 @@ func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, r io.Reader, dst any
 	h := http.Header{}
 	h.Set("Client-Id", gqlClientID)
 	h.Set("Content-Type", "application/json")
-	return tw.fetchWithDecode(ctx, gqlURL, http.MethodPost, r, dst, h)
+	return fetchWithDecode(ctx, tw.http, gqlURL, http.MethodPost, r, dst, h)
 }
 
 func (tw *Client) request(

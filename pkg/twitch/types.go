@@ -303,14 +303,17 @@ type FilterableVideoTower_Videos struct {
 			ID     string `json:"id"`
 			Videos struct {
 				Edges []struct {
-					Cursor time.Time `json:"cursor"`
+					Cursor string `json:"cursor"`
 					Node   struct {
-						AnimatedPreviewURL  string `json:"animatedPreviewURL"`
-						Game                Game   `json:"game"`
-						BroadcastIdentifier struct {
-							ID       string `json:"id"`
-							Typename string `json:"__typename"`
-						} `json:"broadcastIdentifier"`
+						AnimatedPreviewURL string `json:"animatedPreviewURL"`
+						Game               struct {
+							BoxArtURL   string `json:"boxArtURL"`
+							ID          string `json:"id"`
+							Slug        string `json:"slug"`
+							DisplayName string `json:"displayName"`
+							Name        string `json:"name"`
+							Typename    string `json:"__typename"`
+						} `json:"game"`
 						ID            string `json:"id"`
 						LengthSeconds int    `json:"lengthSeconds"`
 						Owner         struct {
@@ -325,9 +328,13 @@ type FilterableVideoTower_Videos struct {
 							} `json:"roles"`
 							Typename string `json:"__typename"`
 						} `json:"owner"`
-						PreviewThumbnailURL string        `json:"previewThumbnailURL"`
-						PublishedAt         time.Time     `json:"publishedAt"`
-						Self                Self          `json:"self"`
+						PreviewThumbnailURL string    `json:"previewThumbnailURL"`
+						PublishedAt         time.Time `json:"publishedAt"`
+						Self                struct {
+							IsRestricted   bool        `json:"isRestricted"`
+							ViewingHistory interface{} `json:"viewingHistory"`
+							Typename       string      `json:"__typename"`
+						} `json:"self"`
 						Title               string        `json:"title"`
 						ViewCount           int           `json:"viewCount"`
 						ResourceRestriction interface{}   `json:"resourceRestriction"`
@@ -342,6 +349,81 @@ type FilterableVideoTower_Videos struct {
 				} `json:"pageInfo"`
 				Typename string `json:"__typename"`
 			} `json:"videos"`
+			Typename string `json:"__typename"`
+		} `json:"user"`
+	} `json:"data"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
+}
+
+type ClipsCardsUser struct {
+	Data struct {
+		User struct {
+			ID    string `json:"id"`
+			Clips struct {
+				PageInfo struct {
+					HasNextPage bool   `json:"hasNextPage"`
+					Typename    string `json:"__typename"`
+				} `json:"pageInfo"`
+				Edges []struct {
+					Cursor interface{} `json:"cursor"`
+					Node   struct {
+						ID        string `json:"id"`
+						Slug      string `json:"slug"`
+						URL       string `json:"url"`
+						EmbedURL  string `json:"embedURL"`
+						Title     string `json:"title"`
+						ViewCount int    `json:"viewCount"`
+						Language  string `json:"language"`
+						Curator   struct {
+							ID          string `json:"id"`
+							Login       string `json:"login"`
+							DisplayName string `json:"displayName"`
+							Typename    string `json:"__typename"`
+						} `json:"curator"`
+						Game struct {
+							ID        string `json:"id"`
+							Slug      string `json:"slug"`
+							Name      string `json:"name"`
+							BoxArtURL string `json:"boxArtURL"`
+							Typename  string `json:"__typename"`
+						} `json:"game"`
+						BroadcastIdentifier struct {
+							ID       string `json:"id"`
+							Typename string `json:"__typename"`
+						} `json:"broadcastIdentifier"`
+						Broadcaster struct {
+							ID              string      `json:"id"`
+							Login           string      `json:"login"`
+							DisplayName     string      `json:"displayName"`
+							ProfileImageURL string      `json:"profileImageURL"`
+							PrimaryColorHex interface{} `json:"primaryColorHex"`
+							Roles           struct {
+								IsPartner bool   `json:"isPartner"`
+								Typename  string `json:"__typename"`
+							} `json:"roles"`
+							Typename string `json:"__typename"`
+						} `json:"broadcaster"`
+						ThumbnailURL          string      `json:"thumbnailURL"`
+						CreatedAt             time.Time   `json:"createdAt"`
+						DurationSeconds       int         `json:"durationSeconds"`
+						ChampBadge            interface{} `json:"champBadge"`
+						IsFeatured            bool        `json:"isFeatured"`
+						IsAutoCurated         bool        `json:"isAutoCurated"`
+						GuestStarParticipants struct {
+							Guests            []interface{} `json:"guests"`
+							SessionIdentifier string        `json:"sessionIdentifier"`
+							Typename          string        `json:"__typename"`
+						} `json:"guestStarParticipants"`
+						Typename string `json:"__typename"`
+					} `json:"node"`
+					Typename string `json:"__typename"`
+				} `json:"edges"`
+				Typename string `json:"__typename"`
+			} `json:"clips"`
 			Typename string `json:"__typename"`
 		} `json:"user"`
 	} `json:"data"`

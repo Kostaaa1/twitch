@@ -134,7 +134,6 @@ func initConfigData() Config {
 
 func getConfigPath() (string, error) {
 	filename := "twitch_config.json"
-
 	// execPath, err := os.Executable()
 	// if err == nil && strings.HasPrefix(execPath, os.TempDir()) {
 	// if strings.HasPrefix(execPath, os.TempDir()) {
@@ -142,17 +141,14 @@ func getConfigPath() (string, error) {
 		return filepath.Join(wd, filename), nil
 	}
 	// }
-
 	// configDir, err := os.UserConfigDir()
 	// if err == nil {
 	// 	cfgPath := filepath.Join(configDir, "twitch", filename)
 	// 	return cfgPath, nil
 	// }
-
 	// if envPath := os.Getenv("TWITCH_CONFIG"); envPath != "" {
 	// 	return envPath, nil
 	// }
-
 	return "", errors.New("config file path not found")
 }
 
@@ -202,8 +198,6 @@ func Read() (*Config, error) {
 		return nil, err
 	}
 
-	fmt.Println("config path: ", configPath)
-
 	b, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
@@ -212,8 +206,6 @@ func Read() (*Config, error) {
 	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}
-
-	fmt.Println("CONFIG DATA: ", data)
 
 	return &data, nil
 }

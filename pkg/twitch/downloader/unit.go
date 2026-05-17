@@ -102,10 +102,8 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 			unit.Error = errors.New("'twitch.tv' missing from the URL")
 			return unit
 		}
-
 		_, unit.ID = path.Split(u.Path)
 		unit.Type = parseMediaInput(unit.ID)
-
 		extractParamsFromURL(u, unit)
 	}
 
