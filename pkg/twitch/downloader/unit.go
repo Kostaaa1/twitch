@@ -70,7 +70,7 @@ func (u *Unit) FetchTitle(ctx context.Context, c *twitch.Client) {
 			u.Error = err
 			return
 		}
-		u.Title = stream.Title
+		u.Title = stream.User.BroadcastSettings.Title
 	}
 }
 

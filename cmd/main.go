@@ -38,33 +38,47 @@ func main() {
 			log.Fatal(err)
 		}
 	case opt.Print:
-
-		fmt.Println(flag.Args())
-
 		args := flag.Args()
-		channel := args[0]
 
-		limit := 20
-
-		videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
-		if err != nil {
-			log.Fatal(err)
+		if len(args) == 0 {
+			log.Fatalln("wrong usage: --print <channel_name>")
+			return
 		}
-		fmt.Println(videos)
+
+		channel := args[0]
+		_ = channel
+
+		// limit := 20
+
+		// about, err := tw.ChannelRoot_AboutPanel(ctx, channel)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+
+		// b, err := json.MarshalIndent(about, "", " ")
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// fmt.Println(string(b))
+
+		// videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// fmt.Println("VIDEOS:", videos)
 
 		// clips, err := tw.ClipsCardsUser(ctx, channel, limit, "ALL_TIME")
 		// if err != nil {
 		// 	log.Fatal(err)
 		// }
-		// fmt.Println(clips)
+		// fmt.Println("CLIP{S:", clips)
 
-		// unit := downloader.NewUnit(input)
-		// fmt.Println(unit.Type)
-		// user, err := tw.Helix.UserByChannelName(ctx, input)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// fmt.Println(user)
+		// fmt.Println(about)
+
+		// fmt.Println(about.User.PrimaryColorHex)
+		// primaryHex := fmt.Sprintf("#%s", about.User.PrimaryColorHex)
+		// primary := lipgloss.NewStyle().Foreground(lipgloss.Color(primaryHex))
+		// fmt.Println(primary.Render(about.User.DisplayName))
 
 	case len(os.Args) == 1:
 		runChat(ctx, tw, conf)
@@ -101,6 +115,7 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
 		}
+
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}

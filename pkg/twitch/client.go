@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -45,53 +46,6 @@ func WithOAuthCreds(creds *OAuthCreds) clientOpts {
 	}
 }
 
-func (tw *Client) FetchWithDecode(
-	ctx context.Context,
-	url string,
-	method string,
-	body io.Reader,
-	dst any,
-	h http.Header,
-) error {
-	if dst == nil {
-		return errors.New("dst cannot be nil")
-	}
-	if url == "" {
-		return errors.New("failed to fetch: missing url")
-	}
-	if method == "" {
-		return errors.New("failed to fetch: missing method")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
-	}
-	req.Header = h.Clone()
-
-	resp, err := tw.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read the error response: %v", err)
-		}
-		return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
-	}
-
-	if resp.Body != nil {
-		if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func fetchWithDecode(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -123,18 +77,12 @@ func fetchWithDecode(
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("STATUS CODE:", resp.StatusCode)
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read the error response: %v", err)
 		}
 		return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
-	}
-
-	if err != nil {
-		return err
 	}
 
 	if resp.Body != nil {
@@ -146,11 +94,44 @@ func fetchWithDecode(
 	return nil
 }
 
-func (tw *Client) sendGqlLoadAndDecode(ctx context.Context, r io.Reader, dst any) error {
+func sendGqlLoadAndDecode[T any](
+	ctx context.Context,
+	c *http.Client,
+	dst *T,
+	gqlLoad string,
+	a ...any,
+) error {
+	type response struct {
+		Data       T `json:"data"`
+		Extensions struct {
+			DurationMilliseconds int    `json:"durationMilliseconds"`
+			OperationName        string `json:"operationName"`
+			RequestID            string `json:"requestID"`
+		} `json:"extensions"`
+	}
+
+	var resp response
+
+	var r io.Reader
+
+	if len(a) > 0 {
+		r = strings.NewReader(fmt.Sprintf(gqlLoad, a...))
+	} else {
+		r = strings.NewReader(gqlLoad)
+	}
+
 	h := http.Header{}
 	h.Set("Client-Id", gqlClientID)
 	h.Set("Content-Type", "application/json")
-	return fetchWithDecode(ctx, tw.http, gqlURL, http.MethodPost, r, dst, h)
+
+	if err := fetchWithDecode(ctx, c, gqlURL, http.MethodPost, r, &resp, h); err != nil {
+		return err
+	}
+
+	// must be pointer
+	*dst = resp.Data
+
+	return nil
 }
 
 func (tw *Client) request(

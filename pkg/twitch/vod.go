@@ -26,27 +26,23 @@ func (tw *Client) VideoPlaybackAccessToken(ctx context.Context, id string) (*Pla
 	    }
 	}`
 
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, id))
-
-	type payload struct {
-		Data struct {
-			PlaybackAccessToken PlaybackAccessToken `json:"videoPlaybackAccessToken"`
-		} `json:"data"`
-	}
-	var p payload
-
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
+	var at PlaybackAccessToken
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &at, gqlPayload, id); err != nil {
 		return nil, err
 	}
 
-	if p.Data.PlaybackAccessToken.Value == "" && p.Data.PlaybackAccessToken.Signature == "" {
+	if at.Value == "" && at.Signature == "" {
 		return nil, fmt.Errorf("[VOD expired] sorry. Unless you've got a time machine, that content is unavailable")
 	}
 
-	return &p.Data.PlaybackAccessToken, nil
+	return &at, nil
 }
 
-func (tw *Client) VideoCommentsByOffsetOrCursor(ctx context.Context, vodID string, offset int) (*VideoCommentsByOffsetOrCursor, error) {
+func (tw *Client) VideoCommentsByOffsetOrCursor(
+	ctx context.Context,
+	vodID string,
+	offset int,
+) (*VideoCommentsByOffsetOrCursor, error) {
 	gqlPayload := `{
         "operationName": "VideoCommentsByOffsetOrCursor",
         "variables": {
@@ -61,14 +57,19 @@ func (tw *Client) VideoCommentsByOffsetOrCursor(ctx context.Context, vodID strin
         }
     }`
 
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID, offset))
+	var comments VideoCommentsByOffsetOrCursor
 
-	var p VideoCommentsByOffsetOrCursor
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
+	if err := sendGqlLoadAndDecode(
+		ctx, tw.http,
+		&comments,
+		gqlPayload,
+		vodID,
+		offset,
+	); err != nil {
 		return nil, err
 	}
 
-	return &p, nil
+	return &comments, nil
 }
 
 func (tw *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
@@ -182,7 +183,7 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 	return m3u8.Master(b), nil
 }
 
-func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (VideoMetadata, error) {
+func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (*VideoMetadata, error) {
 	gqlPayload := `{
 		"operationName": "VideoMetadata",
 		"variables": {
@@ -197,22 +198,16 @@ func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (VideoMetadat
 		}
 	}`
 
-	type payload struct {
-		Data VideoMetadata `json:"data"`
-	}
-	var p payload
-
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
-
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &p); err != nil {
-		return VideoMetadata{}, err
+	var vod VideoMetadata
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &vod, gqlPayload, vodID); err != nil {
+		return nil, err
 	}
 
-	if p.Data.Video.ID == "" {
-		return VideoMetadata{}, fmt.Errorf("failed to get the video data for %s", vodID)
+	if vod.Video.ID == "" {
+		return nil, fmt.Errorf("failed to get the video data for %s", vodID)
 	}
 
-	return p.Data, nil
+	return &vod, nil
 }
 
 // type broadcastType int // ARCHIVE | HIGHLIGHT | CLIP | LIVE
@@ -246,10 +241,8 @@ func (tw *Client) FilterableVideoTower_Videos(
         }
     }`
 
-	body := strings.NewReader(fmt.Sprintf(gqlPl, limit, channel))
-
 	var videos FilterableVideoTower_Videos
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &videos); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &videos, gqlPl, limit, channel); err != nil {
 		return nil, err
 	}
 
@@ -257,23 +250,40 @@ func (tw *Client) FilterableVideoTower_Videos(
 }
 
 func (tw *Client) querySeekPreviewsURL(ctx context.Context, vodID string) (string, string, error) {
-	gqlPayload := `{
-	 	   "query": "query { video(id: \"%s\") { broadcastType, id, createdAt, seekPreviewsURL, owner { login } } }"
-		}`
+	gqlPl := `{
+		"query": "query { video(id: \"%s\") { broadcastType, id, createdAt, seekPreviewsURL, owner { login } } }"
+	}`
 
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, vodID))
-
-	var vod struct {
-		Data struct {
-			Video Video `json:"video"`
-		} `json:"data"`
-	}
-
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &vod); err != nil {
+	var vod Video
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &vod, gqlPl, vodID); err != nil {
 		return "", "", err
 	}
 
-	video := vod.Data.Video
+	return vod.BroadcastType, vod.SeekPreviewsURL, nil
+}
 
-	return video.BroadcastType, video.SeekPreviewsURL, nil
+func (tw *Client) ChannelRoot_AboutPanel(
+	ctx context.Context,
+	channel string,
+) (*ChannelRoot_AboutPanel, error) {
+	gqlPl := `{
+		"operationName": "ChannelRoot_AboutPanel",
+		"variables": {
+			"channelLogin": "%s",
+			"skipSchedule": true
+		},
+		"extensions": {
+			"persistedQuery": {
+				"version": 1,
+				"sha256Hash": "3b9cd4edd28e8e6f7ba6152a56157bc2b1c1a8f6e81d70808ad1b85250e5288f"
+			}
+		}
+	}`
+
+	var about ChannelRoot_AboutPanel
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &about, gqlPl, channel); err != nil {
+		return nil, err
+	}
+
+	return &about, nil
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 )
@@ -15,7 +14,7 @@ func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, 
 	if err != nil {
 		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
 	}
-	return len(data.ID) > 0, nil
+	return len(data.User.ID) > 0, nil
 }
 
 func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*UseLiveBroadcast, error) {
@@ -32,22 +31,15 @@ func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*Us
 		}
 	}`
 
-	type payload struct {
-		Data struct {
-			User UseLiveBroadcast `json:"user"`
-		} `json:"data"`
-	}
-	var resp payload
-
-	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &resp); err != nil {
+	var broadcast UseLiveBroadcast
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &broadcast, gqlPl, channelName); err != nil {
 		return nil, err
 	}
 
-	return &resp.Data.User, nil
+	return &broadcast, nil
 }
 
-func (tw *Client) StreamMetadata(ctx context.Context, channelName string) (*Video, error) {
+func (tw *Client) StreamMetadata(ctx context.Context, channel string) (*NielsenContentMetadata, error) {
 	gqlPl := `{
 		"operationName": "NielsenContentMetadata",
 		"variables": {
@@ -66,14 +58,12 @@ func (tw *Client) StreamMetadata(ctx context.Context, channelName string) (*Vide
 		}
 	}`
 
-	var resp NielsenContentMetadata
-
-	body := strings.NewReader(fmt.Sprintf(gqlPl, channelName))
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &resp); err != nil {
+	var stream NielsenContentMetadata
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &stream, gqlPl, channel); err != nil {
 		return nil, err
 	}
 
-	return &resp.Data.Video, nil
+	return &stream, nil
 }
 
 func (tw *Client) StreamPlaybackAccessToken(ctx context.Context, channel string) (*PlaybackAccessToken, error) {
@@ -90,13 +80,11 @@ func (tw *Client) StreamPlaybackAccessToken(ctx context.Context, channel string)
 	}`
 
 	var data PlaybackAccessToken_Template
-	body := strings.NewReader(fmt.Sprintf(gqlPl, channel))
-
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &data); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &data, gqlPl, channel); err != nil {
 		return nil, err
 	}
 
-	return &data.Data.PlaybackAccessToken, nil
+	return &data.PlaybackAccessToken, nil
 }
 
 func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u8.MasterPlaylist, error) {
@@ -104,6 +92,8 @@ func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
+
+	fmt.Println("TOKEN:", tok)
 
 	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok.Value, tok.Signature)
 

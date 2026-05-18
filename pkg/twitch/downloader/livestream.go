@@ -51,6 +51,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 	if err != nil {
 		return err
 	}
+
 	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return err

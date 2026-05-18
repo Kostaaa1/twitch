@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 )
 
 func (tw *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
@@ -44,10 +43,16 @@ func (tw *Client) ClipsCardsUser(
 		}
 	}`
 
-	body := strings.NewReader(fmt.Sprintf(gqlPl, channel, limit, filter))
-
 	var card ClipsCardsUser
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &card); err != nil {
+	if err := sendGqlLoadAndDecode(
+		ctx,
+		tw.http,
+		&card,
+		gqlPl,
+		channel,
+		limit,
+		filter,
+	); err != nil {
 		return nil, err
 	}
 
@@ -68,20 +73,14 @@ func (tw *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) 
         }
     }`
 
-	var result struct {
-		Data struct {
-			Clip Clip `json:"clip"`
-		} `json:"data"`
-	}
-
-	body := strings.NewReader(fmt.Sprintf(gqlPayload, slug))
-	if err := tw.sendGqlLoadAndDecode(ctx, body, &result); err != nil {
+	var clip Clip
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &clip, gqlPayload, slug); err != nil {
 		return nil, err
 	}
 
-	if result.Data.Clip.ID == "" {
+	if clip.ID == "" {
 		return nil, fmt.Errorf("failed to get the clip data for %s", slug)
 	}
 
-	return &result.Data.Clip, nil
+	return &clip, nil
 }
