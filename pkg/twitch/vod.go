@@ -212,7 +212,7 @@ func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (*VideoMetada
 
 // type broadcastType int // ARCHIVE | HIGHLIGHT | CLIP | LIVE
 // type videoSort int // TIME | VIEWS
-
+// cursor example: 2732435300|877053|2026-03-26T20:03:29Z|24387
 func (tw *Client) FilterableVideoTower_Videos(
 	ctx context.Context,
 	channel string,
@@ -221,8 +221,6 @@ func (tw *Client) FilterableVideoTower_Videos(
 	if limit > 100 {
 		return nil, errors.New("limit value must be between 1 and 100")
 	}
-
-	// cursor example: 2732435300|877053|2026-03-26T20:03:29Z|24387
 
 	gqlPl := `{
         "operationName": "FilterableVideoTower_Videos",

@@ -11,6 +11,16 @@ func (tw *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) 
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
+type criteriaFilter string
+
+const (
+	AllTime   criteriaFilter = "ALL_TIME"
+	LastDay   criteriaFilter = "LAST_DAY"
+	LastWeek  criteriaFilter = "LAST_WEEK"
+	LastMonth criteriaFilter = "LAST_MONTH"
+	LastYear  criteriaFilter = "LAST_YEAR"
+)
+
 // channel clips
 // filter ALL_TIME, LAST_WEEK, LAST_DAY, LAST_MONTH
 // cursor base64 offset - 20, 40 per limit
@@ -18,7 +28,7 @@ func (tw *Client) ClipsCardsUser(
 	ctx context.Context,
 	channel string,
 	limit int,
-	filter string,
+	filter criteriaFilter,
 ) (*ClipsCardsUser, error) {
 	if limit > 100 {
 		return nil, errors.New("limit value must be between 1 and 100")

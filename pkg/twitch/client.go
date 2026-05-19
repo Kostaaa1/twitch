@@ -113,7 +113,6 @@ func sendGqlLoadAndDecode[T any](
 	var resp response
 
 	var r io.Reader
-
 	if len(a) > 0 {
 		r = strings.NewReader(fmt.Sprintf(gqlLoad, a...))
 	} else {

@@ -46,39 +46,22 @@ func main() {
 		}
 
 		channel := args[0]
-		_ = channel
 
-		// limit := 20
+		about, err := tw.ChannelRoot_AboutPanel(ctx, channel)
+		if err != nil {
+			log.Fatal(err)
+		}
+		limit := 100
+		videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
+		if err != nil {
+			log.Fatal(err)
+		}
+		clips, err := tw.ClipsCardsUser(ctx, channel, limit, twitch.AllTime)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-		// about, err := tw.ChannelRoot_AboutPanel(ctx, channel)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-
-		// b, err := json.MarshalIndent(about, "", " ")
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// fmt.Println(string(b))
-
-		// videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// fmt.Println("VIDEOS:", videos)
-
-		// clips, err := tw.ClipsCardsUser(ctx, channel, limit, "ALL_TIME")
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// fmt.Println("CLIP{S:", clips)
-
-		// fmt.Println(about)
-
-		// fmt.Println(about.User.PrimaryColorHex)
-		// primaryHex := fmt.Sprintf("#%s", about.User.PrimaryColorHex)
-		// primary := lipgloss.NewStyle().Foreground(lipgloss.Color(primaryHex))
-		// fmt.Println(primary.Render(about.User.DisplayName))
+		PrintChannel(about, videos, clips)
 
 	case len(os.Args) == 1:
 		runChat(ctx, tw, conf)
