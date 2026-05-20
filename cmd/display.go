@@ -107,7 +107,7 @@ func printClips(s *strings.Builder, clips *twitch.ClipsCardsUser) {
 		s.WriteString(mutedStyle.Render(numerical))
 
 		if len(clip.Title) > maxContentLength {
-			s.WriteString(clip.Title[:50] + "...")
+			s.WriteString(fmt.Sprintf("%s ...", clip.Title[:50]))
 		} else {
 			s.WriteString(clip.Title)
 		}
@@ -124,7 +124,7 @@ func printClips(s *strings.Builder, clips *twitch.ClipsCardsUser) {
 		inner.WriteString(clip.Game.Name)
 		inner.WriteString(" . ")
 
-		inner.WriteString(humanIntFormat(clip.ViewCount) + " views")
+		inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(clip.ViewCount)))
 		inner.WriteString(" . ")
 
 		inner.WriteString(clip.Curator.DisplayName)
@@ -139,7 +139,6 @@ func printClips(s *strings.Builder, clips *twitch.ClipsCardsUser) {
 		inner.WriteString("7y" + " ago")
 
 		s.WriteString(mutedStyle.Render(inner.String()))
-
 		s.WriteString("\n")
 	}
 }
@@ -172,14 +171,17 @@ func printSocials(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
 }
 
 func printAbout(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
-	s.WriteString("\n\n" + tab)
+	s.WriteString("\n\n")
+	s.WriteString(tab)
 	s.WriteString(
 		purpleStyle.
 			Bold(true).
 			Render("About"),
 	)
 	s.WriteString("\n")
-	s.WriteString("\n" + tab + tab)
+	s.WriteString("\n")
+	s.WriteString(tab)
+	s.WriteString(tab)
 	s.WriteString(
 		mutedStyle.
 			Render(u.User.Description),
@@ -237,7 +239,7 @@ func printVideos(s *strings.Builder, videos *twitch.FilterableVideoTower_Videos)
 		s.WriteString(mutedStyle.Render(numerical))
 
 		if len(video.Title) > maxContentLength {
-			s.WriteString(video.Title[:50] + "...")
+			s.WriteString(fmt.Sprintf("%s ...", video.Title[:50]))
 		} else {
 			s.WriteString(video.Title)
 		}
@@ -259,7 +261,7 @@ func printVideos(s *strings.Builder, videos *twitch.FilterableVideoTower_Videos)
 		inner.WriteString(" . ")
 
 		strconv.Itoa(video.ViewCount)
-		inner.WriteString(humanIntFormat(video.ViewCount) + " views")
+		inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(video.ViewCount)))
 		inner.WriteString(" . ")
 
 		since := time.Since(video.PublishedAt)
