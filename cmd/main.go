@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
@@ -16,12 +14,15 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
-	"github.com/Kostaaa1/twitch/pkg/twitch/eventsub"
+	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
+
 	conf, err := config.Read()
 	if err != nil {
 		log.Fatal(err)
@@ -33,36 +34,12 @@ func main() {
 	tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
 
 	switch {
-	case opt.Authenticate:
+	case opt.Authorize:
 		if err := tw.Helix.Authorize(ctx); err != nil {
 			log.Fatal(err)
 		}
 	case opt.Print:
-		args := flag.Args()
-
-		if len(args) == 0 {
-			log.Fatalln("wrong usage: --print <channel_name>")
-			return
-		}
-
-		channel := args[0]
-
-		about, err := tw.ChannelRoot_AboutPanel(ctx, channel)
-		if err != nil {
-			log.Fatal(err)
-		}
-		limit := 100
-		videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
-		if err != nil {
-			log.Fatal(err)
-		}
-		clips, err := tw.ClipsCardsUser(ctx, channel, limit, twitch.AllTime)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		PrintChannel(about, videos, clips)
-
+		runPrint(ctx, tw)
 	case len(os.Args) == 1:
 		runChat(ctx, tw, conf)
 	default:
@@ -88,10 +65,6 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 		})
 	}
 
-	for _, unit := range units {
-		fmt.Println("UNITS:", unit)
-	}
-
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
 
@@ -103,7 +76,6 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}
 
-		// TODO: If error happens when downloading i want spinner to cancel the context, but if there is no errors, cancel needs to happen after downloading of batches finishes. Problem is that i cannot return
 		if err := downloadGroup.Wait(); err == nil {
 			cancel()
 		}
@@ -228,49 +200,51 @@ func runTwitchEventSub(
 	dl *downloader.Downloader,
 	units []downloader.Unit,
 ) error {
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
-	events, err := eventsub.FromUnits(units)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	event := eventsub.New(tw)
-
-	event.OnNotification = func(resp eventsub.ResponseBody) {
-		if resp.Payload.Subscription != nil {
-			condition := resp.Payload.Subscription.Condition
-
-			if userID, ok := condition["broadcaster_user_id"].(string); ok {
-				user, _ := tw.Helix.UserByID(ctx, userID)
-				unit := downloader.NewUnit(user.Login, downloader.WithQuality(""))
-
-				if unit.Error == nil {
-					go func() {
-						fmt.Println("Starting to record the stream for: ", unit.ID)
-
-						if err := dl.Download(ctx, *unit); err != nil {
-							fmt.Println("error occured: ", err)
-							isLive, _ := tw.IsChannelLive(ctx, user.Login)
-							if !isLive {
-								fmt.Println("Stream went offline!")
-							}
-							return
-						}
-
-						fmt.Println("Stream recording ended for: ", unit.ID)
-					}()
-				}
-			}
-		}
-	}
-
-	if err := event.DialWS(ctx, events); err != nil {
-		return err
-	}
-
 	return nil
+
+	// ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	// defer cancel()
+
+	// events, err := eventsub.FromUnits(units)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// event := eventsub.New(tw)
+
+	// event.OnNotification = func(resp eventsub.ResponseBody) {
+	// 	if resp.Payload.Subscription != nil {
+	// 		condition := resp.Payload.Subscription.Condition
+
+	// 		if userID, ok := condition["broadcaster_user_id"].(string); ok {
+	// 			user, _ := tw.Helix.UserByID(ctx, userID)
+	// 			unit := downloader.NewUnit(user.Login, downloader.WithQuality(""))
+
+	// 			if unit.Error == nil {
+	// 				go func() {
+	// 					fmt.Println("Starting to record the stream for: ", unit.ID)
+
+	// 					if err := dl.Download(ctx, *unit); err != nil {
+	// 						fmt.Println("error occured: ", err)
+	// 						isLive, _ := tw.IsChannelLive(ctx, user.Login)
+	// 						if !isLive {
+	// 							fmt.Println("Stream went offline!")
+	// 						}
+	// 						return
+	// 					}
+
+	// 					fmt.Println("Stream recording ended for: ", unit.ID)
+	// 				}()
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	// if err := event.DialWS(ctx, events); err != nil {
+	// 	return err
+	// }
+
+	// return nil
 }
 
 func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
@@ -298,4 +272,32 @@ func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error 
 	chat.Open(ctx, tw, conf)
 
 	return nil
+}
+
+func runPrint(ctx context.Context, tw *twitch.Client) {
+	args := flag.Args()
+	if len(args) == 0 {
+		log.Fatal("invalid usage: --print <channel_name>")
+	}
+
+	channel := args[0]
+
+	about, err := tw.ChannelRoot_AboutPanel(ctx, channel)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	limit := 20
+
+	videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	clips, err := tw.ClipsCardsUser(ctx, channel, limit, twitch.AllTime)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	PrintChannel(about, videos, clips)
 }

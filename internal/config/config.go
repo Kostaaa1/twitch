@@ -7,10 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "embed"
-
-	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 )
 
 type User struct {
@@ -37,7 +34,9 @@ type Config struct {
 	User            User              `json:"user"`
 	Downloader      downloader.Config `json:"downloader"`
 	CommandLineChat CommandLineChat   `json:"chat"`
-	OAuthCreds      twitch.OAuthCreds `json:"creds"`
+	OAuthCreds      helix.OAuthCreds  `json:"creds"`
+	UserToken       helix.UserToken   `json:"user_token"`
+	AppToken        helix.AppToken    `json:"app_token"`
 }
 
 type Colors struct {
@@ -74,15 +73,22 @@ func initConfigData() Config {
 			OfflineImageURL: "",
 			Type:            "",
 		},
-		OAuthCreds: twitch.OAuthCreds{
-			AccessToken:  "",
+		OAuthCreds: helix.OAuthCreds{
 			ClientID:     "",
-			RefreshToken: "",
-			RedirectURL:  "",
 			ClientSecret: "",
+			RedirectURL:  "",
+		},
+		UserToken: helix.UserToken{
+			RefreshToken: "",
+			AccessToken:  "",
 			ExpiresIn:    0,
 			TokenType:    "",
 			Scope:        []string{},
+		},
+		AppToken: helix.AppToken{
+			AccessToken: "",
+			ExpiresIn:   0,
+			TokenType:   "",
 		},
 		Downloader: downloader.Config{
 			IsFFmpegEnabled: false,
@@ -133,23 +139,21 @@ func initConfigData() Config {
 }
 
 func getConfigPath() (string, error) {
-	filename := "twitch_config.json"
-	// execPath, err := os.Executable()
-	// if err == nil && strings.HasPrefix(execPath, os.TempDir()) {
-	// if strings.HasPrefix(execPath, os.TempDir()) {
-	if wd, err := os.Getwd(); err == nil {
-		return filepath.Join(wd, filename), nil
+	confPath := os.Getenv("TWITCH_CONFIG_PATH")
+	if confPath != "" {
+		return confPath, nil
 	}
-	// }
-	// configDir, err := os.UserConfigDir()
-	// if err == nil {
-	// 	cfgPath := filepath.Join(configDir, "twitch", filename)
-	// 	return cfgPath, nil
-	// }
-	// if envPath := os.Getenv("TWITCH_CONFIG"); envPath != "" {
-	// 	return envPath, nil
-	// }
-	return "", errors.New("config file path not found")
+
+	confPath, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	if confPath != "" {
+		return filepath.Join(confPath, "twitch", "config.json"), nil
+	}
+
+	return "", errors.New("couldn't find the path for .config")
 }
 
 func (conf *Config) Save() error {
@@ -167,28 +171,33 @@ func (conf *Config) Save() error {
 		return fmt.Errorf("failed to marshal config bytes: %v\n", err)
 	}
 
-	return os.WriteFile(fpath, b, 0644)
+	if err := os.WriteFile(fpath, b, 0644); err != nil {
+		fmt.Println("faield to write to the file?", err)
+		return err
+	}
+
+	return nil
 }
 
 func Read() (*Config, error) {
-	var data Config
-
 	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
 	}
 
+	var data Config
 	configDir := filepath.Dir(configPath)
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		data = initConfigData()
 
-		b, err := json.MarshalIndent(data, "", " ")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		b, err := json.MarshalIndent(initConfigData(), "", " ")
 		if err != nil {
 			return nil, err
 		}
+
 		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
 			return nil, err
 		}
+
 		if err := os.WriteFile(configPath, b, 0644); err != nil {
 			return nil, err
 		}

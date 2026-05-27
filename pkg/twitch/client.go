@@ -7,40 +7,36 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
-)
 
-const (
-	gqlURL      = "https://gql.twitch.tv/gql"
-	gqlClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-	usherURL    = "https://usher.ttvnw.net"
-	helixURL    = "https://api.twitch.tv/helix"
-	oauthURL    = "https://id.twitch.tv/oauth2"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 )
 
 type Client struct {
-	http       *http.Client
-	retryCount int
-	Helix      *Helix
+	// http  *http.Client
+	Helix *helix.Client
+	Gql   *gql.Client
 }
 
 type clientOpts func(*Client)
 
 func NewClient(opts ...clientOpts) *Client {
 	c := &Client{
-		http:       http.DefaultClient,
-		retryCount: 3,
-		Helix:      &Helix{},
+		Helix: &helix.Client{},
+		Gql:   &gql.Client{},
 	}
 	for _, opt := range opts {
 		opt(c)
 	}
-	c.Helix.http = c.http
-
 	return c
 }
 
-func WithOAuthCreds(creds *OAuthCreds) clientOpts {
+func WithHttpClient(httpClient *http.Client) clientOpts {
+	return func(c *Client) {
+	}
+}
+
+func WithOAuthCreds(creds *helix.OAuthCreds) clientOpts {
 	return func(c *Client) {
 		c.Helix.oauthCreds = creds
 	}
@@ -90,45 +86,6 @@ func fetchWithDecode(
 			return err
 		}
 	}
-
-	return nil
-}
-
-func sendGqlLoadAndDecode[T any](
-	ctx context.Context,
-	c *http.Client,
-	dst *T,
-	gqlLoad string,
-	a ...any,
-) error {
-	type response struct {
-		Data       T `json:"data"`
-		Extensions struct {
-			DurationMilliseconds int    `json:"durationMilliseconds"`
-			OperationName        string `json:"operationName"`
-			RequestID            string `json:"requestID"`
-		} `json:"extensions"`
-	}
-
-	var resp response
-
-	var r io.Reader
-	if len(a) > 0 {
-		r = strings.NewReader(fmt.Sprintf(gqlLoad, a...))
-	} else {
-		r = strings.NewReader(gqlLoad)
-	}
-
-	h := http.Header{}
-	h.Set("Client-Id", gqlClientID)
-	h.Set("Content-Type", "application/json")
-
-	if err := fetchWithDecode(ctx, c, gqlURL, http.MethodPost, r, &resp, h); err != nil {
-		return err
-	}
-
-	// must be pointer
-	*dst = resp.Data
 
 	return nil
 }

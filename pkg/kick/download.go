@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch/m3u8"
 	"golang.org/x/sync/errgroup"
 )
 

@@ -23,19 +23,18 @@ const (
 )
 
 type Flag struct {
-	Input   string        `json:"input"`
-	Output  string        `json:"output"`
-	Quality string        `json:"quality"`
-	Start   time.Duration `json:"start"`
-	End     time.Duration `json:"end"`
-
-	Verbose      bool
-	Print        bool
-	Threads      int
-	Category     string
-	Highlights   bool
-	Authenticate bool
-	Subscribe    bool
+	Input      string        `json:"input"`
+	Output     string        `json:"output"`
+	Quality    string        `json:"quality"`
+	Start      time.Duration `json:"start"`
+	End        time.Duration `json:"end"`
+	Verbose    bool
+	Print      bool
+	Threads    int
+	Category   string
+	Highlights bool
+	Authorize  bool
+	Subscribe  bool
 }
 
 func (p *Flag) UnmarshalJSON(b []byte) error {
@@ -60,7 +59,6 @@ func (p *Flag) UnmarshalJSON(b []byte) error {
 			return err
 		}
 	}
-
 	if aux.End != "" {
 		p.End, err = time.ParseDuration(aux.End)
 		if err != nil {
@@ -73,7 +71,6 @@ func (p *Flag) UnmarshalJSON(b []byte) error {
 
 func ParseFlags(conf config.Config) Flag {
 	var f Flag
-
 	flag.StringVar(&f.Input, "i", "", "input can be twitch (URL, vod id or clip slug), kick (vod URL) or json file (check example.json). Multiple inputs can be comma-separated which will be downloaded concurrently")
 	flag.StringVar(&f.Output, "o", conf.Downloader.Output, "Destination path for downloaded files")
 	flag.StringVar(&f.Quality, "q", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio")
@@ -83,10 +80,8 @@ func ParseFlags(conf config.Config) Flag {
 	flag.BoolVar(&f.Verbose, "v", false, "Verbose mode for easier debugging")
 	flag.IntVar(&f.Threads, "threads", 0, "Number of parallel downloads (batch mode only)")
 	flag.BoolVar(&f.Subscribe, "subscribe", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
-	flag.BoolVar(&f.Authenticate, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
-
+	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
 	flag.Parse()
-
 	return f
 }
 
@@ -103,7 +98,6 @@ func (flag Flag) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 				input,
 				flag.Quality,
 				kick.WithTimestamps(flag.Start, flag.End),
-				kick.WithWriter(flag.Output),
 			))
 		} else {
 			*units = append(*units, downloader.NewUnit(
