@@ -30,13 +30,17 @@ type CommandLineChat struct {
 	Colors         Colors   `json:"colors"`
 }
 
+type Downloader struct {
+	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
+	ShowSpinner     bool   `json:"show_spinner"`
+	Output          string `json:"output"`
+}
+
 type Config struct {
-	User            User              `json:"user"`
-	Downloader      downloader.Config `json:"downloader"`
-	CommandLineChat CommandLineChat   `json:"chat"`
-	OAuthCreds      helix.OAuthCreds  `json:"creds"`
-	UserToken       helix.UserToken   `json:"user_token"`
-	AppToken        helix.AppToken    `json:"app_token"`
+	User            User             `json:"user"`
+	Downloader      Downloader       `json:"downloader"`
+	CommandLineChat CommandLineChat  `json:"chat"`
+	OAuthCreds      helix.OAuthCreds `json:"creds"`
 }
 
 type Colors struct {
@@ -77,20 +81,21 @@ func initConfigData() Config {
 			ClientID:     "",
 			ClientSecret: "",
 			RedirectURL:  "",
+			UserToken: helix.UserToken{
+				RefreshToken: "",
+				AccessToken:  "",
+				ExpiresIn:    0,
+				TokenType:    "",
+				Scope:        []string{},
+			},
+			AppToken: helix.AppToken{
+				AccessToken: "",
+				ExpiresIn:   0,
+				TokenType:   "",
+			},
 		},
-		UserToken: helix.UserToken{
-			RefreshToken: "",
-			AccessToken:  "",
-			ExpiresIn:    0,
-			TokenType:    "",
-			Scope:        []string{},
-		},
-		AppToken: helix.AppToken{
-			AccessToken: "",
-			ExpiresIn:   0,
-			TokenType:   "",
-		},
-		Downloader: downloader.Config{
+
+		Downloader: Downloader{
 			IsFFmpegEnabled: false,
 			ShowSpinner:     true,
 			Output:          "",

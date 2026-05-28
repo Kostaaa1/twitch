@@ -25,6 +25,14 @@ type HelixErrResponse struct {
 	Message string `json:"message"`
 }
 
+type clientOpts func(*Client)
+
+func WithOAuthCreds(creds *OAuthCreds) clientOpts {
+	return func(c *Client) {
+		c.oauthCreds = creds
+	}
+}
+
 func (h *Client) Request(
 	ctx context.Context,
 	url string,

@@ -14,10 +14,12 @@ import (
 
 func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u8.MediaPlaylist, error) {
 	// Get master playlist for VOD by its ID
-	master, err := dl.twClient.Gql.MasterPlaylistVOD(ctx, unit.ID)
+	b, err := dl.twClient.Gql.MasterPlaylistVOD(ctx, unit.ID)
 	if err != nil {
 		return nil, err
 	}
+
+	master := m3u8.Master(b)
 
 	// Get playlist URL by specified quality
 	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
@@ -58,7 +60,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	workerCount := 4
 
 	g, ctx := errgroup.WithContext(ctx)
-
 	currentChunk := atomic.Uint32{}
 
 	for i := 0; i < workerCount; i++ {

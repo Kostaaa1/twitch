@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
 func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
@@ -17,7 +17,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 
 	clipDataURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality.String())
 
-	usherURL, err := dl.twClient.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
+	usherURL, err := dl.twClient.Gql.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 	return nil
 }
 
-func extractClipSourceURL(videoQualities []twitch.VideoQuality, quality string) string {
+func extractClipSourceURL(videoQualities []gql.VideoQuality, quality string) string {
 	if quality == "best" {
 		return videoQualities[0].SourceURL
 	}

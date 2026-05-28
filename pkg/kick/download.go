@@ -8,15 +8,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
 	"golang.org/x/sync/errgroup"
 )
-
-type segmentJob struct {
-	index int
-	url   string
-	data  []byte
-	err   error
-}
 
 func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.MediaPlaylist, error) {
 	masterURL, err := c.MasterPlaylistURL(unit.Channel, unit.UUID.String())

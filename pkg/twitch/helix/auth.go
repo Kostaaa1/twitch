@@ -50,13 +50,11 @@ func (h *Client) FetchAppToken(ctx context.Context) error {
 		"https://id.twitch.tv/oauth2/token&"+values.Encode(),
 		http.MethodPost,
 		nil,
-		&h.appToken,
+		&h.oauthCreds,
 		nil,
 	); err != nil {
 		return err
 	}
-
-	fmt.Println("APP TOKEN", h.appToken)
 
 	return nil
 }
@@ -65,7 +63,7 @@ func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
 	values := url.Values{
 		"client_id":     {h.oauthCreds.ClientID},
 		"client_secret": {h.oauthCreds.ClientSecret},
-		"refresh_token": {h.userToken.RefreshToken},
+		"refresh_token": {h.oauthCreds.UserToken.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 
@@ -99,7 +97,7 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
 		http.MethodPost,
 		nil,
-		&h.userToken,
+		&h.oauthCreds.UserToken,
 		nil,
 	); err != nil {
 		return err
@@ -109,8 +107,6 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 }
 
 func (h *Client) ensureValidCreds(ctx context.Context) error {
-	return nil
-
 	// if err := h.userToken.Validate(); err != nil {
 	// 	if !errors.Is(err, oauthMissingAccessTokenErr) {
 	// 		return err
@@ -118,6 +114,7 @@ func (h *Client) ensureValidCreds(ctx context.Context) error {
 	// }
 	// return nil
 	// return h.UserTokenWithRefreshToken(ctx)
+	return nil
 }
 
 var defaultScope = []string{
@@ -165,7 +162,7 @@ func (h *Client) Authorize(ctx context.Context) error {
 		return err
 	}
 
-	if h.userToken.RefreshToken == "" {
+	if h.oauthCreds.UserToken.RefreshToken == "" {
 		values := url.Values{
 			"client_id":    {h.oauthCreds.ClientID},
 			"redirect_url": {h.oauthCreds.RedirectURL},

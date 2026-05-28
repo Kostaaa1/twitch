@@ -49,7 +49,7 @@ func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *twitch.Client,
 	}
 
 	if errors.Is(err, chat.ErrAuthFailed) {
-		if err := tw.Helix.AccesToken(ctx); err != nil {
+		if err := tw.Helix.UserTokenWithRefreshToken(ctx); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}
 		if err := ws.Connect(); err != nil {
@@ -83,7 +83,7 @@ func Open(ctx context.Context, tw *twitch.Client, cfg *config.Config) error {
 
 	ws, err := chat.DialWS(
 		cfg.User.Login,
-		cfg.OAuthCreds.AccessToken,
+		cfg.OAuthCreds.UserToken.AccessToken,
 		cfg.CommandLineChat.OpenedChats,
 	)
 	if err != nil {

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/config"
+	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
 	"github.com/google/uuid"
 )
 

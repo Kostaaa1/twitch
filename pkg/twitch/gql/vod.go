@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader/m3u8"
+	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
 )
 
 func (tw *Client) VideoPlaybackAccessToken(ctx context.Context, id string) (*PlaybackAccessToken, error) {
@@ -157,7 +157,7 @@ func (tw *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.M
 	return &master, nil
 }
 
-func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
+func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) ([]byte, error) {
 	tok, err := tw.VideoPlaybackAccessToken(ctx, vodID)
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (tw *Client) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.Ma
 		return nil, err
 	}
 
-	return m3u8.Master(b), nil
+	return b, nil
 }
 
 func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (*VideoMetadata, error) {

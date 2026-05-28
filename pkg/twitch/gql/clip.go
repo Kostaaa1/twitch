@@ -21,9 +21,6 @@ func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
-// channel clips
-// filter ALL_TIME, LAST_WEEK, LAST_DAY, LAST_MONTH
-// cursor base64 offset - 20, 40 per limit
 func (tw *Client) ClipsCardsUser(
 	ctx context.Context,
 	channel string,

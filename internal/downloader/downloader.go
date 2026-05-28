@@ -17,20 +17,12 @@ type Progress struct {
 type Downloader struct {
 	twClient *twitch.Client
 	http     *http.Client
-	config   *Config
 	notifyFn func(Progress)
 }
 
-type Config struct {
-	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
-	ShowSpinner     bool   `json:"show_spinner"`
-	Output          string `json:"output"`
-}
-
-func New(twClient *twitch.Client, conf *Config) *Downloader {
+func New(twClient *twitch.Client) *Downloader {
 	return &Downloader{
 		twClient: twClient,
-		config:   conf,
 		http:     http.DefaultClient,
 	}
 }
