@@ -9,20 +9,19 @@ import (
 	"net/http"
 )
 
-type Client struct {
-	http       *http.Client
-	oauthCreds *OAuthCreds
-}
-
 const (
 	helixURL = "https://api.twitch.tv/helix"
 	usherURL = "https://usher.ttvnw.net"
 )
 
-type HelixErrResponse struct {
-	Error   string `json:"error"`
-	Status  int    `json:"status"`
-	Message string `json:"message"`
+type Client struct {
+	http       *http.Client
+	oauthCreds *OAuthCreds
+	eventsub   *Eventsub
+}
+
+func New() *Client {
+	return &Client{}
 }
 
 type clientOpts func(*Client)
@@ -31,6 +30,18 @@ func WithOAuthCreds(creds *OAuthCreds) clientOpts {
 	return func(c *Client) {
 		c.oauthCreds = creds
 	}
+}
+
+func WithEventsub() clientOpts {
+	return func(c *Client) {
+		c.eventsub = NewEventsub(c)
+	}
+}
+
+type HelixErrResponse struct {
+	Error   string `json:"error"`
+	Status  int    `json:"status"`
+	Message string `json:"message"`
 }
 
 func (h *Client) Request(

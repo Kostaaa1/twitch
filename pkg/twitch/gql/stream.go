@@ -3,8 +3,6 @@ package gql
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 )
 
 func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, error) {
@@ -83,31 +81,4 @@ func (tw *Client) StreamPlaybackAccessToken(ctx context.Context, channel string)
 	}
 
 	return &data.PlaybackAccessToken, nil
-}
-
-func (tw *Client) MasterPlaylistStream(ctx context.Context, channel string) ([]byte, error) {
-	tok, err := tw.StreamPlaybackAccessToken(ctx, channel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
-	}
-
-	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", usherURL, channel, tok.Value, tok.Signature)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := tw.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }

@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
+	"github.com/Kostaaa1/twitch/internal/httputil"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -49,6 +53,117 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u
 	playlist.Truncate(unit.Start, unit.End)
 
 	return playlist, nil
+}
+
+func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
+	bt, previewURL, err := tw.querySeekPreviewsURL(ctx, vodID)
+	if err != nil {
+		return nil, err
+	}
+
+	if previewURL == "" {
+		return nil, fmt.Errorf("failed to acquire previewURL for video: %s", vodID)
+	}
+
+	u, err := url.Parse(previewURL)
+	if err != nil {
+		return nil, err
+	}
+
+	subdomain := strings.Split(u.Host, ".")[0]
+	fmt.Println("Subdomain", subdomain)
+	fmt.Println("Preview", previewURL)
+
+	master := m3u8.MasterPlaylist{
+		Origin: "s3",
+		B:      false,
+		Region: "EU",
+		UserIP: "127.0.0.1",
+		// ServingID:       createServingID(),
+		Cluster:         "cloudfront_vod",
+		UserCountry:     "BE",
+		ManifestCluster: "cloudfront_vod",
+	}
+
+	resolutions := map[string]struct {
+		Res string
+		FPS string
+	}{
+		"chunked":    {Res: "1920x1080", FPS: "60"},
+		"720p60":     {Res: "1280x720", FPS: "60"},
+		"720p30":     {Res: "1280x720", FPS: "30"},
+		"480p30":     {Res: "854x480", FPS: "30"},
+		"360p30":     {Res: "640x360", FPS: "30"},
+		"160p30":     {Res: "284x160", FPS: "30"},
+		"audio_only": {Res: "audio_only", FPS: ""},
+	}
+
+	isQualityValid := func(u string) bool {
+		resp, err := dl.http.Get(u)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}
+
+	for key, value := range resolutions {
+		var listURL string
+
+		switch bt {
+		case "UPLOAD":
+		case "HIGHLIGHT":
+		case "ARCHIVE":
+		}
+
+		if listURL == "" {
+			log.Fatalf("failed to build listURL for vod: %s", vodID)
+		}
+
+		if isQualityValid(listURL) {
+			vp := &m3u8.VariantPlaylist{
+				URL:        listURL,
+				Bandwidth:  "", // ????
+				Codecs:     "avc1.64002A,mp4a.40.2",
+				Resolution: value.Res,
+				FrameRate:  value.FPS,
+				Video:      key,
+			}
+			master.Lists = append(master.Lists, vp)
+		}
+	}
+
+	for _, list := range master.Lists {
+		fmt.Println("List:", list)
+	}
+
+	return &master, nil
+}
+
+func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) ([]byte, error) {
+	tok, err := dl.twClient.Gql.VideoPlaybackAccessToken(ctx, vodID)
+	if err != nil {
+		return nil, err
+	}
+
+	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", gql.UsherURL, vodID, tok.Value, tok.Signature)
+
+	resp, err := httputil.Do(ctx, m3u8Url, http.MethodGet, nil, nil)
+	if resp.StatusCode == http.StatusForbidden {
+		return dl.mockMasterPlaylist(ctx, vodID)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
 
 func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {

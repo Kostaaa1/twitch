@@ -15,7 +15,7 @@ type Eventsub struct {
 	callback string
 }
 
-func New(c *Client) *Eventsub {
+func NewEventsub(c *Client) *Eventsub {
 	secret := "WUlJg1t8WpDC98gl6K4lGxryJrCeqOGX"
 	callback := "https://example.com/webhooks/callback"
 	return &Eventsub{c, secret, callback}

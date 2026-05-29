@@ -11,9 +11,11 @@ import (
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
+	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 )
@@ -95,7 +97,7 @@ func startTwitchDownloader(
 	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
-	dl := downloader.New(tw, &conf.Downloader)
+	dl := downloader.New(tw)
 
 	if spin != nil {
 		dl.SetProgressNotifier(func(pm downloader.Progress) {
@@ -282,19 +284,19 @@ func runPrint(ctx context.Context, tw *twitch.Client) {
 
 	channel := args[0]
 
-	about, err := tw.ChannelRoot_AboutPanel(ctx, channel)
+	about, err := tw.Gql.ChannelRoot_AboutPanel(ctx, channel)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	limit := 20
 
-	videos, err := tw.FilterableVideoTower_Videos(ctx, channel, limit)
+	videos, err := tw.Gql.FilterableVideoTower_Videos(ctx, channel, limit)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	clips, err := tw.ClipsCardsUser(ctx, channel, limit, twitch.AllTime)
+	clips, err := tw.Gql.ClipsCardsUser(ctx, channel, limit, gql.AllTime)
 	if err != nil {
 		log.Fatal(err)
 	}

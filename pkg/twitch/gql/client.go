@@ -6,12 +6,14 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/Kostaaa1/twitch/internal/httputil"
 )
 
 const (
-	gqlURL      = "https://gql.twitch.tv/gql"
-	gqlClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-	usherURL    = "https://usher.ttvnw.net"
+	URL      = "https://gql.twitch.tv/gql"
+	ClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+	UsherURL = "https://usher.ttvnw.net"
 )
 
 type Client struct {
@@ -44,10 +46,18 @@ func sendGqlLoadAndDecode[T any](
 	}
 
 	h := http.Header{}
-	h.Set("Client-Id", gqlClientID)
+	h.Set("Client-Id", ClientID)
 	h.Set("Content-Type", "application/json")
 
-	if err := fetchWithDecode(ctx, c, gqlURL, http.MethodPost, r, &resp, h); err != nil {
+	if err := httputil.FetchWithDecode(
+		ctx,
+		c,
+		URL,
+		http.MethodPost,
+		r,
+		&resp,
+		h,
+	); err != nil {
 		return err
 	}
 
