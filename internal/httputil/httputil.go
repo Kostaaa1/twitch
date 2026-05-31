@@ -9,33 +9,41 @@ import (
 	"net/http"
 )
 
-func Do(
+func CodeSuccess(code int) bool { return code < http.StatusOK || code >= http.StatusMultipleChoices }
+
+func Fetch(
 	ctx context.Context,
 	c *http.Client,
 	url string,
 	method string,
 	body io.Reader,
 	h http.Header,
-) (*http.Response, error) {
+) ([]byte, int, error) {
 	if url == "" {
-		return nil, errors.New("failed to fetch: missing url")
+		return nil, 0, errors.New("failed to fetch: missing url")
 	}
 	if method == "" {
-		return nil, errors.New("failed to fetch: missing method")
+		return nil, 0, errors.New("failed to fetch: missing method")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
+		return nil, 0, fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
 	}
 	req.Header = h.Clone()
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to readAll: %v", err)
 	}
 
-	return resp, nil
+	return b, resp.StatusCode, nil
 }
 
 func FetchWithDecode(

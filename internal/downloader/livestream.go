@@ -49,7 +49,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 		return fmt.Errorf("%s is offline", unit.ID)
 	}
 
-	b, err := dl.twClient.Gql.MasterPlaylistStream(ctx, unit.ID)
+	b, err := dl.MasterPlaylistStream(ctx, unit.ID)
 	if err != nil {
 		return err
 	}

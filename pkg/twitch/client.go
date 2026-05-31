@@ -8,7 +8,6 @@ import (
 )
 
 type Client struct {
-	// http  *http.Client
 	Helix *helix.Client
 	Gql   *gql.Client
 }
@@ -16,23 +15,22 @@ type Client struct {
 type clientOpts func(*Client)
 
 func NewClient(opts ...clientOpts) *Client {
+	http := http.DefaultClient
+
 	c := &Client{
-		Helix: helix.New(),
+		Helix: helix.New(http),
 		Gql:   &gql.Client{},
 	}
+
 	for _, opt := range opts {
 		opt(c)
 	}
-	return c
-}
 
-func WithHttpClient(httpClient *http.Client) clientOpts {
-	return func(c *Client) {
-	}
+	return c
 }
 
 func WithOAuthCreds(creds *helix.OAuthCreds) clientOpts {
 	return func(c *Client) {
-		c.Helix.oauthCreds = creds
+		c.Helix.OAuthCreds = creds
 	}
 }

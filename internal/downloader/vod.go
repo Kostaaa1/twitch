@@ -18,12 +18,10 @@ import (
 
 func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u8.MediaPlaylist, error) {
 	// Get master playlist for VOD by its ID
-	b, err := dl.twClient.Gql.MasterPlaylistVOD(ctx, unit.ID)
+	master, err := dl.MasterPlaylistVOD(ctx, unit.ID)
 	if err != nil {
 		return nil, err
 	}
-
-	master := m3u8.Master(b)
 
 	// Get playlist URL by specified quality
 	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
@@ -43,7 +41,6 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u
 	}
 	defer resp.Body.Close()
 
-	// Parse it
 	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.URL)
 	if err != nil {
 		return nil, err
@@ -56,7 +53,7 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u
 }
 
 func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
-	bt, previewURL, err := tw.querySeekPreviewsURL(ctx, vodID)
+	bt, previewURL, err := dl.twClient.Gql.SeekPreviewsURL(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,30 +137,78 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 	return &master, nil
 }
 
-func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) ([]byte, error) {
+func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
 	tok, err := dl.twClient.Gql.VideoPlaybackAccessToken(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
 
-	m3u8Url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true", gql.UsherURL, vodID, tok.Value, tok.Signature)
+	m3u8url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true",
+		gql.UsherURL,
+		vodID,
+		tok.Value,
+		tok.Signature,
+	)
 
-	resp, err := httputil.Do(ctx, m3u8Url, http.MethodGet, nil, nil)
-	if resp.StatusCode == http.StatusForbidden {
+	b, code, err := httputil.Fetch(
+		ctx,
+		dl.http,
+		m3u8url,
+		http.MethodGet,
+		nil,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if code == http.StatusForbidden {
 		return dl.mockMasterPlaylist(ctx, vodID)
 	}
 
+	return m3u8.Master(b), nil
+}
+
+func transformForbiddenSegURL(url string) (string, error) {
+	switch {
+	case strings.Contains(url, "-unmuted"):
+		url = strings.Replace(url, "-unmuted", "-muted", 1)
+	case strings.Contains(url, "-muted"):
+		url = strings.Replace(url, "-muted", "", 1)
+	}
+	return "", fmt.Errorf("forbidden for segment: %s", url)
+}
+
+func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
+	resp, err := dl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return b, nil
+	if resp.StatusCode == http.StatusForbidden {
+		// RETRY:
+		url, err = transformForbiddenSegURL(url)
+		if err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err = dl.http.Do(req)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp.Body, nil
 }
 
 func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
@@ -191,36 +236,12 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 					lastIndex := strings.LastIndex(playlist.URL, "/")
 					tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
 
-					req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
-					if err != nil {
-						return err
-					}
-					resp, err := dl.http.Do(req)
+					body, err := dl.fetchSegment(ctx, tsURL)
 					if err != nil {
 						return err
 					}
 
-					if resp.StatusCode == http.StatusForbidden {
-						switch {
-						case strings.Contains(tsURL, "unmuted"):
-							tsURL = strings.Replace(tsURL, "-unmuted", "-muted", 1)
-						case strings.Contains(tsURL, "muted"):
-							tsURL = strings.Replace(tsURL, "-muted", "", 1)
-						default:
-							return fmt.Errorf("forbidden for segment: %s", tsURL)
-						}
-
-						req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
-						if err != nil {
-							return err
-						}
-						resp, err = dl.http.Do(req)
-						if err != nil {
-							return err
-						}
-					}
-
-					seg.Data <- resp.Body
+					seg.Data <- body
 					close(seg.Data)
 				}
 			}
@@ -260,25 +281,4 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 	})
 
 	return g.Wait()
-}
-
-// NOT USED
-func (unit Unit) StreamVOD(ctx context.Context, dl *Downloader) error {
-	playlist, err := dl.mediaPlaylistForUnit(ctx, unit)
-	if err != nil {
-		return err
-	}
-
-	for _, seg := range playlist.Segments {
-		if strings.HasSuffix(seg.URL, ".ts") {
-			lastIndex := strings.LastIndex(playlist.URL, "/")
-			tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
-
-			if err := dl.download(ctx, unit, tsURL); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }

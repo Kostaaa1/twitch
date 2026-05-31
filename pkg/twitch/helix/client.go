@@ -16,21 +16,21 @@ const (
 
 type Client struct {
 	http       *http.Client
-	oauthCreds *OAuthCreds
+	OAuthCreds *OAuthCreds
 	eventsub   *Eventsub
 }
 
-func New() *Client {
-	return &Client{}
+func New(http *http.Client) *Client {
+	return &Client{http: http}
 }
 
 type clientOpts func(*Client)
 
-func WithOAuthCreds(creds *OAuthCreds) clientOpts {
-	return func(c *Client) {
-		c.oauthCreds = creds
-	}
-}
+// func WithOAuthCreds(creds *OAuthCreds) clientOpts {
+// 	return func(c *Client) {
+// 		c.OAuthCreds = creds
+// 	}
+// }
 
 func WithEventsub() clientOpts {
 	return func(c *Client) {
@@ -44,10 +44,14 @@ type HelixErrResponse struct {
 	Message string `json:"message"`
 }
 
+type helixEnvelope[T any] struct {
+	Data []T `json:"data"`
+}
+
 func (h *Client) Request(
 	ctx context.Context,
 	url string,
-	httpMethod string,
+	method string,
 	body io.Reader,
 	src interface{},
 ) error {
@@ -63,12 +67,12 @@ func (h *Client) Request(
 	var errResp HelixErrResponse
 
 	for {
-		req, err := http.NewRequestWithContext(ctx, httpMethod, url, body)
+		req, err := http.NewRequestWithContext(ctx, method, url, body)
 		if err != nil {
 			return fmt.Errorf("failed to create request: %w", err)
 		}
-		req.Header.Set("Client-Id", h.oauthCreds.ClientID)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.oauthCreds.UserToken.AccessToken))
+		req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.OAuthCreds.UserToken.AccessToken))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := h.http.Do(req)
@@ -108,80 +112,4 @@ func (h *Client) Request(
 
 		return nil
 	}
-}
-
-type helixEnvelope[T any] struct {
-	Data []T `json:"data"`
-}
-
-func (h *Client) UserByChannelName(ctx context.Context, channelName string) (*User, error) {
-	url := fmt.Sprintf("%s/users", helixURL)
-	if channelName != "" {
-		url += "?login=" + channelName
-	}
-
-	var body helixEnvelope[User]
-	if err := h.Request(ctx, url, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
-	}
-
-	return nil, fmt.Errorf("failed to get user data for: %s", channelName)
-}
-
-func (h *Client) UserByID(ctx context.Context, id string) (*User, error) {
-	url := fmt.Sprintf("%s/users?id=%s", helixURL, id)
-
-	var body helixEnvelope[User]
-	if err := h.Request(ctx, url, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
-	}
-
-	return nil, fmt.Errorf("failed to get user data by id: %s", id)
-}
-
-func (h *Client) ChannelInfo(ctx context.Context, broadcasterID string) (*Channel, error) {
-	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
-
-	var body helixEnvelope[Channel]
-	if err := h.Request(ctx, u, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
-	}
-
-	return nil, fmt.Errorf("failed to get the channel info for: %s", broadcasterID)
-}
-
-func (h *Client) FollowedStreams(ctx context.Context, id string) (*[]Stream, error) {
-	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
-
-	var body helixEnvelope[[]Stream]
-	if err := h.Request(ctx, u, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
-	}
-
-	return nil, fmt.Errorf("failed to get followed streams by user id: %s", id)
-}
-
-func (h *Client) Stream(ctx context.Context, userId string) (*[]Stream, error) {
-	u := fmt.Sprintf("%s/streams?user_id=%s", helixURL, userId)
-	var body []Stream
-	if err := h.Request(ctx, u, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-	return &body, nil
 }

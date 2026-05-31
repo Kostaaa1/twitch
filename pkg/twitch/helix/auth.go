@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Kostaaa1/twitch/internal/httputil"
 )
 
 type AppToken struct {
@@ -39,18 +41,18 @@ var (
 
 func (h *Client) FetchAppToken(ctx context.Context) error {
 	values := url.Values{
-		"client_id":     {h.oauthCreds.ClientID},
-		"client_secret": {h.oauthCreds.ClientSecret},
+		"client_id":     {h.OAuthCreds.ClientID},
+		"client_secret": {h.OAuthCreds.ClientSecret},
 		"grant_type":    {"client_credentials"},
 	}
 
-	if err := fetchWithDecode(
+	if err := httputil.FetchWithDecode(
 		ctx,
 		h.http,
 		"https://id.twitch.tv/oauth2/token&"+values.Encode(),
 		http.MethodPost,
 		nil,
-		&h.oauthCreds,
+		&h.OAuthCreds,
 		nil,
 	); err != nil {
 		return err
@@ -61,19 +63,19 @@ func (h *Client) FetchAppToken(ctx context.Context) error {
 
 func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
 	values := url.Values{
-		"client_id":     {h.oauthCreds.ClientID},
-		"client_secret": {h.oauthCreds.ClientSecret},
-		"refresh_token": {h.oauthCreds.UserToken.RefreshToken},
+		"client_id":     {h.OAuthCreds.ClientID},
+		"client_secret": {h.OAuthCreds.ClientSecret},
+		"refresh_token": {h.OAuthCreds.UserToken.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 
-	if err := fetchWithDecode(
+	if err := httputil.FetchWithDecode(
 		ctx,
 		h.http,
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
 		http.MethodPost,
 		nil,
-		&h.oauthCreds,
+		&h.OAuthCreds,
 		nil,
 	); err != nil {
 		return err
@@ -85,19 +87,19 @@ func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
 func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string) error {
 	values := url.Values{
 		"code":          {code},
-		"client_id":     {h.oauthCreds.ClientID},
-		"client_secret": {h.oauthCreds.ClientSecret},
-		"redirect_uri":  {h.oauthCreds.RedirectURL},
+		"client_id":     {h.OAuthCreds.ClientID},
+		"client_secret": {h.OAuthCreds.ClientSecret},
+		"redirect_uri":  {h.OAuthCreds.RedirectURL},
 		"grant_type":    {"authorization_code"},
 	}
 
-	if err := fetchWithDecode(
+	if err := httputil.FetchWithDecode(
 		ctx,
 		h.http,
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
 		http.MethodPost,
 		nil,
-		&h.oauthCreds.UserToken,
+		&h.OAuthCreds.UserToken,
 		nil,
 	); err != nil {
 		return err
@@ -135,9 +137,9 @@ var defaultScope = []string{
 
 func (h *Client) authorizeURLWithCode() string {
 	values := url.Values{
-		"client_id":    {h.oauthCreds.ClientID},
-		"redirect_url": {h.oauthCreds.RedirectURL},
-		"scope":        {strings.Join(defaultScope, "+")},
+		"client_id":    {h.OAuthCreds.ClientID},
+		"redirect_url": {h.OAuthCreds.RedirectURL},
+		"scope":        {strings.Join(defaultScope, " ")},
 		// "state":        {},
 	}
 	return fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&%s", values.Encode())
@@ -145,9 +147,9 @@ func (h *Client) authorizeURLWithCode() string {
 
 func (h *Client) authorizeURLWithToken() string {
 	values := url.Values{
-		"client_id":    {h.oauthCreds.ClientID},
-		"redirect_url": {h.oauthCreds.RedirectURL},
-		"scope":        {strings.Join(defaultScope, "+")},
+		"client_id":    {h.OAuthCreds.ClientID},
+		"redirect_url": {h.OAuthCreds.RedirectURL},
+		"scope":        {strings.Join(defaultScope, " ")},
 		// "state":        {},
 	}
 	return fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=token&%s", values.Encode())
@@ -162,17 +164,16 @@ func (h *Client) Authorize(ctx context.Context) error {
 		return err
 	}
 
-	if h.oauthCreds.UserToken.RefreshToken == "" {
+	if h.OAuthCreds.UserToken.RefreshToken == "" {
 		values := url.Values{
-			"client_id":    {h.oauthCreds.ClientID},
-			"redirect_url": {h.oauthCreds.RedirectURL},
-			"scope":        {strings.Join(defaultScope, "+")},
+			"client_id":    {h.OAuthCreds.ClientID},
+			"redirect_uri": {h.OAuthCreds.RedirectURL},
+			"scope":        {strings.Join(defaultScope, " ")},
 		}
+
 		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&%s", values.Encode())
 
-		fmt.Println(codeURL)
-
-		redirectURL, err := url.Parse(h.oauthCreds.RedirectURL)
+		redirectURL, err := url.Parse(h.OAuthCreds.RedirectURL)
 		if err != nil {
 			return err
 		}
@@ -183,6 +184,7 @@ func (h *Client) Authorize(ctx context.Context) error {
 
 		http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 			code := r.URL.Query().Get("code")
+			fmt.Println("RECEIVED CODE:", code)
 
 			if code != "" {
 				if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -50,7 +50,7 @@ func printLabelRow(s *strings.Builder,
 	s.WriteString(value)
 }
 
-func printInfo(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
+func printInfo(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 	max := 0
 	labels := []string{
 		"ID",
@@ -81,7 +81,7 @@ func printHeaderLabel(s *strings.Builder, line string) {
 	s.WriteString(strings.Repeat(dash, 20))
 }
 
-func printClips(s *strings.Builder, clips *twitch.ClipsCardsUser) {
+func printClips(s *strings.Builder, clips *gql.ClipsCardsUser) {
 	s.WriteString("\n")
 
 	printHeaderLabel(
@@ -143,7 +143,7 @@ func printClips(s *strings.Builder, clips *twitch.ClipsCardsUser) {
 	}
 }
 
-func printSocials(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
+func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 	s.WriteString("\n\n")
 	s.WriteString(tab)
 	s.WriteString(
@@ -170,7 +170,7 @@ func printSocials(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
 	}
 }
 
-func printAbout(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
+func printAbout(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 	s.WriteString("\n\n")
 	s.WriteString(tab)
 	s.WriteString(
@@ -188,7 +188,7 @@ func printAbout(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel) {
 	)
 }
 
-func printChannel(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel, userStyle lipgloss.Style) {
+func printChannel(s *strings.Builder, u *gql.ChannelRoot_AboutPanel, userStyle lipgloss.Style) {
 	checkMark := greenStyle.Bold(true).Render("✓")
 
 	var inner strings.Builder
@@ -214,7 +214,7 @@ func printChannel(s *strings.Builder, u *twitch.ChannelRoot_AboutPanel, userStyl
 	s.WriteString(header)
 }
 
-func printVideos(s *strings.Builder, videos *twitch.FilterableVideoTower_Videos) {
+func printVideos(s *strings.Builder, videos *gql.FilterableVideoTower_Videos) {
 	s.WriteString("\n")
 	s.WriteString("\n")
 
@@ -275,9 +275,9 @@ func printVideos(s *strings.Builder, videos *twitch.FilterableVideoTower_Videos)
 }
 
 func PrintChannel(
-	about *twitch.ChannelRoot_AboutPanel,
-	videos *twitch.FilterableVideoTower_Videos,
-	clips *twitch.ClipsCardsUser,
+	about *gql.ChannelRoot_AboutPanel,
+	videos *gql.FilterableVideoTower_Videos,
+	clips *gql.ClipsCardsUser,
 ) {
 	u := about.User
 
