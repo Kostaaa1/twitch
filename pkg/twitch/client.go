@@ -15,18 +15,21 @@ type Client struct {
 type clientOpts func(*Client)
 
 func NewClient(opts ...clientOpts) *Client {
-	http := http.DefaultClient
-
 	c := &Client{
-		Helix: helix.New(http),
-		Gql:   &gql.Client{},
+		Helix: helix.New(),
+		Gql:   gql.New(),
 	}
-
 	for _, opt := range opts {
 		opt(c)
 	}
-
 	return c
+}
+
+func WithHTTPClient(hc *http.Client) clientOpts {
+	return func(c *Client) {
+		c.Helix.SetHTTPClient(hc)
+		c.Gql.SetHTTPClient(hc)
+	}
 }
 
 func WithOAuthCreds(creds *helix.OAuthCreds) clientOpts {

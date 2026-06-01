@@ -53,7 +53,8 @@ func (tw *Client) VideoCommentsByOffsetOrCursor(
 	var comments VideoCommentsByOffsetOrCursor
 
 	if err := sendGqlLoadAndDecode(
-		ctx, tw.http,
+		ctx,
+		tw.http,
 		&comments,
 		gqlPayload,
 		vodID,

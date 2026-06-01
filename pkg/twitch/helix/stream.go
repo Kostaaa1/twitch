@@ -9,8 +9,12 @@ import (
 	"time"
 )
 
-// List of all streams
-// Requires
+type streamType string
+
+const (
+	LiveType streamType = "live"
+	AllType  streamType = "all"
+)
 
 type Stream struct {
 	ID           string        `json:"id"`
@@ -30,81 +34,59 @@ type Stream struct {
 	IsMature     bool          `json:"is_mature"`
 }
 
-func (h *Client) FollowedStreams(ctx context.Context, id string) (*[]Stream, error) {
-	u := fmt.Sprintf("%s/streams/followed?user_id=%s", helixURL, id)
-
-	var body helixEnvelope[[]Stream]
-	if err := h.Request(ctx, u, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
-	}
-
-	return nil, fmt.Errorf("failed to get followed streams by user id: %s", id)
-}
-
-type StreamsCaller struct {
-	client *Client
+type stream struct {
+	c      *Client
 	url    *url.URL
 	values url.Values
 }
 
-func (s *StreamsCaller) UserID(id string) *StreamsCaller {
+func (s *stream) UserID(id string) *stream {
 	s.values.Add("user_id", id)
 	return s
 }
-
-func (s *StreamsCaller) UserLogin(loginName string) *StreamsCaller {
+func (s *stream) UserLogin(loginName string) *stream {
 	s.values.Add("user_login", loginName)
 	return s
 }
-
-func (s *StreamsCaller) GameID(gameID string) *StreamsCaller {
+func (s *stream) GameID(gameID string) *stream {
 	s.values.Add("game_id", gameID)
 	return s
 }
-
-// all | live
-func (s *StreamsCaller) Type(streamType string) *StreamsCaller {
-	s.values.Add("type", streamType)
+func (s *stream) Type(t streamType) *stream {
+	s.values.Add("type", string(t))
 	return s
 }
-
-func (s *StreamsCaller) Language(language string) *StreamsCaller {
+func (s *stream) Language(language string) *stream {
 	s.values.Add("language", language)
 	return s
 }
-
-// default 20 - max 100
-func (s *StreamsCaller) First(num int) *StreamsCaller {
-	if num > 100 || num < 0 {
-		return nil
-	}
-	s.values.Add("first", strconv.Itoa(num))
-	return s
+func (f *stream) First(first int) *stream {
+	f.values.Add("first", strconv.Itoa(first))
+	return f
+}
+func (f *stream) Before(cursor string) *stream {
+	f.values.Add("before", cursor)
+	return f
+}
+func (f *stream) After(cursor string) *stream {
+	f.values.Add("after", cursor)
+	return f
 }
 
-// func (s *StreamsCaller) After(streamType string) {
-// }
-
-// func (s *StreamsCaller) Before(streamType string) {
-// }
-
-func (s *StreamsCaller) Run(ctx context.Context) ([]Stream, error) {
+func (s *stream) Run(ctx context.Context) (*helixPaginatedEnvelope[Stream], error) {
 	s.url.RawQuery = s.values.Encode()
-	var body helixEnvelope[Stream]
-	if err := s.client.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
+	fmt.Println("URL: ", s.url)
+	var body helixPaginatedEnvelope[Stream]
+	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
-	return body.Data, nil
+	return &body, nil
 }
 
-func (c *Client) Streams() *StreamsCaller {
+func (c *Client) Stream() *stream {
 	parsed, _ := url.Parse("https://api.twitch.tv/helix/streams")
-	return &StreamsCaller{
-		client: c,
+	return &stream{
+		c:      c,
 		url:    parsed,
 		values: url.Values{},
 	}

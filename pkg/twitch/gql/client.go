@@ -20,6 +20,12 @@ type Client struct {
 	http *http.Client
 }
 
+func New() *Client {
+	return &Client{http: http.DefaultClient}
+}
+
+func (c *Client) SetHTTPClient(hc *http.Client) { c.http = hc }
+
 func sendGqlLoadAndDecode[T any](
 	ctx context.Context,
 	c *http.Client,

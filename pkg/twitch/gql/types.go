@@ -155,6 +155,7 @@ type Game struct {
 	BoxArtURL   string `json:"boxArtURL"`
 	DisplayName string `json:"displayName"`
 	Slug        string `json:"slug"`
+	IgdbID      string `json:"igdb_id"`
 }
 
 type Broadcast struct {

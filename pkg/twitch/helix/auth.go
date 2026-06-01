@@ -114,7 +114,6 @@ func (h *Client) ensureValidCreds(ctx context.Context) error {
 	// 		return err
 	// 	}
 	// }
-	// return nil
 	// return h.UserTokenWithRefreshToken(ctx)
 	return nil
 }
@@ -184,7 +183,6 @@ func (h *Client) Authorize(ctx context.Context) error {
 
 		http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 			code := r.URL.Query().Get("code")
-			fmt.Println("RECEIVED CODE:", code)
 
 			if code != "" {
 				if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {

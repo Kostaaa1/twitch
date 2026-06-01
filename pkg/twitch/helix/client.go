@@ -11,7 +11,7 @@ import (
 
 const (
 	helixURL = "https://api.twitch.tv/helix"
-	usherURL = "https://usher.ttvnw.net"
+	// usherURL = "https://usher.ttvnw.net"
 )
 
 type Client struct {
@@ -20,17 +20,19 @@ type Client struct {
 	eventsub   *Eventsub
 }
 
-func New(http *http.Client) *Client {
-	return &Client{http: http}
+func New() *Client {
+	return &Client{http: http.DefaultClient}
 }
+
+func (c *Client) SetHTTPClient(hc *http.Client) { c.http = hc }
 
 type clientOpts func(*Client)
 
-// func WithOAuthCreds(creds *OAuthCreds) clientOpts {
-// 	return func(c *Client) {
-// 		c.OAuthCreds = creds
-// 	}
-// }
+func WithOAuthCreds(creds *OAuthCreds) clientOpts {
+	return func(c *Client) {
+		c.OAuthCreds = creds
+	}
+}
 
 func WithEventsub() clientOpts {
 	return func(c *Client) {
@@ -39,13 +41,28 @@ func WithEventsub() clientOpts {
 }
 
 type HelixErrResponse struct {
-	Error   string `json:"error"`
+	Err     string `json:"error"`
 	Status  int    `json:"status"`
 	Message string `json:"message"`
 }
 
+func (e HelixErrResponse) Error() string {
+	return fmt.Sprintf("%s (%d): %s", e.Err, e.Status, e.Message)
+}
+
 type helixEnvelope[T any] struct {
 	Data []T `json:"data"`
+}
+
+type helixPaginatedEnvelope[T any] struct {
+	Data       []T `json:"data"`
+	Pagination struct {
+		Cursor string `json:"cursor"`
+	} `json:"pagination"`
+}
+
+func (h *Client) Bearer() string {
+	return fmt.Sprintf("Bearer %s", h.OAuthCreds.UserToken.AccessToken)
 }
 
 func (h *Client) Request(
@@ -63,53 +80,36 @@ func (h *Client) Request(
 		return err
 	}
 
-	retryCount := 0
-	var errResp HelixErrResponse
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
 
-	for {
-		req, err := http.NewRequestWithContext(ctx, method, url, body)
-		if err != nil {
-			return fmt.Errorf("failed to create request: %w", err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
+	req.Header.Set("Authorization", h.Bearer())
+
+	resp, err := h.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		var errResp HelixErrResponse
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+			return err
 		}
-		req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.OAuthCreds.UserToken.AccessToken))
-		req.Header.Set("Content-Type", "application/json")
+		return errResp
+	}
 
-		resp, err := h.http.Do(req)
-		if err != nil {
-			return fmt.Errorf("request failed: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusUnauthorized {
-			if retryCount >= 3 {
-				return fmt.Errorf("max retries (%d) reached for unauthorized requests", 3)
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-				return err
-			}
-			if err := h.UserTokenWithRefreshToken(ctx); err != nil {
-				return fmt.Errorf("failed to refresh access token: %v", err)
-			}
-			retryCount++
-			continue
-		}
-
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-				return err
-			}
-			return fmt.Errorf("invalid status code: message=%s | code=%d", errResp.Message, resp.StatusCode)
-		}
-
-		if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-			return nil
-		}
-
-		if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
-			return fmt.Errorf("failed to decode response: %v", err)
-		}
-
+	if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
+		return fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return nil
 }
