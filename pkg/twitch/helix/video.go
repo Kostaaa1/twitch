@@ -66,18 +66,6 @@ type video struct {
 	values url.Values
 }
 
-func (s *video) ID(id string) *video {
-	s.values.Add("id", id)
-	return s
-}
-func (s *video) UserID(userID string) *video {
-	s.values.Add("user_id", userID)
-	return s
-}
-func (s *video) GameID(gameID string) *video {
-	s.values.Add("game_id", gameID)
-	return s
-}
 func (s *video) Language(lang string) *video {
 	s.values.Add("language", lang)
 	return s
@@ -116,11 +104,25 @@ func (s *video) Run(ctx context.Context) (*helixPaginatedEnvelope[Video], error)
 	return &body, nil
 }
 
-func (c *Client) Videos() *video {
+func (c *Client) VideosByID(id string) *video {
+	return c.videos("id", id)
+}
+
+func (c *Client) VideosByGameID(gameID string) *video {
+	return c.videos("game_id", gameID)
+}
+
+func (c *Client) VideosByUserID(userID string) *video {
+	return c.videos("user_id", userID)
+}
+
+func (c *Client) videos(k, v string) *video {
 	parsed, _ := url.Parse("https://api.twitch.tv/helix/videos")
+	params := url.Values{}
+	params.Add(k, v)
 	return &video{
 		c:      c,
 		url:    parsed,
-		values: url.Values{},
+		values: params,
 	}
 }

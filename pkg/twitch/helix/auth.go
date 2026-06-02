@@ -75,7 +75,7 @@ func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
 		http.MethodPost,
 		nil,
-		&h.OAuthCreds,
+		&h.OAuthCreds.UserToken,
 		nil,
 	); err != nil {
 		return err
@@ -114,8 +114,7 @@ func (h *Client) ensureValidCreds(ctx context.Context) error {
 	// 		return err
 	// 	}
 	// }
-	// return h.UserTokenWithRefreshToken(ctx)
-	return nil
+	return h.UserTokenWithRefreshToken(ctx)
 }
 
 var defaultScope = []string{

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -254,10 +253,16 @@ func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error 
 		return err
 	}
 
-	user, err := tw.Helix.UserByChannelName(ctx, "")
+	userData, err := tw.Helix.Users().Run(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching user data for cli chat: %v", err)
+		return err
 	}
+	user := userData.Data[0]
+
+	// user, err := tw.Helix.UserByChannelName(ctx, "")
+	// if err != nil {
+	// 	return fmt.Errorf("failed fetching user data for cli chat: %v", err)
+	// }
 
 	conf.User = config.User{
 		BroadcasterType: user.BroadcasterType,

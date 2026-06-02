@@ -2,8 +2,8 @@ package helix
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"net/url"
 )
 
 type User struct {
@@ -18,43 +18,38 @@ type User struct {
 	ViewCount       int    `json:"view_count"`
 	Email           string `json:"email"`
 	CreatedAt       string `json:"created_at"`
-
-	// PrimaryColorHex string    `json:"primaryColorHex"`
-	// IsPartner       bool      `json:"isPartner"`
-	// LastBroadcast   Broadcast `json:"lastBroadcast"`
-	// Stream          any       `json:"stream"`
-	// Followers       Followers `json:"followers"`
 }
 
-func (h *Client) UserByChannelName(ctx context.Context, channelName string) (*User, error) {
-	url := fmt.Sprintf("%s/users", helixURL)
-	if channelName != "" {
-		url += "?login=" + channelName
-	}
-
-	var body helixEnvelope[User]
-	if err := h.Request(ctx, url, http.MethodGet, nil, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
-	}
-
-	return nil, fmt.Errorf("failed to get user data for: %s", channelName)
+type user struct {
+	c      *Client
+	url    *url.URL
+	values url.Values
 }
 
-func (h *Client) UserByID(ctx context.Context, id string) (*User, error) {
-	url := fmt.Sprintf("%s/users?id=%s", helixURL, id)
+func (c *user) UserID(id string) *user {
+	c.values.Add("id", id)
+	return c
+}
 
+func (c *user) UserLogin(login string) *user {
+	c.values.Add("login", login)
+	return c
+}
+
+func (s *user) Run(ctx context.Context) (*helixEnvelope[User], error) {
+	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[User]
-	if err := h.Request(ctx, url, http.MethodGet, nil, &body); err != nil {
+	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+	return &body, nil
+}
 
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
+func (c *Client) Users() *user {
+	parsed, _ := url.Parse("https://api.twitch.tv/helix/users")
+	return &user{
+		c:      c,
+		url:    parsed,
+		values: url.Values{},
 	}
-
-	return nil, fmt.Errorf("failed to get user data by id: %s", id)
 }

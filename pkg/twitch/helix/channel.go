@@ -2,8 +2,8 @@ package helix
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"net/url"
 )
 
 type Channel struct {
@@ -21,17 +21,31 @@ type Channel struct {
 	IsBrandedContent            bool     `json:"is_branded_content"`
 }
 
-func (h *Client) ChannelInfo(ctx context.Context, broadcasterID string) (*Channel, error) {
-	u := fmt.Sprintf("%s/channels?broadcaster_id=%s", helixURL, broadcasterID)
+type channels struct {
+	c      *Client
+	url    *url.URL
+	values url.Values
+}
 
+func (c *channels) BroadcasterID(bid string) *channels {
+	c.values.Add("broadcaster_id", bid)
+	return c
+}
+
+func (s *channels) Run(ctx context.Context) (*helixEnvelope[Channel], error) {
+	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[Channel]
-	if err := h.Request(ctx, u, http.MethodGet, nil, &body); err != nil {
+	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
 		return nil, err
 	}
+	return &body, nil
+}
 
-	if len(body.Data) > 0 {
-		return &body.Data[0], nil
+func (c *Client) Channels() *channels {
+	parsed, _ := url.Parse("https://api.twitch.tv/helix/channels")
+	return &channels{
+		c:      c,
+		url:    parsed,
+		values: url.Values{},
 	}
-
-	return nil, fmt.Errorf("failed to get the channel info for: %s", broadcasterID)
 }
