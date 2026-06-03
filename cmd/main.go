@@ -15,6 +15,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 )
@@ -36,7 +37,11 @@ func main() {
 
 	switch {
 	case opt.Authorize:
-		if err := tw.Helix.Authorize(ctx); err != nil {
+		if err := tw.Helix.Authorize(
+			ctx,
+			helix.AuthOpts{
+				ResponseType: helix.TokenResponseType,
+			}); err != nil {
 			log.Fatal(err)
 		}
 	case opt.Print:
@@ -68,11 +73,9 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
-
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
 		}
-
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}
@@ -249,7 +252,7 @@ func runTwitchEventSub(
 }
 
 func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
-	if err := tw.Helix.Authorize(ctx); err != nil {
+	if err := tw.Helix.Authorize(ctx, helix.AuthOpts{ResponseType: helix.CodeResponseType}); err != nil {
 		return err
 	}
 
@@ -258,11 +261,6 @@ func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error 
 		return err
 	}
 	user := userData.Data[0]
-
-	// user, err := tw.Helix.UserByChannelName(ctx, "")
-	// if err != nil {
-	// 	return fmt.Errorf("failed fetching user data for cli chat: %v", err)
-	// }
 
 	conf.User = config.User{
 		BroadcasterType: user.BroadcasterType,

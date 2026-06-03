@@ -20,23 +20,23 @@ type User struct {
 	CreatedAt       string `json:"created_at"`
 }
 
-type user struct {
+type users struct {
 	c      *Client
 	url    *url.URL
 	values url.Values
 }
 
-func (c *user) UserID(id string) *user {
+func (c *users) UserID(id string) *users {
 	c.values.Add("id", id)
 	return c
 }
 
-func (c *user) UserLogin(login string) *user {
+func (c *users) UserLogin(login string) *users {
 	c.values.Add("login", login)
 	return c
 }
 
-func (s *user) Run(ctx context.Context) (*helixEnvelope[User], error) {
+func (s *users) Run(ctx context.Context) (*helixEnvelope[User], error) {
 	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[User]
 	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
@@ -45,9 +45,9 @@ func (s *user) Run(ctx context.Context) (*helixEnvelope[User], error) {
 	return &body, nil
 }
 
-func (c *Client) Users() *user {
+func (c *Client) Users() *users {
 	parsed, _ := url.Parse("https://api.twitch.tv/helix/users")
-	return &user{
+	return &users{
 		c:      c,
 		url:    parsed,
 		values: url.Values{},
