@@ -21,6 +21,8 @@ type AppToken struct {
 	TokenType   string `json:"token_type"`
 }
 
+func (u *AppToken) Expired() bool { return false }
+
 type UserToken struct {
 	RefreshToken string   `json:"refresh_token"`
 	AccessToken  string   `json:"access_token"`
@@ -28,6 +30,8 @@ type UserToken struct {
 	ExpiresIn    int      `json:"expires_in"`
 	TokenType    string   `json:"token_type"`
 }
+
+func (u *UserToken) Expired() bool { return false }
 
 type OAuthCreds struct {
 	ClientID     string    `json:"client_id"`
@@ -38,32 +42,49 @@ type OAuthCreds struct {
 }
 
 var (
-	oauthMissingAccessTokenErr = errors.New("oauth creds error: refresh token is present but access token is not - refetch it")
+	ErrMissingClientID     = errors.New("client ID is missing")
+	ErrMissingClientSecret = errors.New("client secret is missing")
+	ErrMissingRedirectURL  = errors.New("redirect url is missing")
 )
 
-func (h *Client) AppToken(ctx context.Context) error {
+func (c *OAuthCreds) Validate() error {
+	if c.ClientID == "" {
+		return ErrMissingClientID
+	}
+	if c.ClientSecret == "" {
+		return ErrMissingClientSecret
+	}
+	if c.RedirectURL == "" {
+		return ErrMissingRedirectURL
+	}
+	return nil
+}
+
+func (h *Client) AppAccessToken(ctx context.Context) error {
 	values := url.Values{
 		"client_id":     {h.OAuthCreds.ClientID},
 		"client_secret": {h.OAuthCreds.ClientSecret},
 		"grant_type":    {"client_credentials"},
 	}
 
-	if err := httputil.FetchWithDecode(
+	url, _ := url.Parse("https://id.twitch.tv/oauth2/token")
+	url.RawQuery = values.Encode()
+
+	header := http.Header{}
+	header.Add("Content-Type", " x-www-form-urlencoded")
+
+	return httputil.FetchWithDecode(
 		ctx,
 		h.http,
-		"https://id.twitch.tv/oauth2/token&"+values.Encode(),
+		url.String(),
 		http.MethodPost,
 		nil,
-		&h.OAuthCreds,
-		nil,
-	); err != nil {
-		return err
-	}
-
-	return nil
+		&h.OAuthCreds.AppToken,
+		header,
+	)
 }
 
-func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
+func (h *Client) RefreshAccessToken(ctx context.Context) error {
 	values := url.Values{
 		"client_id":     {h.OAuthCreds.ClientID},
 		"client_secret": {h.OAuthCreds.ClientSecret},
@@ -71,10 +92,12 @@ func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
 		"grant_type":    {"refresh_token"},
 	}
 
+	url := "https://id.twitch.tv/oauth2/token?" + values.Encode()
+
 	if err := httputil.FetchWithDecode(
 		ctx,
 		h.http,
-		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
+		url,
 		http.MethodPost,
 		nil,
 		&h.OAuthCreds.UserToken,
@@ -84,6 +107,57 @@ func (h *Client) UserTokenWithRefreshToken(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type UserInfo struct {
+	Aud           string    `json:"aud"`
+	Exp           int       `json:"exp"`
+	Iat           int       `json:"iat"`
+	Iss           string    `json:"iss"`
+	Sub           string    `json:"sub"`
+	Email         string    `json:"email"`
+	EmailVerified bool      `json:"email_verified"`
+	Picture       string    `json:"picture"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func (h *Client) Claims(ctx context.Context) (*UserInfo, error) {
+	url := "https://id.twitch.tv/oauth2/userinfo"
+	var userInfo UserInfo
+	if err := h.Request(ctx, url, http.MethodGet, nil, &userInfo); err != nil {
+		return nil, err
+	}
+	return &userInfo, nil
+}
+
+func (h *Client) RevokeAccessToken(ctx context.Context) error {
+	at := h.OAuthCreds.UserToken.AccessToken
+	fmt.Println("AT: ", at)
+	if at == "" {
+		return errors.New("failed to revoke access token: not provided")
+	}
+
+	values := url.Values{"client_id": {h.OAuthCreds.ClientID}, "token": {at}}
+	url := "https://id.twitch.tv/oauth2/revoke?" + values.Encode()
+
+	headers := http.Header{"Content-Type": {"x-www-form-urlencoded"}}
+	return httputil.FetchWithDecode(ctx, h.http, url, http.MethodPost, nil, nil, headers)
+}
+
+type ValidatedAccessToken struct {
+	ClientID  string   `json:"client_id"`
+	Login     string   `json:"login"`
+	Scopes    []string `json:"scopes"`
+	UserID    string   `json:"user_id"`
+	ExpiresIn int      `json:"expires_in"`
+}
+
+func (h *Client) ValidateAccessToken(ctx context.Context) (*ValidatedAccessToken, error) {
+	var resp ValidatedAccessToken
+	if err := h.Request(ctx, "https://id.twitch.tv/oauth2/validate", http.MethodGet, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string) error {
@@ -95,6 +169,9 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 		"grant_type":    {"authorization_code"},
 	}
 
+	headers := http.Header{}
+	headers.Set("Content-Type", "x-www-form-urlencoded")
+
 	if err := httputil.FetchWithDecode(
 		ctx,
 		h.http,
@@ -110,62 +187,9 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 	return nil
 }
 
-func (h *Client) ensureValidCreds(ctx context.Context) error {
-	// if err := h.userToken.Validate(); err != nil {
-	// 	if !errors.Is(err, oauthMissingAccessTokenErr) {
-	// 		return err
-	// 	}
-	// }
-	return h.UserTokenWithRefreshToken(ctx)
-}
-
-var defaultScope = []string{
-	"channel:manage:redemptions",
-	"channel:read:hype_train",
-	"channel:read:redemptions",
-	"channel:read:subscriptions",
-	"chat:edit",
-	"chat:read",
-	"moderator:read:chatters",
-	"user:manage:blocked_users",
-	"user:read:blocked_users",
-	"user:read:follows",
-	"user:read:subscriptions",
-	"whispers:edit",
-	"whispers:read",
-}
-
-func (h *Client) authWithCodeURL() string {
-	values := url.Values{
-		"client_id":    {h.OAuthCreds.ClientID},
-		"redirect_url": {h.OAuthCreds.RedirectURL},
-		"scope":        {strings.Join(defaultScope, " ")},
-		// "state":        {},
-	}
-	return fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&%s", values.Encode())
-}
-
-func (h *Client) authWithTokenURL() string {
-	values := url.Values{
-		"client_id":    {h.OAuthCreds.ClientID},
-		"redirect_url": {h.OAuthCreds.RedirectURL},
-		"scope":        {strings.Join(defaultScope, " ")},
-		// "state":        {},
-	}
-	return fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=token&%s", values.Encode())
-}
-
-type authResponseType string
-
-const (
-	TokenResponseType authResponseType = "token"
-	CodeResponseType  authResponseType = "code"
-)
-
 type AuthOpts struct {
-	ForceVerify  bool
-	Scopes       []Scope
-	ResponseType authResponseType
+	ForceVerify bool
+	Scopes      []Scope
 }
 
 func generateState() (string, error) {
@@ -178,8 +202,7 @@ func generateState() (string, error) {
 }
 
 func (h *Client) URLValues(opts AuthOpts) (url.Values, error) {
-	scopes := defaultScope
-
+	var scopes []string
 	if len(opts.Scopes) > 0 {
 		scopes = make([]string, len(opts.Scopes))
 		for i, scope := range opts.Scopes {
@@ -193,7 +216,7 @@ func (h *Client) URLValues(opts AuthOpts) (url.Values, error) {
 	}
 
 	values := url.Values{
-		"response_type": {string(opts.ResponseType)},
+		"response_type": {"code"},
 		"client_id":     {h.OAuthCreds.ClientID},
 		"redirect_uri":  {h.OAuthCreds.RedirectURL},
 		"scope":         {strings.Join(scopes, " ")},
@@ -207,12 +230,13 @@ func (h *Client) URLValues(opts AuthOpts) (url.Values, error) {
 	return values, nil
 }
 
+// Retrieve User Access token
 func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
-	if err := h.ensureValidCreds(ctx); err != nil {
+	if err := h.OAuthCreds.Validate(); err != nil {
 		return err
 	}
 
-	values, err := h.URLValues(opts)
+	v, err := h.URLValues(opts)
 	if err != nil {
 		return err
 	}
@@ -221,9 +245,9 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 	if err != nil {
 		return err
 	}
-	authURL.RawQuery = values.Encode()
+	authURL.RawQuery = v.Encode()
 
-	fmt.Println("This is the URL", authURL)
+	fmt.Printf("Please visit this link to authorize: \n%s\n", authURL)
 
 	redirectURL, err := url.Parse(h.OAuthCreds.RedirectURL)
 	if err != nil {
@@ -233,42 +257,31 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 	mux := http.NewServeMux()
 	srv := &http.Server{Addr: ":" + redirectURL.Port(), Handler: mux}
 
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Redirected:", r.URL.Path)
-		fmt.Println("value state:", values.Get("state"))
-		fmt.Println("query state:", r.URL.Query().Get("state"))
-
-		// if values.Get("state") != r.URL.Query().Get("state") {
-		// 	// block
-		// 	fmt.Println("CSRF attempt - states do not match")
-		// 	return
-		// }
-
-		// switch opts.ResponseType {
-		// case TokenResponseType:
-		// 	code := r.URL.Query().Get("code")
-		// 	fmt.Println("code: ", code)
-		// case CodeResponseType:
-		// 	token := r.URL.Query().Get("token")
-		// 	fmt.Println("token: ", token)
-		// }
-
-		// code := r.URL.Query().Get(string(opts.Type))
-		// if code != "" {
-		// 	if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {
-		// 		log.Fatal(err)
-		// 	}
-		// 	fmt.Println("Successful authorization! 🚀")
-		// } else {
-		// 	fmt.Println("failed to get the authorization code")
-		// }
-
-		go func() {
-			time.Sleep(time.Second * 1)
+	mux.HandleFunc(redirectURL.Path, func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
 			if err := srv.Shutdown(context.Background()); err != nil {
 				log.Printf("server shutdown error: %v", err)
 			}
 		}()
+
+		q := r.URL.Query()
+		vstate, qstate, code, err := v.Get("state"), q.Get("state"), q.Get("code"), q.Get("error")
+
+		if vstate != qstate {
+			log.Fatalf("states do not match - (%s - %s) CSRF attempt\n", vstate, qstate)
+		}
+		if err != "" {
+			errDesc := q.Get("error_description")
+			log.Fatal(errors.Join(errors.New(errDesc), errors.New(err)))
+		}
+		if code == "" {
+			log.Fatal("code is empty")
+		}
+		if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Println("Successful authorization! 🚀")
 	})
 
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
@@ -277,56 +290,3 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 
 	return nil
 }
-
-// func (h *Client) Authorize(ctx context.Context) error {
-// 	if err := h.ensureValidCreds(ctx); err != nil {
-// 		return err
-// 	}
-
-// 	if h.OAuthCreds.UserToken.RefreshToken == "" {
-// 		values := url.Values{
-// 			"client_id":    {h.OAuthCreds.ClientID},
-// 			"redirect_uri": {h.OAuthCreds.RedirectURL},
-// 			"scope":        {strings.Join(defaultScope, " ")},
-// 		}
-// 		codeURL := fmt.Sprintf("https://id.twitch.tv/oauth2/authorize?response_type=code&%s", values.Encode())
-
-// 		// what := "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=hof5gwx0su6owfnys0yan9c87zr6t&redirect_uri=http://localhost:3000&scope=channel%3Amanage%3Apolls+channel%3Aread%3Apolls&state=c3ab8aa609ea11e793ae92361f002671"
-
-// 		redirectURL, err := url.Parse(h.OAuthCreds.RedirectURL)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		mux := http.NewServeMux()
-// 		srv := &http.Server{Addr: ":" + redirectURL.Port(), Handler: mux}
-
-// 		fmt.Printf("Please visit this link to authorize: \n%s\n", codeURL)
-
-// 		mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-// 			code := r.URL.Query().Get("code")
-
-// 			if code != "" {
-// 				if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {
-// 					log.Fatal(err)
-// 				}
-// 				fmt.Println("Successful authorization! 🚀")
-// 			} else {
-// 				fmt.Println("failed to get the authorization code")
-// 			}
-
-// 			go func() {
-// 				time.Sleep(time.Second * 1)
-// 				if err := srv.Shutdown(context.Background()); err != nil {
-// 					log.Printf("server shutdown error: %v", err)
-// 				}
-// 			}()
-// 		})
-
-// 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }

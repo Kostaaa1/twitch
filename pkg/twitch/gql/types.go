@@ -286,19 +286,8 @@ type PlaybackAccessToken struct {
 }
 
 type PlaybackAccessToken_Template struct {
-	PlaybackAccessToken PlaybackAccessToken `json:"streamPlaybackAccessToken"`
+	PlaybackAccessToken PlaybackAccessToken `json:"videoPlaybackAccessToken"`
 }
-
-// type NielsenContentMetadata struct {
-// 	Data struct {
-// 		Video Video `json:"video"`
-// 	} `json:"data"`
-// 	Extensions struct {
-// 		DurationMilliseconds int    `json:"durationMilliseconds"`
-// 		OperationName        string `json:"operationName"`
-// 		RequestID            string `json:"requestID"`
-// 	} `json:"extensions"`
-// }
 
 type FilterableVideoTower_Videos struct {
 	User struct {

@@ -618,4 +618,14 @@ const (
 	// API
 	// Send Chat Message
 	UserWriteChat Scope = "user:write:chat"
+
+	// IRC SCOPES
+	// Send chat messages to a chatroom using an IRC connection.
+	ChatEdit Scope = "chat:edit"
+	// View chat messages sent in a chatroom using an IRC connection.
+	ChatRead Scope = "chat:read"
+
+	// PUB SUB SCOPES
+	// Receive whisper messages for your user using PubSub.
+	WhispersRead Scope = "whispers:read"
 )

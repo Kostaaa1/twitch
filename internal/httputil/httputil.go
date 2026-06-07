@@ -55,9 +55,6 @@ func FetchWithDecode(
 	dst any,
 	h http.Header,
 ) error {
-	if dst == nil {
-		return errors.New("dst cannot be nil")
-	}
 	if url == "" {
 		return errors.New("failed to fetch: missing url")
 	}
@@ -85,7 +82,7 @@ func FetchWithDecode(
 		return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
 	}
 
-	if resp.Body != nil {
+	if dst != nil && resp.Body != nil {
 		if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
 			return err
 		}

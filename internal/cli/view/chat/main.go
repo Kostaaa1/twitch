@@ -49,7 +49,7 @@ func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *twitch.Client,
 	}
 
 	if errors.Is(err, chat.ErrAuthFailed) {
-		if err := tw.Helix.UserTokenWithRefreshToken(ctx); err != nil {
+		if err := tw.Helix.RefreshAccessToken(ctx); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}
 		if err := ws.Connect(); err != nil {

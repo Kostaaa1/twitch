@@ -32,8 +32,8 @@ func WithHTTPClient(hc *http.Client) clientOpts {
 	}
 }
 
-func WithOAuthCreds(creds *helix.OAuthCreds) clientOpts {
-	return func(c *Client) {
-		c.Helix.OAuthCreds = creds
-	}
-}
+// func WithOAuthCreds(creds *helix.OAuthCreds) clientOpts {
+// 	return func(c *Client) {
+// 		c.Helix.OAuthCreds = creds
+// 	}
+// }

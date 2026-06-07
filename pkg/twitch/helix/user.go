@@ -36,6 +36,7 @@ func (c *users) UserLogin(login string) *users {
 	return c
 }
 
+// user/app token
 func (s *users) Run(ctx context.Context) (*helixEnvelope[User], error) {
 	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[User]

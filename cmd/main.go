@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
@@ -31,26 +35,40 @@ func main() {
 	}
 	defer conf.Save()
 
-	ctx := context.Background()
 	opt := cli.ParseFlags(*conf)
-	tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
+	_ = opt
+	ctx := context.Background()
+	// tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
 
-	switch {
-	case opt.Authorize:
-		if err := tw.Helix.Authorize(
-			ctx,
-			helix.AuthOpts{
-				ResponseType: helix.TokenResponseType,
-			}); err != nil {
-			log.Fatal(err)
-		}
-	case opt.Print:
-		runPrint(ctx, tw)
-	case len(os.Args) == 1:
-		runChat(ctx, tw, conf)
-	default:
-		runDownloader(ctx, tw, conf, opt)
+	// tw := twitch.WithHTTPClient()
+	tw := &twitch.Client{
+		Helix: helix.New(
+			helix.WithEventsub(),
+			helix.WithOAuthCreds(&conf.OAuthCreds),
+		),
 	}
+
+	subs, err := tw.Helix.Eventsub.Subscriptions().Run(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b, err := json.MarshalIndent(subs, "", " ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
+
+	// switch {
+	// case opt.Authorize:
+	// 	runLogin(ctx, tw, conf)
+	// case opt.Print:
+	// 	runPrint(ctx, tw)
+	// case len(os.Args) == 1:
+	// 	runChat(ctx, tw, conf)
+	// default:
+	// 	runDownloader(ctx, tw, conf, opt)
+	// }
 }
 
 func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
@@ -73,9 +91,11 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
+
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
 		}
+
 		if len(kickUnits) > 0 {
 			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
 		}
@@ -205,54 +225,10 @@ func runTwitchEventSub(
 	units []downloader.Unit,
 ) error {
 	return nil
-
-	// ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	// defer cancel()
-
-	// events, err := eventsub.FromUnits(units)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// event := eventsub.New(tw)
-
-	// event.OnNotification = func(resp eventsub.ResponseBody) {
-	// 	if resp.Payload.Subscription != nil {
-	// 		condition := resp.Payload.Subscription.Condition
-
-	// 		if userID, ok := condition["broadcaster_user_id"].(string); ok {
-	// 			user, _ := tw.Helix.UserByID(ctx, userID)
-	// 			unit := downloader.NewUnit(user.Login, downloader.WithQuality(""))
-
-	// 			if unit.Error == nil {
-	// 				go func() {
-	// 					fmt.Println("Starting to record the stream for: ", unit.ID)
-
-	// 					if err := dl.Download(ctx, *unit); err != nil {
-	// 						fmt.Println("error occured: ", err)
-	// 						isLive, _ := tw.IsChannelLive(ctx, user.Login)
-	// 						if !isLive {
-	// 							fmt.Println("Stream went offline!")
-	// 						}
-	// 						return
-	// 					}
-
-	// 					fmt.Println("Stream recording ended for: ", unit.ID)
-	// 				}()
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// if err := event.DialWS(ctx, events); err != nil {
-	// 	return err
-	// }
-
-	// return nil
 }
 
 func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
-	if err := tw.Helix.Authorize(ctx, helix.AuthOpts{ResponseType: helix.CodeResponseType}); err != nil {
+	if err := tw.Helix.Authorize(ctx, helix.AuthOpts{}); err != nil {
 		return err
 	}
 
@@ -305,4 +281,72 @@ func runPrint(ctx context.Context, tw *twitch.Client) {
 	}
 
 	PrintChannel(about, videos, clips)
+}
+
+// Users should have options to either use their app credentials / or just authorize with
+// twitch --login --client_id= --redirect_url= -client_secret=
+func runLogin(
+	ctx context.Context,
+	tw *twitch.Client,
+	conf *config.Config,
+) error {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	if conf.OAuthCreds.ClientID == "" {
+		fmt.Print("please provide client ID: ")
+		if !scanner.Scan() {
+			if scanner.Err() != nil {
+				return scanner.Err()
+			}
+		}
+		clientID := strings.TrimSpace(scanner.Text())
+		if clientID == "" {
+			return errors.New("client ID must be provided")
+		}
+		conf.OAuthCreds.ClientID = clientID
+	}
+
+	if conf.OAuthCreds.ClientSecret == "" {
+		fmt.Print("please provide client secret: ")
+		if !scanner.Scan() {
+			if scanner.Err() != nil {
+				return scanner.Err()
+			}
+		}
+		clientSecret := strings.TrimSpace(scanner.Text())
+		if clientSecret == "" {
+			return errors.New("client ID must be provided")
+		}
+		conf.OAuthCreds.ClientSecret = clientSecret
+	}
+
+	if conf.OAuthCreds.RedirectURL == "" {
+		fmt.Print("please provide redirect URL: ")
+		if !scanner.Scan() {
+			if scanner.Err() != nil {
+				return scanner.Err()
+			}
+		}
+		redirectURL := strings.TrimSpace(scanner.Text())
+		if redirectURL == "" {
+			return errors.New("redirect URL must be provided")
+		}
+		conf.OAuthCreds.RedirectURL = redirectURL
+	}
+
+	return tw.Helix.Authorize(ctx, helix.AuthOpts{
+		Scopes: []helix.Scope{
+			helix.ChannelManageRedemptions,
+			helix.ChannelReadHypeTrain,
+			helix.ChannelReadRedemptions,
+			helix.ChannelReadSubscriptions,
+			helix.ModeratorReadChatters,
+			helix.UserManageBlockedUsers,
+			helix.UserReadBlockedUsers,
+			helix.ChatEdit,
+			helix.ChatRead,
+			helix.UserReadFollows,
+			helix.UserReadSubscriptions,
+		},
+	})
 }

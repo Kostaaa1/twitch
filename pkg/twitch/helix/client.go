@@ -9,19 +9,18 @@ import (
 	"net/http"
 )
 
-const (
-	helixURL = "https://api.twitch.tv/helix"
-	// usherURL = "https://usher.ttvnw.net"
-)
-
 type Client struct {
 	http       *http.Client
 	OAuthCreds *OAuthCreds
-	eventsub   *Eventsub
+	Eventsub   *Eventsub
 }
 
-func New() *Client {
-	return &Client{http: http.DefaultClient}
+func New(opts ...clientOpts) *Client {
+	c := &Client{http: http.DefaultClient}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (c *Client) SetHTTPClient(hc *http.Client) { c.http = hc }
@@ -36,7 +35,7 @@ func WithOAuthCreds(creds *OAuthCreds) clientOpts {
 
 func WithEventsub() clientOpts {
 	return func(c *Client) {
-		c.eventsub = NewEventsub(c)
+		c.Eventsub = NewEventsub(c)
 	}
 }
 
@@ -61,23 +60,41 @@ type helixPaginatedEnvelope[T any] struct {
 	} `json:"pagination"`
 }
 
-func (h *Client) Bearer() string {
+type helixEventsubEnvelope[T any] struct {
+	Total        int `json:"total"`
+	Data         []T `json:"data"`
+	TotalCost    int `json:"total_cost"`
+	MaxTotalCost int `json:"max_total_cost"`
+	Pagination   struct {
+		Cursor string `json:"cursor"`
+	} `json:"pagination"`
+}
+
+func (h *Client) bearerUserToken() string {
 	return fmt.Sprintf("Bearer %s", h.OAuthCreds.UserToken.AccessToken)
 }
 
-func (h *Client) Request(
+func (h *Client) bearerAppToken() string {
+	return fmt.Sprintf("Bearer %s", h.OAuthCreds.AppToken.AccessToken)
+}
+
+func (h *Client) RequestWithAppToken(
 	ctx context.Context,
 	url string,
 	method string,
 	body io.Reader,
-	src interface{},
+	dst interface{},
 ) error {
-	if src == nil {
-		return errors.New("src not defined")
+	if dst == nil {
+		return errors.New("dst not defined")
 	}
-
-	if err := h.ensureValidCreds(ctx); err != nil {
-		return err
+	if h.OAuthCreds.ClientID == "" {
+		return ErrMissingClientID
+	}
+	if h.OAuthCreds.AppToken.AccessToken == "" {
+		if err := h.AppAccessToken(ctx); err != nil {
+			return err
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -87,7 +104,7 @@ func (h *Client) Request(
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
-	req.Header.Set("Authorization", h.Bearer())
+	req.Header.Set("Authorization", h.bearerAppToken())
 
 	resp, err := h.http.Do(req)
 	if err != nil {
@@ -107,7 +124,55 @@ func (h *Client) Request(
 		return nil
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&src); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
+		return fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return nil
+}
+
+func (h *Client) Request(
+	ctx context.Context,
+	url string,
+	method string,
+	body io.Reader,
+	dst interface{},
+) error {
+	if dst == nil {
+		return errors.New("dst not defined")
+	}
+	if h.OAuthCreds.ClientID == "" {
+		return ErrMissingClientID
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
+	req.Header.Set("Authorization", h.bearerUserToken())
+
+	resp, err := h.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		var errResp HelixErrResponse
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+			return err
+		}
+		return errResp
+	}
+
+	if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
+		return nil
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
 		return fmt.Errorf("failed to decode response: %v", err)
 	}
 

@@ -19,10 +19,12 @@ func (tw *Client) VideoPlaybackAccessToken(ctx context.Context, id string) (*Pla
 	    }
 	}`
 
-	var at PlaybackAccessToken
-	if err := sendGqlLoadAndDecode(ctx, tw.http, &at, gqlPayload, id); err != nil {
+	var data PlaybackAccessToken_Template
+	if err := sendGqlLoadAndDecode(ctx, tw.http, &data, gqlPayload, id); err != nil {
 		return nil, err
 	}
+
+	at := data.PlaybackAccessToken
 
 	if at.Value == "" && at.Signature == "" {
 		return nil, fmt.Errorf("[VOD expired] sorry. Unless you've got a time machine, that content is unavailable")
