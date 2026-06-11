@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -16,22 +17,54 @@ import (
 )
 
 type AppToken struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	TokenType   string `json:"token_type"`
+	AccessToken string    `json:"access_token"`
+	ExpiresIn   int       `json:"expires_in"`
+	TokenType   string    `json:"token_type"`
+	ExpiryDate  time.Time `json:"expiry_date"`
 }
 
-func (u *AppToken) Expired() bool { return false }
+func (at *AppToken) UnmarshalJSON(data []byte) error {
+	type Alias AppToken
+
+	aux := &struct{ *Alias }{Alias: (*Alias)(at)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if at.ExpiresIn > 0 {
+		at.ExpiryDate = time.Now().Add(time.Duration(at.ExpiresIn))
+	}
+
+	return nil
+}
+
+func (ut *AppToken) Expired() bool { return time.Since(ut.ExpiryDate) > 0 }
 
 type UserToken struct {
-	RefreshToken string   `json:"refresh_token"`
-	AccessToken  string   `json:"access_token"`
-	Scope        []string `json:"scope"`
-	ExpiresIn    int      `json:"expires_in"`
-	TokenType    string   `json:"token_type"`
+	RefreshToken string    `json:"refresh_token"`
+	AccessToken  string    `json:"access_token"`
+	Scope        []string  `json:"scope"`
+	ExpiresIn    int       `json:"expires_in"`
+	TokenType    string    `json:"token_type"`
+	ExpiryDate   time.Time `json:"expiry_date"`
 }
 
-func (u *UserToken) Expired() bool { return false }
+func (t *UserToken) UnmarshalJSON(data []byte) error {
+	type Alias UserToken
+
+	aux := &struct{ *Alias }{Alias: (*Alias)(t)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if t.ExpiresIn > 0 {
+		t.ExpiryDate = time.Now().Add(time.Duration(t.ExpiresIn))
+	}
+
+	return nil
+}
+
+func (ut *UserToken) Expired() bool { return time.Since(ut.ExpiryDate) > 0 }
 
 type OAuthCreds struct {
 	ClientID     string    `json:"client_id"`
@@ -41,11 +74,49 @@ type OAuthCreds struct {
 	UserToken    UserToken `json:"user_token"`
 }
 
-var (
-	ErrMissingClientID     = errors.New("client ID is missing")
-	ErrMissingClientSecret = errors.New("client secret is missing")
-	ErrMissingRedirectURL  = errors.New("redirect url is missing")
-)
+type AuthOpts struct {
+	ForceVerify bool
+	Scopes      []Scope
+}
+
+func (creds *OAuthCreds) generateState() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func (creds *OAuthCreds) codeExchangeURLValues(opts AuthOpts) (url.Values, error) {
+	var scopes []string
+
+	if len(opts.Scopes) > 0 {
+		scopes = make([]string, len(opts.Scopes))
+		for i, scope := range opts.Scopes {
+			scopes[i] = string(scope)
+		}
+	}
+
+	state, err := creds.generateState()
+	if err != nil {
+		return nil, err
+	}
+
+	values := url.Values{
+		"response_type": {"code"},
+		"client_id":     {creds.ClientID},
+		"redirect_uri":  {creds.RedirectURL},
+		"scope":         {strings.Join(scopes, " ")},
+		"state":         {state},
+	}
+
+	if opts.ForceVerify {
+		values.Add("force_verify", "true")
+	}
+
+	return values, nil
+}
 
 func (c *OAuthCreds) Validate() error {
 	if c.ClientID == "" {
@@ -59,6 +130,12 @@ func (c *OAuthCreds) Validate() error {
 	}
 	return nil
 }
+
+var (
+	ErrMissingClientID     = errors.New("client ID is missing")
+	ErrMissingClientSecret = errors.New("client secret is missing")
+	ErrMissingRedirectURL  = errors.New("redirect url is missing")
+)
 
 func (h *Client) AppAccessToken(ctx context.Context) error {
 	values := url.Values{
@@ -94,7 +171,7 @@ func (h *Client) RefreshAccessToken(ctx context.Context) error {
 
 	url := "https://id.twitch.tv/oauth2/token?" + values.Encode()
 
-	if err := httputil.FetchWithDecode(
+	return httputil.FetchWithDecode(
 		ctx,
 		h.http,
 		url,
@@ -102,11 +179,7 @@ func (h *Client) RefreshAccessToken(ctx context.Context) error {
 		nil,
 		&h.OAuthCreds.UserToken,
 		nil,
-	); err != nil {
-		return err
-	}
-
-	return nil
+	)
 }
 
 type UserInfo struct {
@@ -172,7 +245,7 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 	headers := http.Header{}
 	headers.Set("Content-Type", "x-www-form-urlencoded")
 
-	if err := httputil.FetchWithDecode(
+	return httputil.FetchWithDecode(
 		ctx,
 		h.http,
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
@@ -180,63 +253,15 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 		nil,
 		&h.OAuthCreds.UserToken,
 		nil,
-	); err != nil {
-		return err
-	}
-
-	return nil
+	)
 }
 
-type AuthOpts struct {
-	ForceVerify bool
-	Scopes      []Scope
-}
-
-func generateState() (string, error) {
-	b := make([]byte, 32)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func (h *Client) URLValues(opts AuthOpts) (url.Values, error) {
-	var scopes []string
-	if len(opts.Scopes) > 0 {
-		scopes = make([]string, len(opts.Scopes))
-		for i, scope := range opts.Scopes {
-			scopes[i] = string(scope)
-		}
-	}
-
-	state, err := generateState()
-	if err != nil {
-		return nil, err
-	}
-
-	values := url.Values{
-		"response_type": {"code"},
-		"client_id":     {h.OAuthCreds.ClientID},
-		"redirect_uri":  {h.OAuthCreds.RedirectURL},
-		"scope":         {strings.Join(scopes, " ")},
-		"state":         {state},
-	}
-
-	if opts.ForceVerify {
-		values.Add("force_verify", "true")
-	}
-
-	return values, nil
-}
-
-// Retrieve User Access token
 func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 	if err := h.OAuthCreds.Validate(); err != nil {
 		return err
 	}
 
-	v, err := h.URLValues(opts)
+	v, err := h.OAuthCreds.codeExchangeURLValues(opts)
 	if err != nil {
 		return err
 	}
@@ -247,7 +272,7 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 	}
 	authURL.RawQuery = v.Encode()
 
-	fmt.Printf("Please visit this link to authorize: \n%s\n", authURL)
+	fmt.Printf("Please navigate to this link in browser to authorize: \n%s\n", authURL)
 
 	redirectURL, err := url.Parse(h.OAuthCreds.RedirectURL)
 	if err != nil {
@@ -255,7 +280,10 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 	}
 
 	mux := http.NewServeMux()
-	srv := &http.Server{Addr: ":" + redirectURL.Port(), Handler: mux}
+	srv := &http.Server{
+		Addr:    ":" + redirectURL.Port(),
+		Handler: mux,
+	}
 
 	mux.HandleFunc(redirectURL.Path, func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

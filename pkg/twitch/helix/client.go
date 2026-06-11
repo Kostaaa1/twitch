@@ -3,7 +3,6 @@ package helix
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 type Client struct {
 	http       *http.Client
 	OAuthCreds *OAuthCreds
-	Eventsub   *Eventsub
 }
 
 func New(opts ...clientOpts) *Client {
@@ -30,12 +28,6 @@ type clientOpts func(*Client)
 func WithOAuthCreds(creds *OAuthCreds) clientOpts {
 	return func(c *Client) {
 		c.OAuthCreds = creds
-	}
-}
-
-func WithEventsub() clientOpts {
-	return func(c *Client) {
-		c.Eventsub = NewEventsub(c)
 	}
 }
 
@@ -60,16 +52,6 @@ type helixPaginatedEnvelope[T any] struct {
 	} `json:"pagination"`
 }
 
-type helixEventsubEnvelope[T any] struct {
-	Total        int `json:"total"`
-	Data         []T `json:"data"`
-	TotalCost    int `json:"total_cost"`
-	MaxTotalCost int `json:"max_total_cost"`
-	Pagination   struct {
-		Cursor string `json:"cursor"`
-	} `json:"pagination"`
-}
-
 func (h *Client) bearerUserToken() string {
 	return fmt.Sprintf("Bearer %s", h.OAuthCreds.UserToken.AccessToken)
 }
@@ -85,13 +67,11 @@ func (h *Client) RequestWithAppToken(
 	body io.Reader,
 	dst interface{},
 ) error {
-	if dst == nil {
-		return errors.New("dst not defined")
-	}
 	if h.OAuthCreds.ClientID == "" {
 		return ErrMissingClientID
 	}
-	if h.OAuthCreds.AppToken.AccessToken == "" {
+
+	if h.OAuthCreds.AppToken.AccessToken == "" || h.OAuthCreds.AppToken.Expired() {
 		if err := h.AppAccessToken(ctx); err != nil {
 			return err
 		}
@@ -124,8 +104,10 @@ func (h *Client) RequestWithAppToken(
 		return nil
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
-		return fmt.Errorf("failed to decode response: %v", err)
+	if dst != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
+			return fmt.Errorf("failed to decode response: %v", err)
+		}
 	}
 
 	return nil
@@ -138,11 +120,14 @@ func (h *Client) Request(
 	body io.Reader,
 	dst interface{},
 ) error {
-	if dst == nil {
-		return errors.New("dst not defined")
-	}
 	if h.OAuthCreds.ClientID == "" {
 		return ErrMissingClientID
+	}
+
+	if h.OAuthCreds.UserToken.Expired() {
+		if err := h.RefreshAccessToken(ctx); err != nil {
+			return err
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -172,8 +157,10 @@ func (h *Client) Request(
 		return nil
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
-		return fmt.Errorf("failed to decode response: %v", err)
+	if dst != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
+			return fmt.Errorf("failed to decode response: %v", err)
+		}
 	}
 
 	return nil

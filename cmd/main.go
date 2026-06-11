@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -36,39 +35,24 @@ func main() {
 	defer conf.Save()
 
 	opt := cli.ParseFlags(*conf)
-	_ = opt
 	ctx := context.Background()
-	// tw := twitch.NewClient(twitch.WithOAuthCreds(&conf.OAuthCreds))
 
-	// tw := twitch.WithHTTPClient()
 	tw := &twitch.Client{
 		Helix: helix.New(
-			helix.WithEventsub(),
 			helix.WithOAuthCreds(&conf.OAuthCreds),
 		),
 	}
 
-	subs, err := tw.Helix.Eventsub.Subscriptions().Run(ctx)
-	if err != nil {
-		log.Fatal(err)
+	switch {
+	case opt.Authorize:
+		runLogin(ctx, tw, conf)
+	case opt.Print:
+		runPrint(ctx, tw)
+	case len(os.Args) == 1:
+		runChat(ctx, tw, conf)
+	default:
+		runDownloader(ctx, tw, conf, opt)
 	}
-
-	b, err := json.MarshalIndent(subs, "", " ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(b))
-
-	// switch {
-	// case opt.Authorize:
-	// 	runLogin(ctx, tw, conf)
-	// case opt.Print:
-	// 	runPrint(ctx, tw)
-	// case len(os.Args) == 1:
-	// 	runChat(ctx, tw, conf)
-	// default:
-	// 	runDownloader(ctx, tw, conf, opt)
-	// }
 }
 
 func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
