@@ -1,0 +1,40 @@
+package home
+
+import "github.com/Kostaaa1/twitch/web/views/components"
+
+templ Hero() {
+	<section class="w-full flex pt-16 px-4 items-center flex-col text-white flex-wrap text-center gap-3 h-[420px]">
+		<h1 class="text-5xl md:text-7xl font-semibold">Download Twitch media</h1>
+		<h3 class="text-xl md:text-3xl">Download media from twitch.tv</h3>
+		<div class="flex w-full mt-3">
+			<input 
+				id="twitchUrl"
+				name="twitchUrl"	
+				autofocus="true"
+				value="https://www.twitch.tv/videos/2304172308"
+				class="w-full placeholder:text-slate-400 text-slate-700 border border-slate-200 rounded-l-full px-6 p-3 transition duration-300 ease text-lg focus:outline-none hover:border-slate-300 shadow-sm focus:shadow" 
+				placeholder="Paste twitch.tv URL & Download" 
+			/>
+			@components.Button(components.BtnData{
+				Text: "Submit",
+				URL: "/media/info",
+				Target: "#mediaInfo",
+				Include: []string{"#twitchUrl"},
+				Class: "text-gray-500 rounded-r-full bg-yellow-400 text-white px-4 font-semibold hover:bg-yellow-500 transition duration-300 ease",
+			})
+		</div>
+	</section>
+}
+
+templ Home() {
+	<div class="flex items-center justify-center flex-col max-w-[1300px] w-full mx-auto">
+		@Hero()
+		<form 
+			id="mediaInfo"
+			action="/media/download"
+			method="GET"	
+			class="flex items-center justify-evenly w-full text-black flex-wrap p-4 mb-20 gap-8"
+		></form>
+		@components.Instructions()
+	</div>
+}
