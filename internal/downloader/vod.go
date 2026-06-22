@@ -2,9 +2,9 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,19 +17,16 @@ import (
 )
 
 func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u8.MediaPlaylist, error) {
-	// Get master playlist for VOD by its ID
 	master, err := dl.MasterPlaylistVOD(ctx, unit.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get playlist URL by specified quality
 	variant, err := master.VariantPlaylistByQuality(unit.Quality.String())
 	if err != nil {
 		return nil, err
 	}
 
-	// Fetch playlist
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
 	if err != nil {
 		return nil, err
@@ -46,8 +43,9 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u
 		return nil, err
 	}
 
-	// Truncate
-	playlist.Truncate(unit.Start, unit.End)
+	if unit.Start > 0 || unit.End > 0 {
+		playlist.Truncate(unit.Start, unit.End)
+	}
 
 	return playlist, nil
 }
@@ -72,11 +70,10 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 	fmt.Println("Preview", previewURL)
 
 	master := m3u8.MasterPlaylist{
-		Origin: "s3",
-		B:      false,
-		Region: "EU",
-		UserIP: "127.0.0.1",
-		// ServingID:       createServingID(),
+		Origin:          "s3",
+		B:               false,
+		Region:          "EU",
+		UserIP:          "127.0.0.1",
 		Cluster:         "cloudfront_vod",
 		UserCountry:     "BE",
 		ManifestCluster: "cloudfront_vod",
@@ -114,7 +111,7 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 		}
 
 		if listURL == "" {
-			log.Fatalf("failed to build listURL for vod: %s", vodID)
+			return nil, errors.New("failed to create mock master playlist: missing list url")
 		}
 
 		if isQualityValid(listURL) {
@@ -172,9 +169,9 @@ func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u
 func transformForbiddenSegURL(url string) (string, error) {
 	switch {
 	case strings.Contains(url, "-unmuted"):
-		url = strings.Replace(url, "-unmuted", "-muted", 1)
+		return strings.Replace(url, "-unmuted", "-muted", 1), nil
 	case strings.Contains(url, "-muted"):
-		url = strings.Replace(url, "-muted", "", 1)
+		return strings.Replace(url, "-muted", "", 1), nil
 	}
 	return "", fmt.Errorf("forbidden for segment: %s", url)
 }
@@ -191,7 +188,6 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 	}
 
 	if resp.StatusCode == http.StatusForbidden {
-		// RETRY:
 		url, err = transformForbiddenSegURL(url)
 		if err != nil {
 			return nil, err
@@ -232,18 +228,20 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 
 				seg := playlist.Segments[chunkInx]
 
-				if strings.HasSuffix(seg.URL, ".ts") {
-					lastIndex := strings.LastIndex(playlist.URL, "/")
-					tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
-
-					body, err := dl.fetchSegment(ctx, tsURL)
-					if err != nil {
-						return err
-					}
-
-					seg.Data <- body
-					close(seg.Data)
+				if !strings.HasSuffix(seg.URL, ".ts") {
+					return errors.New("malformed playlist segment url: does not have .ts extension")
 				}
+
+				lastIndex := strings.LastIndex(playlist.URL, "/")
+				tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
+
+				body, err := dl.fetchSegment(ctx, tsURL)
+				if err != nil {
+					return err
+				}
+
+				seg.Data <- body
+				close(seg.Data)
 			}
 		})
 	}

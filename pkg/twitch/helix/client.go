@@ -13,15 +13,16 @@ type Client struct {
 	OAuthCreds *OAuthCreds
 }
 
-func New(opts ...clientOpts) *Client {
-	c := &Client{http: http.DefaultClient}
+func New(httpClient *http.Client, opts ...clientOpts) *Client {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	c := &Client{http: httpClient}
 	for _, opt := range opts {
 		opt(c)
 	}
 	return c
 }
-
-func (c *Client) SetHTTPClient(hc *http.Client) { c.http = hc }
 
 type clientOpts func(*Client)
 

@@ -9,8 +9,6 @@ import (
 	"net/http"
 )
 
-func CodeSuccess(code int) bool { return code < http.StatusOK || code >= http.StatusMultipleChoices }
-
 func Fetch(
 	ctx context.Context,
 	c *http.Client,

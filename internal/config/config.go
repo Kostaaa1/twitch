@@ -176,12 +176,26 @@ func (conf *Config) Save() error {
 		return fmt.Errorf("failed to marshal config bytes: %v\n", err)
 	}
 
-	if err := os.WriteFile(fpath, b, 0644); err != nil {
-		fmt.Println("faield to write to the file?", err)
-		return err
+	return os.WriteFile(fpath, b, 0644)
+}
+
+func initConfigFile(configPath string) (*Config, error) {
+	data := initConfigData()
+
+	configDir := filepath.Dir(configPath)
+
+	b, err := json.MarshalIndent(data, "", " ")
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(configPath, b, 0644); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &data, nil
 }
 
 func Read() (*Config, error) {
@@ -190,24 +204,8 @@ func Read() (*Config, error) {
 		return nil, err
 	}
 
-	var data Config
-	configDir := filepath.Dir(configPath)
-
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		b, err := json.MarshalIndent(initConfigData(), "", " ")
-		if err != nil {
-			return nil, err
-		}
-
-		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
-			return nil, err
-		}
-
-		if err := os.WriteFile(configPath, b, 0644); err != nil {
-			return nil, err
-		}
-
-		return &data, nil
+		return initConfigFile(configPath)
 	} else if err != nil {
 		return nil, err
 	}
@@ -217,6 +215,7 @@ func Read() (*Config, error) {
 		return nil, err
 	}
 
+	var data Config
 	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}

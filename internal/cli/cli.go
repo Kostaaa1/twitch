@@ -1,9 +1,10 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
+	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/google/uuid"
 )
 
@@ -89,7 +91,7 @@ func isKickEndpoint(input string) bool {
 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
-func (flag Flag) unitsFromFlagInput(units *[]spinner.UnitProvider) {
+func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units *[]spinner.UnitProvider) {
 	inputs := strings.Split(flag.Input, ",")
 
 	for _, input := range inputs {
@@ -104,7 +106,7 @@ func (flag Flag) unitsFromFlagInput(units *[]spinner.UnitProvider) {
 				input,
 				downloader.WithQuality(flag.Quality),
 				downloader.WithTimestamps(flag.Start, flag.End),
-				downloader.WithWriter(flag.Output),
+				downloader.WithFile(ctx, c, flag.Output),
 			))
 		}
 	}
@@ -155,9 +157,10 @@ func (flag Flag) unitsFromFileInput(units *[]spinner.UnitProvider) error {
 	return nil
 }
 
-func (opts Flag) UnitsFromInput() []spinner.UnitProvider {
+func (opts Flag) UnitsFromInput() ([]spinner.UnitProvider, error) {
 	if opts.Input == "" {
-		log.Fatalf("Input was not provided.")
+		// TODO: print usage
+		return nil, errors.New("missing input")
 	}
 
 	units := make([]spinner.UnitProvider, 0)
@@ -169,7 +172,7 @@ func (opts Flag) UnitsFromInput() []spinner.UnitProvider {
 		opts.unitsFromFileInput(&units)
 	}
 
-	return units
+	return units, nil
 }
 
 func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {

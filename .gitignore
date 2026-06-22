@@ -1,13 +1,1 @@
-node_modules
-**/twitch_config.json
-**/config.json
-examples
-example.json
-tmp
-notes.md
-todo.txt
-errors.log
-bin
-./bin
-build
-.env
+media

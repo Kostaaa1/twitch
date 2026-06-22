@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -34,36 +35,56 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conf.Save()
+	defer func() {
+		if err := conf.Save(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	ctx := context.Background()
-	opt := cli.ParseFlags(*conf)
+	flag := cli.ParseFlags(*conf)
+
+	httpc := http.DefaultClient
 	tw := &twitch.Client{
-		Gql: gql.New(),
-		Helix: helix.New(
-			helix.WithOAuthCreds(&conf.OAuthCreds),
-		),
+		Gql:   gql.New(httpc),
+		Helix: helix.New(httpc, helix.WithOAuthCreds(&conf.OAuthCreds)),
 	}
 
 	switch {
-	case opt.Authorize:
-		runLogin(ctx, tw, conf)
-	case opt.Print:
-		runPrint(ctx, tw)
+	case flag.Authorize:
+		if err := runLogin(ctx, tw, conf); err != nil {
+			log.Fatal(err)
+		}
+	case flag.Print:
+		if err := runPrint(ctx, tw); err != nil {
+			log.Fatal(err)
+		}
 	case len(os.Args) == 1:
-		runChat(ctx, tw, conf)
+		if err := runChat(ctx, tw, conf); err != nil {
+			log.Fatal(err)
+		}
 	default:
-		runDownloader(ctx, tw, conf, opt)
+		if err := runDownloader(ctx, tw, conf, flag); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
-func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, opt cli.Flag) {
+func runDownloader(ctx context.Context,
+	tw *twitch.Client,
+	conf *config.Config,
+	flag cli.Flag,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	units := opt.UnitsFromInput()
+	units, err := flag.UnitsFromInput()
+	if err != nil {
+		return err
+	}
+
 	twitchUnits, kickUnits := cli.FilterUnits(units)
 
 	var spin *spinner.Model
@@ -78,10 +99,10 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
 		if len(twitchUnits) > 0 {
-			startTwitchDownloader(ctx, tw, spin, conf, opt, twitchUnits, downloadGroup)
+			startTwitchDownloader(ctx, tw, spin, flag, twitchUnits, downloadGroup)
 		}
 		if len(kickUnits) > 0 {
-			startKickDownloader(ctx, spin, opt.Threads, kickUnits, downloadGroup)
+			startKickDownloader(ctx, spin, flag.Threads, kickUnits, downloadGroup)
 		}
 		if err := downloadGroup.Wait(); err == nil {
 			cancel()
@@ -89,15 +110,14 @@ func runDownloader(ctx context.Context, tw *twitch.Client, conf *config.Config, 
 		return nil
 	})
 
-	g.Wait()
+	return g.Wait()
 }
 
 func startTwitchDownloader(
 	ctx context.Context,
 	tw *twitch.Client,
 	spin *spinner.Model,
-	conf *config.Config,
-	option cli.Flag,
+	flag cli.Flag,
 	twitchUnits []downloader.Unit,
 	g *errgroup.Group,
 ) {
@@ -118,10 +138,10 @@ func startTwitchDownloader(
 	}
 
 	g.Go(func() error {
-		if option.Watch {
+		if flag.Watch {
 			return runTwitchEventSub(ctx, tw, dl, twitchUnits)
 		} else {
-			return batchDownloadTwitchUnits(ctx, option.Threads, twitchUnits, dl)
+			return batchDownloadTwitchUnits(ctx, flag.Threads, twitchUnits, dl)
 		}
 	})
 }
@@ -137,20 +157,25 @@ func batchDownloadTwitchUnits(
 		g.SetLimit(threads)
 	}
 
-	var err error
+	errCh := make(chan error)
 
 	for _, unit := range units {
 		g.Go(func() error {
-			if e := dl.Download(ctx, unit); e != nil {
-				err = errors.Join(err, e)
+			if err := dl.Download(ctx, unit); err != nil {
+				errCh <- err
 			}
 			return nil
 		})
 	}
-
 	g.Wait()
 
-	return err
+	var dlErr error
+	for err := range errCh {
+		dlErr = errors.Join(dlErr, err)
+	}
+	close(errCh)
+
+	return dlErr
 }
 
 func startKickDownloader(
@@ -233,49 +258,51 @@ func runTwitchEventSub(
 			},
 		},
 	)
-
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	cleanupPreviousSubscriptions(ctx, e)
+	// ----- Delete previous subscriptions since we are using wss its session bound ------
+	// currentSubs, err := e.Subscriptions().Get().Run(ctx)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// for _, sub := range currentSubs.Data {
+	// 	if err := e.Subscriptions().Delete(sub.ID).Run(ctx); err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// }
 
 	for _, unit := range units {
 		user, err := tw.Helix.Users().UserLogin(unit.ID).Run(ctx)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		id := user.Data[0].ID
 
 		ev1 := e.StreamOnlineEvent(id)
-		ev2 := e.StreamOfflineEvent(id)
-		events := []eventsub.Event{ev1, ev2}
+		events := []eventsub.Event{ev1}
 
 		for _, event := range events {
 			resp, err := e.Subscriptions().Create(event).Run(ctx)
 			if err != nil {
-				log.Fatal(err)
+				return err
 			}
 			_ = resp
 			// print(resp)
 		}
 	}
 
+	// verify
 	subs, err := e.Subscriptions().Get().Run(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-
 	b, _ := json.MarshalIndent(subs, "", " ")
 	fmt.Println(string(b))
 
-	// block until cancelation
-	if err := e.Wait(); err != nil {
-		log.Fatal(err)
-	}
-
-	return nil
+	return e.Wait()
 }
 
 func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error {
@@ -287,6 +314,7 @@ func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error 
 	if err != nil {
 		return err
 	}
+
 	user := userData.Data[0]
 
 	conf.User = config.User{
@@ -301,12 +329,10 @@ func runChat(ctx context.Context, tw *twitch.Client, conf *config.Config) error 
 		Type:            user.Type,
 	}
 
-	chat.Open(ctx, tw, conf)
-
-	return nil
+	return chat.Open(ctx, tw, conf)
 }
 
-func runPrint(ctx context.Context, tw *twitch.Client) {
+func runPrint(ctx context.Context, tw *twitch.Client) error {
 	args := flag.Args()
 	if len(args) == 0 {
 		log.Fatal("invalid usage: --print <channel_name>")
@@ -316,22 +342,24 @@ func runPrint(ctx context.Context, tw *twitch.Client) {
 
 	about, err := tw.Gql.ChannelRoot_AboutPanel(ctx, channel)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	limit := 20
 
 	videos, err := tw.Gql.FilterableVideoTower_Videos(ctx, channel, limit)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	clips, err := tw.Gql.ClipsCardsUser(ctx, channel, limit, gql.AllTime)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	PrintChannel(about, videos, clips)
+
+	return nil
 }
 
 // Users should have options to either use their app credentials / or just authorize with
@@ -400,16 +428,4 @@ func runLogin(
 			helix.UserReadSubscriptions,
 		},
 	})
-}
-
-func cleanupPreviousSubscriptions(ctx context.Context, e *eventsub.Eventsub) {
-	subs, err := e.Subscriptions().Get().Run(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, sub := range subs.Data {
-		if err := e.Subscriptions().Delete(sub.ID).Run(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}
 }

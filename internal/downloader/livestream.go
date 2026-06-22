@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -122,7 +121,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 
 			for s.Scan() {
 				if s.Err() != nil {
-					log.Fatal(err)
+					return err
 				}
 
 				line := s.Text()

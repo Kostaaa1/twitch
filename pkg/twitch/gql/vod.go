@@ -136,12 +136,10 @@ func (gql *Client) SeekPreviewsURL(ctx context.Context, vodID string) (string, s
 	gqlPl := `{
 		"query": "query { video(id: \"%s\") { broadcastType, id, createdAt, seekPreviewsURL, owner { login } } }"
 	}`
-
 	var vod Video
 	if err := sendGqlLoadAndDecode(ctx, gql.http, &vod, gqlPl, vodID); err != nil {
 		return "", "", err
 	}
-
 	return vod.BroadcastType, vod.SeekPreviewsURL, nil
 }
 

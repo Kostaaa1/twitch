@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch"
@@ -18,6 +19,7 @@ type Downloader struct {
 	twClient *twitch.Client
 	http     *http.Client
 	notifyFn func(Progress)
+	log      *slog.Logger
 }
 
 func New(twClient *twitch.Client) *Downloader {
@@ -27,9 +29,8 @@ func New(twClient *twitch.Client) *Downloader {
 	}
 }
 
-func (c *Downloader) SetProgressNotifier(fn func(Progress)) {
-	c.notifyFn = fn
-}
+func (c *Downloader) SetLogger(l *slog.Logger)              { c.log = l }
+func (c *Downloader) SetProgressNotifier(fn func(Progress)) { c.notifyFn = fn }
 
 func (c *Downloader) notify(msg Progress) {
 	if c.notifyFn != nil {

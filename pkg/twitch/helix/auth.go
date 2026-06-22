@@ -296,17 +296,17 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 		vstate, qstate, code, err := v.Get("state"), q.Get("state"), q.Get("code"), q.Get("error")
 
 		if vstate != qstate {
-			log.Fatalf("states do not match - (%s - %s) CSRF attempt\n", vstate, qstate)
+			panic(fmt.Errorf("oauth states do not match - (%s - %s) CSRF attempt\n", vstate, qstate))
 		}
 		if err != "" {
 			errDesc := q.Get("error_description")
-			log.Fatal(errors.Join(errors.New(errDesc), errors.New(err)))
+			panic(errors.Join(errors.New(errDesc), errors.New(err)))
 		}
 		if code == "" {
-			log.Fatal("code is empty")
+			panic("code is empty")
 		}
 		if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 
 		fmt.Println("Successful authorization! 🚀")

@@ -2,6 +2,7 @@ package gql
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -21,7 +22,7 @@ func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (
 	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
 }
 
-func (tw *Client) ClipsCardsUser(
+func (c *Client) ClipsCardsUser(
 	ctx context.Context,
 	channel string,
 	limit int,
@@ -53,7 +54,7 @@ func (tw *Client) ClipsCardsUser(
 	var card ClipsCardsUser
 	if err := sendGqlLoadAndDecode(
 		ctx,
-		tw.http,
+		c.http,
 		&card,
 		gqlPl,
 		channel,
@@ -66,7 +67,7 @@ func (tw *Client) ClipsCardsUser(
 	return &card, nil
 }
 
-func (tw *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) {
+func (c *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) {
 	gqlPayload := `{
         "operationName": "ShareClipRenderStatus",
         "variables": {
@@ -81,7 +82,7 @@ func (tw *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) 
     }`
 
 	var clip Clip
-	if err := sendGqlLoadAndDecode(ctx, tw.http, &clip, gqlPayload, slug); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, c.http, &clip, gqlPayload, slug); err != nil {
 		return nil, err
 	}
 
@@ -90,4 +91,55 @@ func (tw *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) 
 	}
 
 	return &clip, nil
+}
+
+func (c *Client) ClipTitle(ctx context.Context, slug string) (string, error) {
+	gqlPl := `{
+		"query": "query { clip(slug: \"%s\") { title } }"
+	}`
+
+	var data struct {
+		Clip struct {
+			Title string `json:"title"`
+		} `json:"clip"`
+	}
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPl, slug); err != nil {
+		return "", err
+	}
+
+	return data.Clip.Title, nil
+}
+
+func (c *Client) VideoTitle(ctx context.Context, vodID string) (string, error) {
+	gqlPl := `{
+		"query": "query { video(id: \"%s\") { title } }"
+	}`
+
+	var data struct {
+		Video struct {
+			Title string `json:"title"`
+		} `json:"video"`
+	}
+
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPl, vodID); err != nil {
+		return "", err
+	}
+
+	return data.Video.Title, nil
+}
+
+func (c *Client) StreamTitle(ctx context.Context, channel string) (string, error) {
+	gqlPl := `{
+		"query": "query { user(login: \"%s\") { stream { __typename } } }"
+	}`
+
+	var data interface{}
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPl, channel); err != nil {
+		return "", err
+	}
+
+	b, _ := json.MarshalIndent(data, "", " ")
+	fmt.Println(string(b))
+
+	return "dskao", nil
 }
