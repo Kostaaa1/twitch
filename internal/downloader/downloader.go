@@ -38,20 +38,10 @@ func (c *Downloader) notify(msg Progress) {
 	}
 }
 
-func (dl *Downloader) Download(ctx context.Context, u Unit) error {
+func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	defer u.CloseWriter()
 
-	err := u.Error
-
-	if err != nil {
-		dl.notify(Progress{
-			ID:    u.GetID(),
-			Err:   err,
-			Bytes: 0,
-			Done:  true,
-		})
-		return err
-	}
+	var err error
 
 	switch u.Type {
 	case TypeVOD:

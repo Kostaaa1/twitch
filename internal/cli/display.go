@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 )
 
 var (
@@ -19,8 +21,10 @@ var (
 	blueStyle        = lipgloss.NewStyle().Foreground(colorBlue)
 	purpleStyle      = lipgloss.NewStyle().Foreground(colorPurple)
 	mutedStyle       = lipgloss.NewStyle().Foreground(colorMuted)
+	checkMark        = greenStyle.Bold(true).Render("✓")
 	tab              = "  "
 	maxContentLength = 600
+	width            = 80
 )
 
 func humanIntFormat(n int) string {
@@ -41,13 +45,21 @@ func printLabelRow(s *strings.Builder,
 	labelLen,
 	maxLen int,
 ) {
-	s.WriteString("\n")
 	space := strings.Repeat(" ", maxLen-labelLen+len(tab)*2)
-	s.WriteString(tab)
 	s.WriteString(tab)
 	s.WriteString(label)
 	s.WriteString(space)
 	s.WriteString(value)
+	s.WriteString("\n")
+}
+
+func printHeaderLabel(s *strings.Builder, label string) {
+	s.WriteString(tab)
+	dash := mutedStyle.Render("──")
+	s.WriteString(dash)
+	s.WriteString(purpleStyle.Bold(true).Render(fmt.Sprintf(" %s ", label)))
+	s.WriteString(strings.Repeat(dash, (width-len(label))/2-5))
+	s.WriteString("\n\n")
 }
 
 func printInfo(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
@@ -69,89 +81,56 @@ func printInfo(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 	printLabelRow(s, style.Render("Followers"), strconv.Itoa(u.User.Followers.TotalCount), len("Followers"), max)
 	printLabelRow(s, style.Render("Last Game"), u.User.LastBroadcast.Game.DisplayName, len("Last Game"), max)
 	printLabelRow(s, style.Render("Subscribers"), "2000", len("Subscribers"), max)
-}
-
-func printHeaderLabel(s *strings.Builder, line string) {
-	dash := mutedStyle.Render("──")
-	s.WriteString(dash)
-	s.WriteString(purpleStyle.
-		Bold(true).
-		Render(line),
-	)
-	s.WriteString(strings.Repeat(dash, 20))
+	s.WriteString("\n")
 }
 
 func printClips(s *strings.Builder, clips *gql.ClipsCardsUser) {
-	s.WriteString("\n")
-
-	printHeaderLabel(
-		s,
-		fmt.Sprintf(" Clips (%d) ", len(clips.User.Clips.Edges)),
-	)
+	printHeaderLabel(s, fmt.Sprintf("Clips (%d)", len(clips.User.Clips.Edges)))
 
 	if len(clips.User.Clips.Edges) == 0 {
 		s.WriteString(tab)
-		s.WriteString(tab)
-		s.WriteString(mutedStyle.Render("No videos found"))
-		return
-	}
+		s.WriteString(mutedStyle.Render("No clips found"))
+	} else {
+		for i, edge := range clips.User.Clips.Edges {
+			clip := edge.Node
 
-	s.WriteString("\n")
-	s.WriteString("\n")
+			numerical := strconv.Itoa(i+1) + "." + " "
+			s.WriteString(tab)
+			s.WriteString(mutedStyle.Render(numerical))
 
-	for i, edge := range clips.User.Clips.Edges {
-		clip := edge.Node
+			if len(clip.Title) > maxContentLength {
+				s.WriteString(fmt.Sprintf("%s ...", clip.Title[:50]))
+			} else {
+				s.WriteString(clip.Title)
+			}
 
-		numerical := strconv.Itoa(i+1) + "." + " "
-		s.WriteString(tab)
-		s.WriteString(mutedStyle.Render(numerical))
+			var inner strings.Builder
+			inner.WriteString(strings.Repeat(" ", len(numerical)+2))
+			inner.WriteString(clip.Game.Name)
+			inner.WriteString(" . ")
+			inner.WriteString(clip.Slug)
+			inner.WriteString(" . ")
+			inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(clip.ViewCount)))
+			inner.WriteString(" . ")
+			inner.WriteString(clip.Curator.DisplayName)
+			inner.WriteString(" . ")
+			seconds := time.Duration(int64(clip.DurationSeconds)) * time.Second
+			inner.WriteString(seconds.String())
+			inner.WriteString(" . ")
+			// since := time.Since(clip.CreatedAt) USE FOR AGO
+			inner.WriteString("7y" + " ago")
 
-		if len(clip.Title) > maxContentLength {
-			s.WriteString(fmt.Sprintf("%s ...", clip.Title[:50]))
-		} else {
-			s.WriteString(clip.Title)
+			s.WriteString("\n")
+			s.WriteString(mutedStyle.Render(inner.String()))
+			s.WriteString("\n")
 		}
-		s.WriteString("\n")
-
-		// s.WriteString(tab)
-		s.WriteString(strings.Repeat(" ", len(numerical)+2))
-
-		var inner strings.Builder
-
-		// inner.WriteString(clip.)
-		// inner.WriteString(" . ")
-
-		inner.WriteString(clip.Game.Name)
-		inner.WriteString(" . ")
-
-		inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(clip.ViewCount)))
-		inner.WriteString(" . ")
-
-		inner.WriteString(clip.Curator.DisplayName)
-		inner.WriteString(" . ")
-
-		seconds := time.Duration(int64(clip.DurationSeconds)) * time.Second
-		inner.WriteString(seconds.String())
-		inner.WriteString(" . ")
-
-		since := time.Since(clip.CreatedAt)
-		_ = since
-		inner.WriteString("7y" + " ago")
-
-		s.WriteString(mutedStyle.Render(inner.String()))
-		s.WriteString("\n")
 	}
+
+	s.WriteString("\n")
 }
 
 func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
-	s.WriteString("\n\n")
-	s.WriteString(tab)
-	s.WriteString(
-		purpleStyle.
-			Bold(true).
-			Render("Socials"),
-	)
-	s.WriteString("\n")
+	printHeaderLabel(s, "Socials")
 
 	maxSpace := 0
 	for _, social := range u.User.Channel.SocialMedias {
@@ -159,6 +138,7 @@ func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 			maxSpace = len(social.Name)
 		}
 	}
+
 	for _, social := range u.User.Channel.SocialMedias {
 		printLabelRow(
 			s,
@@ -168,110 +148,95 @@ func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 			maxSpace,
 		)
 	}
+	s.WriteString("\n")
 }
 
 func printAbout(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
+	printHeaderLabel(s, "About")
+	s.WriteString(tab)
+	s.WriteString(mutedStyle.Render(u.User.Description))
 	s.WriteString("\n\n")
-	s.WriteString(tab)
-	s.WriteString(
-		purpleStyle.
-			Bold(true).
-			Render("About"),
-	)
-	s.WriteString("\n")
-	s.WriteString("\n")
-	s.WriteString(tab)
-	s.WriteString(tab)
-	s.WriteString(
-		mutedStyle.
-			Render(u.User.Description),
-	)
 }
 
 func printChannel(s *strings.Builder, u *gql.ChannelRoot_AboutPanel, userStyle lipgloss.Style) {
-	checkMark := greenStyle.Bold(true).Render("✓")
+	values := make([]string, 0)
+	if u.User.Roles.IsPartner {
+		values = append(values, mutedStyle.Render("Partnered ")+checkMark)
+	}
+	if u.User.Roles.IsAffiliate {
+		values = append(values, mutedStyle.Render("Afiliated ")+checkMark)
+	}
 
 	var inner strings.Builder
-
-	if u.User.Roles.IsPartner {
-		inner.WriteString(mutedStyle.Render("Partnered "))
-		inner.WriteString(checkMark)
-	}
-
-	if u.User.Roles.IsAffiliate {
-		inner.WriteString(mutedStyle.Render("Afiliated "))
-		inner.WriteString(checkMark)
-	}
+	inner.WriteString(strings.Join(values, " "))
 
 	header := userStyle.
 		Border(lipgloss.RoundedBorder()).
 		UnsetBorderBackground().
-		PaddingLeft(2).
-		PaddingRight(2).
+		PaddingLeft(1).
+		PaddingRight(1).
 		BorderForeground(colorPurple).
 		Render(fmt.Sprintf("%s %s", u.User.DisplayName, inner.String()))
 
 	s.WriteString(header)
+	s.WriteString("\n")
 }
 
 func printVideos(s *strings.Builder, videos *gql.FilterableVideoTower_Videos) {
-	s.WriteString("\n")
-	s.WriteString("\n")
-
-	line := fmt.Sprintf(" Videos (%d) ", len(videos.User.Videos.Edges))
-	printHeaderLabel(s, line)
-
-	s.WriteString("\n")
-	s.WriteString("\n")
+	printHeaderLabel(s, fmt.Sprintf("Videos (%d)", len(videos.User.Videos.Edges)))
 
 	if len(videos.User.Videos.Edges) == 0 {
 		s.WriteString(tab)
 		s.WriteString(tab)
 		s.WriteString(mutedStyle.Render("No videos found"))
-		return
-	}
+	} else {
 
-	for i, edge := range videos.User.Videos.Edges {
-		video := edge.Node
+		for i, edge := range videos.User.Videos.Edges {
+			video := edge.Node
 
-		numerical := strconv.Itoa(i+1) + "." + " "
-		s.WriteString(tab)
-		s.WriteString(mutedStyle.Render(numerical))
+			numerical := strconv.Itoa(i+1) + "." + " "
+			s.WriteString(tab)
+			s.WriteString(mutedStyle.Render(numerical))
 
-		if len(video.Title) > maxContentLength {
-			s.WriteString(fmt.Sprintf("%s ...", video.Title[:50]))
-		} else {
-			s.WriteString(video.Title)
+			if len(video.Title) > maxContentLength {
+				s.WriteString(fmt.Sprintf("%s ...", video.Title[:50]))
+			} else {
+				s.WriteString(video.Title)
+			}
+
+			var inner strings.Builder
+
+			inner.WriteString(strings.Repeat(" ", len(numerical)+2))
+
+			inner.WriteString(video.Game.DisplayName)
+			inner.WriteString(" . ")
+
+			inner.WriteString(video.ID)
+			inner.WriteString(" . ")
+
+			seconds := time.Duration(int64(video.LengthSeconds)) * time.Second
+			inner.WriteString(seconds.String())
+			inner.WriteString(" . ")
+
+			strconv.Itoa(video.ViewCount)
+			inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(video.ViewCount)))
+			inner.WriteString(" . ")
+
+			since := time.Since(video.PublishedAt)
+			_ = since
+			inner.WriteString("7y" + " ago")
+
+			s.WriteString("\n")
+			s.WriteString(mutedStyle.Render(inner.String()))
+			s.WriteString("\n")
 		}
-		s.WriteString("\n")
-
-		// s.WriteString(tab)
-		s.WriteString(strings.Repeat(" ", len(numerical)+2))
-
-		var inner strings.Builder
-
-		inner.WriteString(video.Game.DisplayName)
-		inner.WriteString(" . ")
-
-		inner.WriteString(video.ID)
-		inner.WriteString(" . ")
-
-		seconds := time.Duration(int64(video.LengthSeconds)) * time.Second
-		inner.WriteString(seconds.String())
-		inner.WriteString(" . ")
-
-		strconv.Itoa(video.ViewCount)
-		inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(video.ViewCount)))
-		inner.WriteString(" . ")
-
-		since := time.Since(video.PublishedAt)
-		_ = since
-		inner.WriteString("7y" + " ago")
-
-		s.WriteString(mutedStyle.Render(inner.String()))
-
-		s.WriteString("\n")
 	}
+	s.WriteString("\n")
+}
+
+func getTerminalWidth() (int, int, error) {
+	fd := uintptr(os.Stdout.Fd())
+	return term.GetSize(fd)
 }
 
 func PrintChannel(
@@ -285,25 +250,21 @@ func PrintChannel(
 		u.PrimaryColorHex = "FFBF00"
 	}
 
+	w, _, _ := getTerminalWidth()
+	if w > 0 {
+		width = w
+	}
+
 	primaryHex := fmt.Sprintf("#%s", u.PrimaryColorHex)
 	colorUserPrimary := lipgloss.Color(primaryHex)
 	userStyle := lipgloss.NewStyle().Foreground(colorUserPrimary)
 
 	var s strings.Builder
-	// Header
 	printChannel(&s, about, userStyle)
-	// Info
 	printInfo(&s, about)
-	// About
 	printAbout(&s, about)
-	// Socials
 	printSocials(&s, about)
-	//videso
 	printVideos(&s, videos)
-	//videso
 	printClips(&s, clips)
-
-	s.WriteString("\n")
-
 	fmt.Println(s.String())
 }

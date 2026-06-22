@@ -59,11 +59,85 @@ type Unit struct {
 	// title of the media - WithTitle fetches the title based on the mediatype
 	Title string
 	// error
-	Error error
+	// Error error
 	// writer
 	Writer io.Writer
 	// pathname for file writer - file writer gets created upon write
 	pathname string
+}
+
+type unitOption func(*Unit)
+
+func WithTitle(c *twitch.Client) unitOption {
+	return func(u *Unit) {
+		u.fetchTitle(context.Background(), c)
+	}
+}
+
+func WithWriter(w io.WriteCloser) unitOption {
+	return func(u *Unit) {
+		u.Writer = w
+	}
+}
+
+func WithFile(ctx context.Context, c *twitch.Client, dir string) unitOption {
+	return func(u *Unit) {
+		var ext string
+		if u.Type == TypeLivestream || u.Type == TypeVOD {
+			ext = "ts"
+		}
+		if strings.HasPrefix(u.Quality.String(), "audio") {
+			ext = "mp3"
+		}
+		if u.Type == TypeClip {
+			ext = "mp4"
+		}
+
+		if ext == "" {
+			u.Error = errors.New("couldn't extract the file extension")
+			return
+		}
+
+		u.fetchTitle(ctx, c)
+
+		if u.Title != "" {
+			pathname, err := fileutil.ConstructPathname(dir, u.Title, ext)
+			if err != nil {
+				u.Error = err
+				return
+			}
+			u.pathname = pathname
+		}
+	}
+}
+
+func WithTimestamps(start, end time.Duration) unitOption {
+	return func(u *Unit) {
+		u.Start = start
+		u.End = end
+	}
+}
+
+func WithQuality(q string) unitOption {
+	return func(u *Unit) {
+		switch {
+		case q == "" || q == "best" || strings.HasPrefix(q, "1080"):
+			u.Quality = Quality1080p60
+		case strings.HasPrefix(q, "720"):
+			u.Quality = Quality720p60
+		case strings.HasPrefix(q, "480"):
+			u.Quality = Quality480p30
+		case strings.HasPrefix(q, "360"):
+			u.Quality = Quality360p30
+		case q == "worst" || strings.HasPrefix(q, "160"):
+			u.Quality = Quality160p30
+		case strings.HasPrefix(q, "audio"):
+			u.Quality = QualityAudioOnly
+		default:
+			u.Quality = 0
+			u.Error = fmt.Errorf("invalid quality was provided: %s. valid are: %s", q, strings.Join(qualities, ", "))
+		}
+	}
 }
 
 func (u *Unit) fetchTitle(ctx context.Context, c *twitch.Client) error {
@@ -132,107 +206,62 @@ func NewUnit(input string, opts ...unitOption) (*Unit, error) {
 		opt(unit)
 	}
 
-	if unit.Writer == nil {
-		if unit.pathname == "" {
-			unit.Error = errors.New("")
-		}
-	}
+	// if unit.Writer == nil && unit.pathname == "" {
+	// 	unit.Error = errors.New("")
+	// }
 
 	return unit, nil
 }
 
-type unitOption func(*Unit)
+func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
+	defer r.Close()
 
-func WithTitle(c *twitch.Client) unitOption {
-	return func(u *Unit) {
-		u.fetchTitle(context.Background(), c)
+	n, err := io.Copy(u.Writer, r)
+	if err != nil {
+		return err
 	}
+
+	dl.notify(Progress{
+		ID: u.GetID(),
+		// Err:   u.Error,
+		Bytes: n,
+	})
+
+	return nil
 }
 
-func WithWriter(w io.WriteCloser) unitOption {
-	return func(u *Unit) {
-		u.Writer = w
-	}
-}
-
-func WithFile(ctx context.Context, c *twitch.Client, dir string) unitOption {
-	return func(u *Unit) {
-		if u.Error != nil {
-			return
-		}
-
-		var ext string
-		if u.Type == TypeLivestream || u.Type == TypeVOD {
-			ext = "ts"
-		}
-		if strings.HasPrefix(u.Quality.String(), "audio") {
-			ext = "mp3"
-		}
-		if u.Type == TypeClip {
-			ext = "mp4"
-		}
-
-		if ext == "" {
-			u.Error = errors.New("couldn't extract the file extension")
-			return
-		}
-
-		u.fetchTitle(ctx, c)
-
-		if u.Title != "" {
-			pathname, err := fileutil.ConstructPathname(dir, u.Title, ext)
+func (u *Unit) segmentFetchCopy(ctx context.Context, dl *Downloader, segURL string) error {
+	if u.Writer == nil {
+		if u.pathname == "" {
+			return errors.New("output path is missing")
+		} else {
+			fd, err := os.OpenFile(u.pathname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
-				u.Error = err
-				return
+				return err
 			}
-			u.pathname = pathname
+			u.Writer = fd
 		}
 	}
-}
 
-func WithTimestamps(start, end time.Duration) unitOption {
-	return func(u *Unit) {
-		u.Start = start
-		u.End = end
+	body, err := dl.fetchSegment(ctx, segURL)
+	if err != nil {
+		return err
 	}
-}
 
-func WithQuality(q string) unitOption {
-	return func(u *Unit) {
-		switch {
-		case q == "" || q == "best" || strings.HasPrefix(q, "1080"):
-			u.Quality = Quality1080p60
-		case strings.HasPrefix(q, "720"):
-			u.Quality = Quality720p60
-		case strings.HasPrefix(q, "480"):
-			u.Quality = Quality480p30
-		case strings.HasPrefix(q, "360"):
-			u.Quality = Quality360p30
-		case q == "worst" || strings.HasPrefix(q, "160"):
-			u.Quality = Quality160p30
-		case strings.HasPrefix(q, "audio"):
-			u.Quality = QualityAudioOnly
-		default:
-			u.Quality = 0
-			u.Error = fmt.Errorf("invalid quality was provided: %s. valid are: %s", q, strings.Join(qualities, ", "))
-		}
-	}
+	return u.download(dl, body)
 }
 
 func (u *Unit) CloseWriter() error {
 	if f, ok := u.Writer.(*os.File); ok && f != nil {
-		if u.Error != nil {
-			os.Remove(f.Name())
-		}
 		return f.Close()
 	}
 	return nil
 }
 
 // Implement spinner interface
-func (u Unit) GetError() error {
-	return u.Error
-}
+// func (u Unit) GetError() error {
+// 	return u.Error
+// }
 
 func (u Unit) GetID() string {
 	if u.Title == "" {

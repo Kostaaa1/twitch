@@ -13,6 +13,5 @@ type unit struct {
 
 type UnitProvider interface {
 	GetID() string
-	// used when initializing spinner.units. if unit has error when initializing, it will update the done count and state
-	GetError() error
+	// GetError() error
 }

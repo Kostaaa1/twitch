@@ -251,7 +251,7 @@ func runTwitchEventSub(
 				switch msg.Metadata.SubscriptionType {
 				case eventsub.StreamOnline:
 					// start downloading
-					go dl.Download(ctx, *unit)
+					go dl.Download(ctx, unit)
 				case eventsub.StreamOffline:
 					// cancel downloading
 				}
@@ -357,7 +357,7 @@ func runPrint(ctx context.Context, tw *twitch.Client) error {
 		return err
 	}
 
-	PrintChannel(about, videos, clips)
+	cli.PrintChannel(about, videos, clips)
 
 	return nil
 }

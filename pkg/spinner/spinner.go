@@ -18,19 +18,14 @@ type Message struct {
 	Done  bool
 }
 
-// TODO:
-// 1. Maybe support multiple colors and spinner.Spinner per unit. If that is the case, we need to redesign this and display spinner per unit (not one spinner with multiple units). Then i would display each per unit.
-// 2. Maybe implement write method, where we would need to use gob for encoding/decoding struct bytes.
-
 type Model struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	spinner spinner.Model
-	width   int
-	program *tea.Program
-	units   []*unit
-	exiting bool
-	// used to quit/exit the spinner if all units are done - prevents from always checking if all units are done
+	ctx       context.Context
+	cancel    context.CancelFunc
+	spinner   spinner.Model
+	width     int
+	program   *tea.Program
+	units     []*unit
+	exiting   bool
 	doneCount int
 	C         chan Message
 }
@@ -46,17 +41,15 @@ func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
 func spinnerUnitsSliceFromSlice[T UnitProvider](units []T) ([]*unit, int) {
 	doneCount := 0
 	su := make([]*unit, len(units))
-
 	for i, u := range units {
 		su[i] = &unit{
 			title: u.GetID(),
-			err:   u.GetError(),
+			// err:   u.GetError(),
 		}
-		if u.GetError() != nil {
-			doneCount++
-		}
+		// if u.GetError() != nil {
+		// 	doneCount++
+		// }
 	}
-
 	return su, doneCount
 }
 

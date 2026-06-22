@@ -11,35 +11,37 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
-func (dl *Downloader) download(ctx context.Context, unit Unit, tsURL string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tsURL, nil)
+func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) ([]byte, error) {
+	tok, err := dl.twClient.Gql.StreamPlaybackAccessToken(ctx, channel)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", gql.UsherURL, channel, tok.Value, tok.Signature)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := dl.http.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	n, err := io.Copy(unit.Writer, resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	dl.notify(Progress{
-		ID:    unit.GetID(),
-		Err:   unit.Error,
-		Bytes: n,
-	})
-
-	return nil
+	return b, nil
 }
 
-func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
+func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 	isLive, err := dl.twClient.Gql.IsChannelLive(ctx, unit.ID)
 	if err != nil {
 		return err
@@ -84,7 +86,8 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 				if !ok {
 					return
 				}
-				if err := dl.download(ctx, unit, tsURL); err != nil {
+
+				if err := unit.segmentFetchCopy(ctx, dl, tsURL); err != nil {
 					errCh <- err
 					return
 				}
@@ -105,6 +108,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 			if err != nil {
 				return err
 			}
+
 			resp, err := dl.http.Do(req)
 			if err != nil {
 				return err
@@ -130,6 +134,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit Unit) error {
 					if strings.Contains(line, "Amazon") {
 						continue
 					}
+
 					s.Scan()
 
 					lastPollURL = s.Text()

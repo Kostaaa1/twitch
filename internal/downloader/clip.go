@@ -2,33 +2,12 @@ package downloader
 
 import (
 	"context"
-	"io"
-	"net/http"
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
-func (dl *Downloader) fetchCopy(ctx context.Context, w io.Writer, url string) (int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return 0, err
-	}
-	resp, err := dl.http.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	n, err := io.Copy(w, resp.Body)
-	if err != nil {
-		return 0, err
-	}
-
-	return n, nil
-}
-
-func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
+func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
 	clip, err := dl.twClient.Gql.ClipMetadata(ctx, unit.ID)
 	if err != nil {
 		return err
@@ -41,19 +20,13 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit Unit) error {
 		return err
 	}
 
-	var n int64
-
 	if unit.Quality == QualityAudioOnly {
 		// n, err = extractAudio(usherURL, unit.Writer)
 	} else {
-		n, err = dl.fetchCopy(ctx, unit.Writer, usherURL)
+		if err := unit.segmentFetchCopy(ctx, dl, usherURL); err != nil {
+			return err
+		}
 	}
-
-	dl.notify(Progress{
-		ID:    unit.GetID(),
-		Bytes: n,
-		Err:   unit.Error,
-	})
 
 	return nil
 }
@@ -84,24 +57,3 @@ func extractClipSourceURL(videoQualities []gql.VideoQuality, quality string) str
 		return extractClipSourceURL(videoQualities, qualities[id+1])
 	}
 }
-
-// func extractAudio(url string, w io.Writer) (int64, error) {
-// 	cmd := exec.Command("ffmpeg", "-i", url, "-q:a", "0", "-map", "a", "-f", "mp3", "-")
-// 	cmd.Stdout = nil
-// 	cmd.Stderr = nil
-// 	stdout, err := cmd.StdoutPipe()
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-// 	}
-// 	if err := cmd.Start(); err != nil {
-// 		return 0, fmt.Errorf("failed to start FFmpeg: %w", err)
-// 	}
-// 	n, err := io.Copy(w, stdout)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to copy audio data: %w", err)
-// 	}
-// 	if err := cmd.Wait(); err != nil {
-// 		return 0, fmt.Errorf("FFmpeg conversion failed: %w", err)
-// 	}
-// 	return n, nil
-// }

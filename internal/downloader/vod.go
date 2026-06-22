@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit Unit) (*m3u8.MediaPlaylist, error) {
+func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3u8.MediaPlaylist, error) {
 	master, err := dl.MasterPlaylistVOD(ctx, unit.ID)
 	if err != nil {
 		return nil, err
@@ -147,14 +147,7 @@ func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u
 		tok.Signature,
 	)
 
-	b, code, err := httputil.Fetch(
-		ctx,
-		dl.http,
-		m3u8url,
-		http.MethodGet,
-		nil,
-		nil,
-	)
+	b, code, err := httputil.Fetch(ctx, dl.http, m3u8url, http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -207,12 +200,13 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 	return resp.Body, nil
 }
 
-func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
+func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	playlist, err := dl.mediaPlaylistForUnit(ctx, unit)
 	if err != nil {
 		return err
 	}
 
+	// TODO: look into this
 	workerCount := 4
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -252,29 +246,11 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit Unit) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case chunk := <-playlist.Segments[i].Data:
-				err := func() error {
-					defer chunk.Close()
-
-					n, err := io.Copy(unit.Writer, chunk)
-					if err != nil {
-						return err
-					}
-
-					dl.notify(Progress{
-						ID:    unit.GetID(),
-						Err:   unit.Error,
-						Bytes: n,
-					})
-
-					return nil
-				}()
-
-				if err != nil {
+				if err := unit.download(dl, chunk); err != nil {
 					return err
 				}
 			}
 		}
-
 		return nil
 	})
 
