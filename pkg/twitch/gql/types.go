@@ -61,12 +61,6 @@ type Authorization struct {
 	ForbiddenReasonCode string `json:"forbiddenReasonCode"`
 }
 
-type VideoQuality struct {
-	FrameRate float64 `json:"frameRate"`
-	Quality   string  `json:"quality"`
-	SourceURL string  `json:"sourceURL"`
-}
-
 type Owner struct {
 	ID              string `json:"id"`
 	DisplayName     string `json:"displayName"`
@@ -122,6 +116,19 @@ type NielsenContentMetadata struct {
 		} `json:"stream"`
 		Typename string `json:"__typename"`
 	} `json:"user"`
+}
+
+type VideoQuality struct {
+	FrameRate  float64     `json:"frameRate"`
+	Quality    string      `json:"quality"`
+	SourceURL  string      `json:"sourceURL"`
+	Bitrate    int         `json:"bitrate"`
+	Codecs     string      `json:"codecs"`
+	Duration   interface{} `json:"duration"`
+	Height     int         `json:"height"`
+	Width      int         `json:"width"`
+	VideoCodec string      `json:"videoCodec"`
+	Typename   string      `json:"__typename"`
 }
 
 type ClipAccessToken struct {
@@ -183,29 +190,104 @@ type Broadcaster struct {
 }
 
 type Clip struct {
-	ID                     string              `json:"id"`
-	Slug                   string              `json:"slug"`
-	URL                    string              `json:"url"`
-	EmbedURL               string              `json:"embedURL"`
-	Title                  string              `json:"title"`
-	ViewCount              int64               `json:"viewCount"`
-	Language               string              `json:"language"`
-	IsFeatured             bool                `json:"isFeatured"`
-	Assets                 []Asset             `json:"assets"`
-	Curator                Curator             `json:"curator"`
-	Game                   Game                `json:"game"`
-	Broadcast              Broadcast           `json:"broadcast"`
-	Broadcaster            Broadcaster         `json:"broadcaster"`
-	ThumbnailURL           string              `json:"thumbnailURL"`
-	CreatedAt              time.Time           `json:"createdAt"`
-	IsPublished            bool                `json:"isPublished"`
-	DurationSeconds        int                 `json:"durationSeconds"`
-	ChampBadge             interface{}         `json:"champBadge"`
-	PlaybackAccessToken    PlaybackAccessToken `json:"playbackAccessToken"`
-	Video                  Video               `json:"video"`
-	VideoOffsetSeconds     int                 `json:"videoOffsetSeconds"`
-	VideoQualities         []VideoQuality      `json:"videoQualities"`
-	IsViewerEditRestricted bool                `json:"isViewerEditRestricted"`
+	ID            string `json:"id"`
+	Slug          string `json:"slug"`
+	URL           string `json:"url"`
+	IsAutoCurated bool   `json:"isAutoCurated"`
+	EmbedURL      string `json:"embedURL"`
+	Title         string `json:"title"`
+	ViewCount     int    `json:"viewCount"`
+	Language      string `json:"language"`
+	IsFeatured    bool   `json:"isFeatured"`
+	Assets        []struct {
+		ID            string    `json:"id"`
+		AspectRatio   float64   `json:"aspectRatio"`
+		CreatedAt     time.Time `json:"createdAt"`
+		CreationState string    `json:"creationState"`
+		Curator       struct {
+			ID              string `json:"id"`
+			Login           string `json:"login"`
+			DisplayName     string `json:"displayName"`
+			ProfileImageURL string `json:"profileImageURL"`
+			Typename        string `json:"__typename"`
+		} `json:"curator"`
+		ThumbnailURL     string         `json:"thumbnailURL"`
+		VideoQualities   []VideoQuality `json:"videoQualities"`
+		PortraitMetadata interface{}    `json:"portraitMetadata"`
+		Typename         string         `json:"__typename"`
+	} `json:"assets"`
+	Curator struct {
+		ID              string `json:"id"`
+		Login           string `json:"login"`
+		DisplayName     string `json:"displayName"`
+		ProfileImageURL string `json:"profileImageURL"`
+		Typename        string `json:"__typename"`
+	} `json:"curator"`
+	Game struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		BoxArtURL   string `json:"boxArtURL"`
+		DisplayName string `json:"displayName"`
+		Slug        string `json:"slug"`
+		Typename    string `json:"__typename"`
+	} `json:"game"`
+	Broadcast struct {
+		ID       string      `json:"id"`
+		Title    interface{} `json:"title"`
+		Typename string      `json:"__typename"`
+	} `json:"broadcast"`
+	Broadcaster struct {
+		ID              string `json:"id"`
+		Login           string `json:"login"`
+		DisplayName     string `json:"displayName"`
+		PrimaryColorHex string `json:"primaryColorHex"`
+		IsPartner       bool   `json:"isPartner"`
+		ProfileImageURL string `json:"profileImageURL"`
+		Followers       struct {
+			TotalCount int    `json:"totalCount"`
+			Typename   string `json:"__typename"`
+		} `json:"followers"`
+		Stream struct {
+			ID           string `json:"id"`
+			ViewersCount int    `json:"viewersCount"`
+			Typename     string `json:"__typename"`
+		} `json:"stream"`
+		LastBroadcast struct {
+			ID        string    `json:"id"`
+			StartedAt time.Time `json:"startedAt"`
+			Typename  string    `json:"__typename"`
+		} `json:"lastBroadcast"`
+		Self     interface{} `json:"self"`
+		Typename string      `json:"__typename"`
+	} `json:"broadcaster"`
+	ThumbnailURL        string      `json:"thumbnailURL"`
+	CreatedAt           time.Time   `json:"createdAt"`
+	HasCaptions         bool        `json:"hasCaptions"`
+	IsPublished         bool        `json:"isPublished"`
+	Duration            float64     `json:"duration"`
+	DurationSeconds     int         `json:"durationSeconds"`
+	ChampBadge          interface{} `json:"champBadge"`
+	PlaybackAccessToken struct {
+		Signature string `json:"signature"`
+		Value     string `json:"value"`
+		Typename  string `json:"__typename"`
+	} `json:"playbackAccessToken"`
+	Video struct {
+		ID            string `json:"id"`
+		BroadcastType string `json:"broadcastType"`
+		Title         string `json:"title"`
+		Typename      string `json:"__typename"`
+	} `json:"video"`
+	VideoOffsetSeconds int `json:"videoOffsetSeconds"`
+	VideoQualities     []struct {
+		SourceURL string `json:"sourceURL"`
+		Typename  string `json:"__typename"`
+	} `json:"videoQualities"`
+	IsViewerEditRestricted bool        `json:"isViewerEditRestricted"`
+	SuggestedCropping      interface{} `json:"suggestedCropping"`
+	RawMediaRelativeOffset float64     `json:"rawMediaRelativeOffset"`
+	RawMediaKey            string      `json:"rawMediaKey"`
+	Typename               string      `json:"__typename"`
 }
 
 type Commenter struct {

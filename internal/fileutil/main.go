@@ -26,6 +26,8 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via twitch_config.json (outputPath)")
 	}
 
+	// filename = sanitizeFilename(filename)
+
 	info, err := os.Stat(dstPath)
 
 	if os.IsNotExist(err) {
@@ -50,11 +52,12 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 
 func sanitizeFilename(filename string) string {
 	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
-	return re.ReplaceAllString(filename, "_")
+	v := re.ReplaceAllString(filename, "_")
+	return v
 }
 
 func CreateFile(dir, filename, ext string) (*os.File, error) {
-	path, err := ConstructPathname(dir, sanitizeFilename(filename), ext)
+	path, err := ConstructPathname(dir, filename, ext)
 	if err != nil {
 		return nil, err
 	}

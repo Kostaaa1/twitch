@@ -15,7 +15,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
 
 	clipDataURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality.String())
 
-	usherURL, err := dl.twClient.Gql.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
+	usherURL, err := dl.twClient.Gql.ConstructUsherURL(gql.PlaybackAccessToken{}, clipDataURL)
 	if err != nil {
 		return err
 	}
@@ -23,7 +23,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
 	if unit.Quality == QualityAudioOnly {
 		// n, err = extractAudio(usherURL, unit.Writer)
 	} else {
-		if err := unit.segmentFetchCopy(ctx, dl, usherURL); err != nil {
+		if err := unit.segmentFetchDownload(ctx, dl, usherURL); err != nil {
 			return err
 		}
 	}

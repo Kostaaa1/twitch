@@ -59,7 +59,7 @@ type Unit struct {
 	// title of the media - WithTitle fetches the title based on the mediatype
 	Title string
 	// error
-	// Error error
+	Error error
 	// writer
 	Writer io.Writer
 	// pathname for file writer - file writer gets created upon write
@@ -180,12 +180,12 @@ func extractParamsFromURL(u *url.URL, unit *Unit) error {
 	return nil
 }
 
-func NewUnit(input string, opts ...unitOption) (*Unit, error) {
+func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := new(Unit)
 
 	if input == "" {
-		unit.Error = errors.New("input is empty")
-		return unit, unit.Error
+		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
+		return unit
 	}
 
 	u, err := url.ParseRequestURI(input)
@@ -194,7 +194,7 @@ func NewUnit(input string, opts ...unitOption) (*Unit, error) {
 	} else {
 		if !strings.Contains(u.Hostname(), "twitch.tv") {
 			unit.Error = errors.New("'twitch.tv' missing from the URL")
-			return unit, unit.Error
+			return unit
 		}
 		_, unit.ID = path.Split(u.Path)
 		extractParamsFromURL(u, unit)
@@ -206,15 +206,23 @@ func NewUnit(input string, opts ...unitOption) (*Unit, error) {
 		opt(unit)
 	}
 
-	// if unit.Writer == nil && unit.pathname == "" {
-	// 	unit.Error = errors.New("")
-	// }
+	if unit.Writer == nil && unit.pathname == "" {
+		unit.Error = errors.New("missing writer or pathname: must provider either writer or output path")
+	}
 
-	return unit, nil
+	return unit
 }
 
 func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
 	defer r.Close()
+
+	if u.Writer == nil {
+		fd, err := os.OpenFile(u.pathname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+		u.Writer = fd
+	}
 
 	n, err := io.Copy(u.Writer, r)
 	if err != nil {
@@ -230,24 +238,11 @@ func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
 	return nil
 }
 
-func (u *Unit) segmentFetchCopy(ctx context.Context, dl *Downloader, segURL string) error {
-	if u.Writer == nil {
-		if u.pathname == "" {
-			return errors.New("output path is missing")
-		} else {
-			fd, err := os.OpenFile(u.pathname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				return err
-			}
-			u.Writer = fd
-		}
-	}
-
+func (u *Unit) segmentFetchDownload(ctx context.Context, dl *Downloader, segURL string) error {
 	body, err := dl.fetchSegment(ctx, segURL)
 	if err != nil {
 		return err
 	}
-
 	return u.download(dl, body)
 }
 
@@ -259,9 +254,9 @@ func (u *Unit) CloseWriter() error {
 }
 
 // Implement spinner interface
-// func (u Unit) GetError() error {
-// 	return u.Error
-// }
+func (u Unit) GetError() error {
+	return u.Error
+}
 
 func (u Unit) GetID() string {
 	if u.Title == "" {

@@ -41,7 +41,7 @@ func WithTimestamps(start, end time.Duration) unitOptions {
 
 // input can be either VOD uuid or URL
 func NewUnit(input, quality string, opts ...unitOptions) *Unit {
-	unit := &Unit{}
+	unit := new(Unit)
 
 	if err := validateQuality(quality); err != nil {
 		unit.Error = err

@@ -25,12 +25,12 @@ const (
 )
 
 type Flag struct {
-	Input      string        `json:"input"`
-	Output     string        `json:"output"`
-	Quality    string        `json:"quality"`
-	Start      time.Duration `json:"start"`
-	End        time.Duration `json:"end"`
-	Verbose    bool
+	Input   string        `json:"input"`
+	Output  string        `json:"output"`
+	Quality string        `json:"quality"`
+	Start   time.Duration `json:"start"`
+	End     time.Duration `json:"end"`
+	// Verbose    bool
 	Print      bool
 	Threads    int
 	Category   string
@@ -79,7 +79,7 @@ func ParseFlags(conf config.Config) Flag {
 	flag.DurationVar(&f.Start, "s", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
 	flag.DurationVar(&f.End, "e", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
 	flag.BoolVar(&f.Print, "print", false, "Print data related to argument input (channel/vod/clip/stream/highlight/collections)")
-	flag.BoolVar(&f.Verbose, "v", false, "Verbose mode for easier debugging")
+	// flag.BoolVar(&f.Verbose, "v", false, "Verbose mode for easier debugging")
 	flag.IntVar(&f.Threads, "threads", 0, "Number of parallel downloads (batch mode only)")
 	flag.BoolVar(&f.Watch, "watch", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
 	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
@@ -112,7 +112,7 @@ func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units
 	}
 }
 
-func (flag Flag) unitsFromFileInput(units *[]spinner.UnitProvider) error {
+func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, units *[]spinner.UnitProvider) error {
 	_, err := os.Stat(flag.Input)
 	if os.IsNotExist(err) {
 		return err
@@ -149,7 +149,7 @@ func (flag Flag) unitsFromFileInput(units *[]spinner.UnitProvider) error {
 				unit.Input,
 				downloader.WithQuality(unit.Quality),
 				downloader.WithTimestamps(unit.Start, unit.End),
-				downloader.WithWriter(flag.Output),
+				downloader.WithFile(ctx, tw, flag.Output),
 			))
 		}
 	}
@@ -157,7 +157,7 @@ func (flag Flag) unitsFromFileInput(units *[]spinner.UnitProvider) error {
 	return nil
 }
 
-func (opts Flag) UnitsFromInput() ([]spinner.UnitProvider, error) {
+func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client) ([]spinner.UnitProvider, error) {
 	if opts.Input == "" {
 		// TODO: print usage
 		return nil, errors.New("missing input")
@@ -167,9 +167,9 @@ func (opts Flag) UnitsFromInput() ([]spinner.UnitProvider, error) {
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		opts.unitsFromFlagInput(&units)
+		opts.unitsFromFlagInput(ctx, tw, &units)
 	} else {
-		opts.unitsFromFileInput(&units)
+		opts.unitsFromFileInput(ctx, tw, &units)
 	}
 
 	return units, nil

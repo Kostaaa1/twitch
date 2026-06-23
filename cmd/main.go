@@ -16,7 +16,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/downloader"
-	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
@@ -70,7 +69,8 @@ func main() {
 	}
 }
 
-func runDownloader(ctx context.Context,
+func runDownloader(
+	ctx context.Context,
 	tw *twitch.Client,
 	conf *config.Config,
 	flag cli.Flag,
@@ -80,12 +80,13 @@ func runDownloader(ctx context.Context,
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	units, err := flag.UnitsFromInput()
+	units, err := flag.UnitsFromInput(ctx, tw)
 	if err != nil {
 		return err
 	}
 
 	twitchUnits, kickUnits := cli.FilterUnits(units)
+	_ = kickUnits
 
 	var spin *spinner.Model
 	if conf.Downloader.ShowSpinner {
@@ -101,9 +102,9 @@ func runDownloader(ctx context.Context,
 		if len(twitchUnits) > 0 {
 			startTwitchDownloader(ctx, tw, spin, flag, twitchUnits, downloadGroup)
 		}
-		if len(kickUnits) > 0 {
-			startKickDownloader(ctx, spin, flag.Threads, kickUnits, downloadGroup)
-		}
+		// if len(kickUnits) > 0 {
+		// 	startKickDownloader(ctx, spin, flag.Threads, kickUnits, downloadGroup)
+		// }
 		if err := downloadGroup.Wait(); err == nil {
 			cancel()
 		}
@@ -161,7 +162,7 @@ func batchDownloadTwitchUnits(
 
 	for _, unit := range units {
 		g.Go(func() error {
-			if err := dl.Download(ctx, unit); err != nil {
+			if err := dl.Download(ctx, &unit); err != nil {
 				errCh <- err
 			}
 			return nil
@@ -178,52 +179,52 @@ func batchDownloadTwitchUnits(
 	return dlErr
 }
 
-func startKickDownloader(
-	ctx context.Context,
-	spin *spinner.Model,
-	threads int,
-	kickUnits []kick.Unit,
-	g *errgroup.Group,
-) {
-	c := kick.New()
+// func startKickDownloader(
+// 	ctx context.Context,
+// 	spin *spinner.Model,
+// 	threads int,
+// 	kickUnits []kick.Unit,
+// 	g *errgroup.Group,
+// ) {
+// 	c := kick.New()
 
-	if spin != nil {
-		c.SetProgressNotifier(func(pm kick.Progress) {
-			if ctx.Err() != nil {
-				return
-			}
-			spin.C <- spinner.Message{
-				ID:    pm.ID,
-				Bytes: pm.Bytes,
-				Err:   pm.Error,
-				Done:  pm.Done,
-			}
-		})
-	}
+// 	if spin != nil {
+// 		c.SetProgressNotifier(func(pm kick.Progress) {
+// 			if ctx.Err() != nil {
+// 				return
+// 			}
+// 			spin.C <- spinner.Message{
+// 				ID:    pm.ID,
+// 				Bytes: pm.Bytes,
+// 				Err:   pm.Error,
+// 				Done:  pm.Done,
+// 			}
+// 		})
+// 	}
 
-	g.Go(func() error {
-		g, ctx := errgroup.WithContext(ctx)
-		if threads > 0 {
-			g.SetLimit(threads)
-		}
+// 	g.Go(func() error {
+// 		g, ctx := errgroup.WithContext(ctx)
+// 		if threads > 0 {
+// 			g.SetLimit(threads)
+// 		}
 
-		var err error
+// 		var err error
 
-		for _, unit := range kickUnits {
-			g.Go(func() error {
-				e := c.Download(ctx, unit)
-				if e != nil {
-					err = errors.Join(err, e)
-				}
-				return nil
-			})
-		}
+// 		for _, unit := range kickUnits {
+// 			g.Go(func() error {
+// 				e := c.Download(ctx, unit)
+// 				if e != nil {
+// 					err = errors.Join(err, e)
+// 				}
+// 				return nil
+// 			})
+// 		}
 
-		g.Wait()
+// 		g.Wait()
 
-		return err
-	})
-}
+// 		return err
+// 	})
+// }
 
 func runTwitchEventSub(
 	ctx context.Context,
@@ -237,23 +238,16 @@ func runTwitchEventSub(
 		eventsub.WebsocketConnArgs{
 			KeepaliveSeconds: 30,
 			OnNotification: func(msg eventsub.EventSubMessage) {
-				var unit *downloader.Unit
-				for _, u := range units {
-					if msg.Payload.Event.BroadcasterUserLogin == u.ID {
-						unit = &u
+				for _, unit := range units {
+					if msg.Payload.Event.BroadcasterUserLogin == unit.ID {
+						switch msg.Metadata.SubscriptionType {
+						case eventsub.StreamOnline:
+							// start downloading
+							go dl.Download(ctx, &unit)
+						case eventsub.StreamOffline:
+							// cancel downloading
+						}
 					}
-				}
-
-				if unit == nil {
-					panic("unit cannot be nil")
-				}
-
-				switch msg.Metadata.SubscriptionType {
-				case eventsub.StreamOnline:
-					// start downloading
-					go dl.Download(ctx, unit)
-				case eventsub.StreamOffline:
-					// cancel downloading
 				}
 			},
 		},

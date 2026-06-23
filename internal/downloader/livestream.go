@@ -50,14 +50,10 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 		return fmt.Errorf("%s is offline", unit.ID)
 	}
 
-	fmt.Println("IS CHANNEL LIVE:", isLive)
-
 	b, err := dl.MasterPlaylistStream(ctx, unit.ID)
 	if err != nil {
 		return err
 	}
-	fmt.Println("MASTER BUYTE:", b)
-	fmt.Println("MASTER:", string(b))
 
 	master := m3u8.Master(b)
 
@@ -65,7 +61,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Variant", variant)
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -87,7 +82,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 					return
 				}
 
-				if err := unit.segmentFetchCopy(ctx, dl, tsURL); err != nil {
+				if err := unit.segmentFetchDownload(ctx, dl, tsURL); err != nil {
 					errCh <- err
 					return
 				}

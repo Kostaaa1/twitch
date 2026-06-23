@@ -1,0 +1,31 @@
+[
+	{
+		"input": "2802603635",
+		"output": "",
+		"start": "1h",
+		"end": "1h15m",
+		"quality": "best"
+	},
+	{
+		"input": "2802603635",
+		"output": "/Users/kostaarsic/Downloads/Aclips",
+		"start": "1h",
+		"end": "1h15m",
+		"quality": "720p"
+	},
+	{
+		"input": "https://www.twitch.tv/extraemily/clip/ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts?filter=clips&range=7d",
+		"output": "",
+		"quality": "worst"
+	},
+	{
+		"input": "https://www.twitch.tv/extraemily/clip/ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts?filter=clips&range=7d",
+		"output": "",
+		"quality": "best"
+	},
+	{
+		"input": "ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts",
+		"output": "",
+		"quality": "invalid quality"
+	}
+]

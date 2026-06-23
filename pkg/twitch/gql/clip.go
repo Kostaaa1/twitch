@@ -76,21 +76,24 @@ func (c *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) {
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "f130048a462a0ac86bb54d653c968c514e9ab9ca94db52368c1179e97b0f16eb"
+                "sha256Hash": "324783ea014524fa10a88739aa507de7a52f9624574dba9739a52b8c97d885cf"
             }
         }
     }`
 
-	var clip Clip
-	if err := sendGqlLoadAndDecode(ctx, c.http, &clip, gqlPayload, slug); err != nil {
+	var data struct {
+		Clip Clip `json:"clip"`
+	}
+
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPayload, slug); err != nil {
 		return nil, err
 	}
 
-	if clip.ID == "" {
+	if data.Clip.ID == "" {
 		return nil, fmt.Errorf("failed to get the clip data for %s", slug)
 	}
 
-	return &clip, nil
+	return &data.Clip, nil
 }
 
 func (c *Client) ClipTitle(ctx context.Context, slug string) (string, error) {
