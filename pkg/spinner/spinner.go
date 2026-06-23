@@ -153,11 +153,15 @@ func (m *Model) updateProgressUnits(msg Message) {
 
 			m.units[i].done = msg.Done
 
-			if msg.Done || msg.Err != nil {
-				m.doneCount++
+			// if msg.Done || msg.Err != nil {
+			// 	m.doneCount++
+			// }
+			if msg.Done {
+				// m.doneCount++
 			}
 
 			if msg.Err != nil {
+				fmt.Println("ERORR IN SPINNER GO", msg.Err)
 				m.units[i].err = msg.Err
 				m.units[i].done = true
 			}

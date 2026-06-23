@@ -230,8 +230,7 @@ func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
 	}
 
 	dl.notify(Progress{
-		ID: u.GetID(),
-		// Err:   u.Error,
+		ID:    u.GetID(),
 		Bytes: n,
 	})
 

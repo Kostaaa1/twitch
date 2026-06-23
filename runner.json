@@ -1,13 +1,12 @@
 [
 	{
-		"input": "2802603635",
-		"output": "",
+		"input": "2802802759",
 		"start": "1h",
 		"end": "1h15m",
 		"quality": "best"
 	},
 	{
-		"input": "2802603635",
+		"input": "2802802759",
 		"output": "/Users/kostaarsic/Downloads/Aclips",
 		"start": "1h",
 		"end": "1h15m",
@@ -15,17 +14,24 @@
 	},
 	{
 		"input": "https://www.twitch.tv/extraemily/clip/ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts?filter=clips&range=7d",
-		"output": "",
 		"quality": "worst"
 	},
 	{
-		"input": "https://www.twitch.tv/extraemily/clip/ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts?filter=clips&range=7d",
-		"output": "",
+		"input": "ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts",
 		"quality": "best"
 	},
 	{
 		"input": "ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts",
-		"output": "",
 		"quality": "invalid quality"
+	},
+	{
+		"input": "ObliviousBadDinosaurPlanking-2-t9j33okfdDHuts",
+		"output": "/mnt/g/Downloads/clips/testclip.mp4",
+		"quality": "best"
+	},
+	{
+		"input": "jasontheween",
+		"output": "/mnt/g/Downloads/clips",
+		"quality": "best"
 	}
 ]

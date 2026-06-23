@@ -206,6 +206,8 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 		return err
 	}
 
+	fmt.Println("Playtlist:", playlist)
+
 	// TODO: look into this
 	workerCount := 4
 
@@ -222,20 +224,18 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 
 				seg := playlist.Segments[chunkInx]
 
-				if !strings.HasSuffix(seg.URL, ".ts") {
-					return errors.New("malformed playlist segment url: does not have .ts extension")
+				if strings.HasSuffix(seg.URL, ".ts") || strings.HasSuffix(seg.URL, ".mp4") {
+					lastIndex := strings.LastIndex(playlist.URL, "/")
+					tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
+
+					body, err := dl.fetchSegment(ctx, tsURL)
+					if err != nil {
+						return err
+					}
+
+					seg.Data <- body
+					close(seg.Data)
 				}
-
-				lastIndex := strings.LastIndex(playlist.URL, "/")
-				tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
-
-				body, err := dl.fetchSegment(ctx, tsURL)
-				if err != nil {
-					return err
-				}
-
-				seg.Data <- body
-				close(seg.Data)
 			}
 		})
 	}

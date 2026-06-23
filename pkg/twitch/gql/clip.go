@@ -2,7 +2,6 @@ package gql
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -132,17 +131,9 @@ func (c *Client) VideoTitle(ctx context.Context, vodID string) (string, error) {
 }
 
 func (c *Client) StreamTitle(ctx context.Context, channel string) (string, error) {
-	gqlPl := `{
-		"query": "query { user(login: \"%s\") { stream { __typename } } }"
-	}`
-
-	var data interface{}
-	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPl, channel); err != nil {
+	data, err := c.StreamMetadata(ctx, channel)
+	if err != nil {
 		return "", err
 	}
-
-	b, _ := json.MarshalIndent(data, "", " ")
-	fmt.Println(string(b))
-
-	return "dskao", nil
+	return data.User.BroadcastSettings.Title, nil
 }

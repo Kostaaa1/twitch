@@ -154,6 +154,7 @@ func batchDownloadTwitchUnits(
 	dl *downloader.Downloader,
 ) error {
 	g, ctx := errgroup.WithContext(ctx)
+
 	if threads > 0 {
 		g.SetLimit(threads)
 	}
@@ -168,6 +169,7 @@ func batchDownloadTwitchUnits(
 			return nil
 		})
 	}
+
 	g.Wait()
 
 	var dlErr error

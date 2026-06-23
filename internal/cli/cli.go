@@ -25,12 +25,12 @@ const (
 )
 
 type Flag struct {
-	Input   string        `json:"input"`
-	Output  string        `json:"output"`
-	Quality string        `json:"quality"`
-	Start   time.Duration `json:"start"`
-	End     time.Duration `json:"end"`
-	// Verbose    bool
+	Input      string        `json:"input"`
+	Output     string        `json:"output"`
+	Quality    string        `json:"quality"`
+	Start      time.Duration `json:"start"`
+	End        time.Duration `json:"end"`
+	Verbose    bool
 	Print      bool
 	Threads    int
 	Category   string

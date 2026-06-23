@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/google/uuid"
 )
@@ -28,7 +27,7 @@ type unitOptions func(*Unit)
 
 func WithWriter(dir string) unitOptions {
 	return func(u *Unit) {
-		u.W, u.Error = fileutil.CreateFile(dir, u.GetID(), "mp4")
+		// u.W, u.Error = fileutil.CreateFile(dir, u.GetID(), "mp4")
 	}
 }
 

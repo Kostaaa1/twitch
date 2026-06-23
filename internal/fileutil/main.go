@@ -56,16 +56,16 @@ func sanitizeFilename(filename string) string {
 	return v
 }
 
-func CreateFile(dir, filename, ext string) (*os.File, error) {
-	path, err := ConstructPathname(dir, filename, ext)
-	if err != nil {
-		return nil, err
-	}
+// func CreateFile(dir, filename, ext string) (*os.File, error) {
+// 	path, err := ConstructPathname(dir, filename, ext)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	f, err := os.Create(path)
-	if err != nil {
-		return nil, err
-	}
+// 	f, err := os.Create(path)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	return f, nil
-}
+// 	return f, nil
+// }
