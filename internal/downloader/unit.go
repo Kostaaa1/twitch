@@ -84,7 +84,8 @@ func WithFile(ctx context.Context, c *twitch.Client, dir string) unitOption {
 	return func(u *Unit) {
 		var ext string
 		if u.Type == TypeLivestream || u.Type == TypeVOD {
-			ext = "ts"
+			// ext = "ts"
+			ext = "mp4"
 		}
 		if strings.HasPrefix(u.Quality.String(), "audio") {
 			ext = "mp3"
@@ -207,7 +208,7 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	}
 
 	if unit.Writer == nil && unit.pathname == "" {
-		unit.Error = errors.New("missing writer or pathname: must provider either writer or output path")
+		unit.Error = errors.New("missing writer or pathname: must provider either")
 	}
 
 	return unit
@@ -217,11 +218,15 @@ func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
 	defer r.Close()
 
 	if u.Writer == nil {
-		fd, err := os.OpenFile(u.pathname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if u.pathname == "" {
+			return errors.New("missing output pathname")
+		}
+
+		f, err := os.OpenFile(u.pathname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
-		u.Writer = fd
+		u.Writer = f
 	}
 
 	n, err := io.Copy(u.Writer, r)

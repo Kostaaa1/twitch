@@ -87,8 +87,8 @@ func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 					default:
 					}
 
-					if strings.HasSuffix(seg.URL, ".ts") {
-						segmentURL, _ := url.JoinPath(u, seg.URL)
+					if strings.HasSuffix(seg.URI, ".ts") {
+						segmentURL, _ := url.JoinPath(u, seg.URI)
 
 						res, err := c.cycletls.Do(segmentURL, c.defaultCycleTLSOpts(), http.MethodGet)
 						if err != nil {

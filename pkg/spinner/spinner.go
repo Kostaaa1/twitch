@@ -157,7 +157,7 @@ func (m *Model) updateProgressUnits(msg Message) {
 			// 	m.doneCount++
 			// }
 			if msg.Done {
-				// m.doneCount++
+				m.doneCount++
 			}
 
 			if msg.Err != nil {

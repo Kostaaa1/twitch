@@ -7,23 +7,30 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Segment struct {
-	URL      string
+	URI      string
 	Duration time.Duration
 	Data     chan io.ReadCloser
 }
 
+type Map struct {
+	URI       string
+	ByteRange string
+}
+
 type MediaPlaylist struct {
 	URL             string
-	Version         int64
-	TargetDuration  float64
+	Version         string
 	Timestamp       string
 	PlaylistType    string
-	ElapsedSecs     float64
-	TotalSecs       float64
+	TargetDuration  string
+	ElapsedSecs     string
+	TotalSecs       string
+	Map             *Map
 	SegmentDuration time.Duration
 	Segments        []Segment
 }
@@ -55,8 +62,59 @@ func (mp *MediaPlaylist) Truncate(start, end time.Duration) {
 	mp.Segments = mp.Segments[startIndex : endIndex+1]
 }
 
+func parsePlaylistMap(list *MediaPlaylist, value string) error {
+	list.Map = &Map{}
+	values := strings.Split(value, ",")
+
+	for _, value := range values {
+		parts := strings.Split(value, "=")
+
+		if len(parts) != 2 {
+			return errors.New("malformed playlist")
+		}
+
+		value, err := strconv.Unquote(parts[1])
+		if err != nil {
+			value = parts[1]
+		}
+
+		switch parts[0] {
+		case "URI":
+			list.Map.URI = value
+		case "BYTERANGE":
+			list.Map.ByteRange = value
+		}
+	}
+
+	return nil
+}
+
+func parseExtInf(r *bufio.Reader, list *MediaPlaylist, line string) error {
+	trimmed := line[:len(line)-1]
+	seconds, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		return err
+	}
+
+	duration := time.Duration(seconds * float64(time.Second))
+
+	segmentURL, _, err := r.ReadLine()
+	if err != nil {
+		return fmt.Errorf("failed to read next line: %s", err)
+	}
+
+	list.Segments = append(list.Segments, Segment{
+		URI:      string(segmentURL),
+		Duration: duration,
+		Data:     make(chan io.ReadCloser, 1),
+	})
+
+	return nil
+}
+
 func ParseMediaPlaylist(r io.Reader, url string) (*MediaPlaylist, error) {
 	mediaList := &MediaPlaylist{URL: url}
+
 	reader := bufio.NewReader(r)
 
 	for {
@@ -74,57 +132,25 @@ func ParseMediaPlaylist(r io.Reader, url string) (*MediaPlaylist, error) {
 		}
 
 		key := string(line[:id])
-		v := string(line[id+1:])
+		value := string(line[id+1:])
 
 		switch key {
 		case "#EXT-X-VERSION":
-			value, err := strconv.ParseInt(v, 10, 64)
-			if err != nil {
-				return nil, err
-			}
 			mediaList.Version = value
+		case "#EXT-X-MAP":
+			parsePlaylistMap(mediaList, value)
 		case "#EXT-X-TARGETDURATION":
-			value, err := strconv.ParseFloat(v, 64)
-			if err != nil {
-				return nil, err
-			}
 			mediaList.TargetDuration = value
 		case "#EXT-X-PLAYLIST-TYPE":
-			mediaList.PlaylistType = v
+			mediaList.PlaylistType = value
 		case "#EXT-X-TWITCH-ELAPSED-SECS":
-			value, err := strconv.ParseFloat(v, 64)
-			if err != nil {
-				return nil, err
-			}
 			mediaList.ElapsedSecs = value
 		case "#EXT-X-TWITCH-TOTAL-SECS":
-			value, err := strconv.ParseFloat(v, 64)
-			if err != nil {
-				return nil, err
-			}
 			mediaList.TotalSecs = value
 		case "#ID3-EQUIV-TDTG":
-			mediaList.Timestamp = v
+			mediaList.Timestamp = value
 		case "#EXTINF":
-			trimmed := v[:len(v)-1]
-
-			seconds, err := strconv.ParseFloat(trimmed, 64)
-			if err != nil {
-				return nil, err
-			}
-
-			duration := time.Duration(seconds * float64(time.Second))
-
-			segmentURL, _, err := reader.ReadLine()
-			if err != nil {
-				return nil, fmt.Errorf("failed to read next line: %s", err)
-			}
-
-			mediaList.Segments = append(mediaList.Segments, Segment{
-				URL:      string(segmentURL),
-				Duration: duration,
-				Data:     make(chan io.ReadCloser, 1),
-			})
+			parseExtInf(reader, mediaList, value)
 		}
 	}
 

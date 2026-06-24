@@ -26,10 +26,9 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via twitch_config.json (outputPath)")
 	}
 
-	// filename = sanitizeFilename(filename)
+	filename = sanitizeFilename(filename)
 
 	info, err := os.Stat(dstPath)
-
 	if os.IsNotExist(err) {
 		if filepath.Ext(dstPath) != "" {
 			dir := filepath.Dir(dstPath)
@@ -40,6 +39,7 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 			ext := filepath.Ext(fname)
 			return newWalkPath(dir, fname, ext), nil
 		}
+
 		return "", fmt.Errorf("path does not exist: %s", dstPath)
 	}
 
@@ -61,11 +61,9 @@ func sanitizeFilename(filename string) string {
 // 	if err != nil {
 // 		return nil, err
 // 	}
-
 // 	f, err := os.Create(path)
 // 	if err != nil {
 // 		return nil, err
 // 	}
-
 // 	return f, nil
 // }

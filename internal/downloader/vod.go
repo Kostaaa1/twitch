@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +16,26 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"golang.org/x/sync/errgroup"
 )
+
+func (dl *Downloader) fetchMediaPlaylist(ctx context.Context, url string) (*m3u8.MediaPlaylist, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := dl.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return playlist, nil
+}
 
 func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3u8.MediaPlaylist, error) {
 	master, err := dl.MasterPlaylistVOD(ctx, unit.ID)
@@ -27,18 +48,7 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := dl.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.URL)
+	playlist, err := dl.fetchMediaPlaylist(ctx, variant.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -200,19 +210,31 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 	return resp.Body, nil
 }
 
+func buildSegURL(playlistURL, path string) string {
+	lastIndex := strings.LastIndex(playlistURL, "/")
+	return fmt.Sprintf("%s/%s", playlistURL[:lastIndex], path)
+}
+
 func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	playlist, err := dl.mediaPlaylistForUnit(ctx, unit)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Playtlist:", playlist)
-
-	// TODO: look into this
-	workerCount := 4
+	fmt.Println("URL", playlist.URL)
 
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
+
+	if playlist.Map != nil && playlist.Map.URI != "" {
+		initSegURL := buildSegURL(playlist.URL, playlist.Map.URI)
+		if err := unit.segmentFetchDownload(ctx, dl, initSegURL); err != nil {
+			log.Fatal(err)
+			return err
+		}
+	}
+
+	workerCount := 4
 
 	for i := 0; i < workerCount; i++ {
 		g.Go(func() error {
@@ -224,18 +246,14 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 
 				seg := playlist.Segments[chunkInx]
 
-				if strings.HasSuffix(seg.URL, ".ts") || strings.HasSuffix(seg.URL, ".mp4") {
-					lastIndex := strings.LastIndex(playlist.URL, "/")
-					tsURL := fmt.Sprintf("%s/%s", playlist.URL[:lastIndex], seg.URL)
-
-					body, err := dl.fetchSegment(ctx, tsURL)
-					if err != nil {
-						return err
-					}
-
-					seg.Data <- body
-					close(seg.Data)
+				body, err := dl.fetchSegment(ctx, buildSegURL(playlist.URL, seg.URI))
+				if err != nil {
+					log.Fatal(err)
+					return err
 				}
+
+				seg.Data <- body
+				close(seg.Data)
 			}
 		})
 	}
