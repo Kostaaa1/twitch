@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
-	"github.com/Kostaaa1/twitch/web/server"
-	"github.com/Kostaaa1/twitch/web/views/home"
+	"github.com/Kostaaa1/twitch/internal/downloader"
+	"github.com/Kostaaa1/twitch/internal/web/server"
+	"github.com/Kostaaa1/twitch/internal/web/views/home"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +16,7 @@ type Static struct {
 
 func NewStatic() *Static {
 	return &Static{
-		dl: downloader.New(nil, nil, downloader.Config{}),
+		// dl: downloader.New(nil, nil, twitch.Config{}),
 	}
 }
 

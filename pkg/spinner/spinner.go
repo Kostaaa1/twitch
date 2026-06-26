@@ -14,8 +14,24 @@ import (
 type Message struct {
 	ID    string
 	Bytes int64
+	Total float64
 	Err   error
 	Done  bool
+}
+
+type unit struct {
+	label     string
+	err       error
+	byteCount float64
+	total     float64
+	estimated time.Time     // estimated time for finish (based on total)
+	startTime time.Time     //
+	elapsed   time.Duration // how much time passed since start
+	done      bool
+}
+
+type UnitProvider interface {
+	GetID() string
 }
 
 type Model struct {
@@ -30,6 +46,11 @@ type Model struct {
 	C         chan Message
 }
 
+var (
+	colorMuted = lipgloss.Color("#8B8B8B")
+	mutedStyle = lipgloss.NewStyle().Foreground(colorMuted)
+)
+
 type spinnerOpts func(m *Model)
 
 func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
@@ -38,34 +59,17 @@ func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
 	}
 }
 
-func spinnerUnitsSliceFromSlice[T UnitProvider](units []T) ([]*unit, int) {
-	doneCount := 0
-	su := make([]*unit, len(units))
-	for i, u := range units {
-		su[i] = &unit{
-			title: u.GetID(),
-			// err:   u.GetError(),
-		}
-		// if u.GetError() != nil {
-		// 	doneCount++
-		// }
-	}
-	return su, doneCount
-}
-
-func New[T UnitProvider](ctx context.Context, units []T, opts ...spinnerOpts) *Model {
-	su, doneCount := spinnerUnitsSliceFromSlice(units)
-
+func New(ctx context.Context, opts ...spinnerOpts) *Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	m := &Model{
+		units:     make([]*unit, 0),
 		ctx:       ctx,
-		units:     su,
 		spinner:   s,
-		doneCount: doneCount,
-		C:         make(chan Message, len(units)),
+		doneCount: 0,
+		C:         make(chan Message),
 	}
 
 	for _, opt := range opts {
@@ -86,10 +90,6 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.doneCount >= len(m.units) {
-		return m.exit()
-	}
-
 	select {
 	case <-m.ctx.Done():
 		return m.exit()
@@ -111,7 +111,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case Message:
-			m.updateProgressUnits(msg)
+			m.updateModelUnit(msg)
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, tea.Batch(cmd, m.waitForMsg())
@@ -125,47 +125,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m *Model) updateModelUnit(msg Message) {
+	found := false
+
+	for i := 0; i < len(m.units); i++ {
+		unit := m.units[i]
+		if unit.label == msg.ID {
+			unit.byteCount += float64(msg.Bytes)
+			if unit.startTime.IsZero() {
+				unit.startTime = time.Now()
+			}
+			unit.done = msg.Done
+			if msg.Err != nil {
+				unit.err = msg.Err
+				unit.done = true
+			}
+			if msg.Done {
+				m.doneCount++
+			}
+			found = true
+		}
+	}
+
+	if !found {
+		newunit := &unit{
+			label:     msg.ID,
+			err:       msg.Err,
+			byteCount: 0,
+			elapsed:   0,
+			startTime: time.Time{},
+			estimated: time.Time{},
+			total:     0,
+			done:      false,
+		}
+		if msg.Err != nil {
+			m.doneCount++
+			newunit.done = true
+		}
+		m.units = append(m.units, newunit)
+	}
+}
+
 func (m Model) View() string {
 	var str strings.Builder
 	for _, unit := range m.units {
 		str.WriteString(m.printUnit(unit))
-		str.WriteString("\n")
 	}
-	return str.String()
+
+	style := lipgloss.NewStyle()
+	if m.width > 0 {
+		style = style.Width(m.width)
+	}
+
+	return style.Render(str.String())
 }
 
 func (m *Model) Run() {
 	m.program = tea.NewProgram(m)
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Error starting program: %v\n", err)
-		panic(err)
-	}
-}
-
-func (m *Model) updateProgressUnits(msg Message) {
-	for i := range m.units {
-		if m.units[i].title == msg.ID {
-			m.units[i].totalBytes += float64(msg.Bytes)
-
-			if m.units[i].startTime.IsZero() {
-				m.units[i].startTime = time.Now()
-			}
-
-			m.units[i].done = msg.Done
-
-			// if msg.Done || msg.Err != nil {
-			// 	m.doneCount++
-			// }
-			if msg.Done {
-				m.doneCount++
-			}
-
-			if msg.Err != nil {
-				fmt.Println("ERORR IN SPINNER GO", msg.Err)
-				m.units[i].err = msg.Err
-				m.units[i].done = true
-			}
-		}
+		// panic(err)
 	}
 }
 
@@ -179,13 +198,14 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 		unit.done = true
 	}
 
+	close(m.C)
 	m.cancel()
 	return m, tea.Quit
 }
 
 func (m *Model) updateTime() {
 	for _, unit := range m.units {
-		if !unit.done && unit.totalBytes > 0 {
+		if !unit.done && unit.byteCount > 0 {
 			unit.elapsed = time.Since(unit.startTime)
 		}
 	}
@@ -203,16 +223,19 @@ func downloadSpeedMBs(bytes float64, elapsed time.Duration) float64 {
 
 func progressMsg(total float64, elapsed time.Duration) string {
 	totalConverted := total
-
 	i := 0
 	for totalConverted >= 1024 && i < len(sizeUnits)-1 {
 		totalConverted /= 1024
 		i++
 	}
 
-	speed := downloadSpeedMBs(total, elapsed)
-
-	return fmt.Sprintf("(%.1f %s | %.2f MB/s) [%s]", totalConverted, sizeUnits[i], speed, elapsed.Truncate(time.Second))
+	return fmt.Sprintf(
+		"%.1f %s . %.2f MB/s . %s",
+		totalConverted,
+		sizeUnits[i],
+		downloadSpeedMBs(total, elapsed),
+		elapsed.Truncate(time.Second),
+	)
 }
 
 func (m Model) printUnit(u *unit) string {
@@ -220,41 +243,34 @@ func (m Model) printUnit(u *unit) string {
 		return ""
 	}
 
-	if u.err != nil {
-		return errorMsg(u.title, u.err.Error())
-	}
+	label := m.spinner.Style.Render(u.label)
 
 	var str strings.Builder
+	if u.err != nil {
+		str.WriteString("❌ ")
+		str.WriteString(label)
+		str.WriteString("\n")
+		str.WriteString(mutedStyle.PaddingLeft(3).Render(u.err.Error()))
+		str.WriteString("\n")
+		return str.String()
+	}
 
-	progMsg := progressMsg(u.totalBytes, u.elapsed)
-	title := wordBreak(u.title, m.width)
+	progress := progressMsg(u.byteCount, u.elapsed)
 
 	if u.done {
-		str.WriteString(successMsg(title, progMsg))
+		str.WriteString("✅ ")
+		str.WriteString(label)
+		str.WriteString("\n")
+		str.WriteString(mutedStyle.PaddingLeft(3).Render(progress))
+		str.WriteString("\n")
 	} else {
-		parts := []string{
-			m.spinner.View(),
-			strings.Join([]string{title, progMsg}, " "),
-		}
-		str.WriteString(strings.Join(parts, " "))
+		str.WriteString(" ")
+		str.WriteString(m.spinner.View())
+		str.WriteString(label)
+		str.WriteString("\n")
+		str.WriteString(mutedStyle.PaddingLeft(3).Render(progress))
+		str.WriteString("\n")
 	}
 
 	return str.String()
-}
-
-func successMsg(title, message string) string {
-	return fmt.Sprintf("✅ %s %s", title, message)
-}
-
-func errorMsg(title, errMsg string) string {
-	return fmt.Sprintf("❌ %s %s", title, errMsg)
-}
-
-func wordBreak(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	p1 := s[:limit]
-	p2 := s[limit+1:]
-	return fmt.Sprintf("%s\n%s", p1, wordBreak(p2, limit))
 }

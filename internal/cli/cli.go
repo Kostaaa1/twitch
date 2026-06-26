@@ -91,7 +91,7 @@ func isKickEndpoint(input string) bool {
 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
-func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units *[]spinner.UnitProvider) {
+func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) {
 	inputs := strings.Split(flag.Input, ",")
 
 	for _, input := range inputs {
@@ -102,17 +102,27 @@ func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units
 				kick.WithTimestamps(flag.Start, flag.End),
 			))
 		} else {
-			*units = append(*units, downloader.NewUnit(
+			// *units = append(*units, downloader.NewUnit(
+			// 	input,
+			// 	downloader.WithQuality(flag.Quality),
+			// 	downloader.WithTimestamps(flag.Start, flag.End),
+			// 	downloader.WithFile(ctx, c, flag.Output),
+			// ))
+
+			unit := downloader.NewUnit(
 				input,
 				downloader.WithQuality(flag.Quality),
 				downloader.WithTimestamps(flag.Start, flag.End),
 				downloader.WithFile(ctx, c, flag.Output),
-			))
+			)
+			msg := spinner.Message{ID: unit.ID}
+			ch <- msg
+			*units = append(*units, unit)
 		}
 	}
 }
 
-func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, units *[]spinner.UnitProvider) error {
+func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) error {
 	_, err := os.Stat(flag.Input)
 	if os.IsNotExist(err) {
 		return err
@@ -132,34 +142,35 @@ func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, unit
 		if unit.Output == "" && flag.Output != "" {
 			unit.Output = flag.Output
 		}
-
 		if unit.Quality == "" && flag.Quality != "" {
 			unit.Quality = flag.Quality
 		}
 
 		if isKickEndpoint(unit.Input) {
-			*units = append(*units, kick.NewUnit(
-				unit.Input,
-				unit.Quality,
-				kick.WithTimestamps(flag.Start, flag.End),
-				kick.WithWriter(flag.Output),
-			))
+			// *units = append(*units, kick.NewUnit(
+			// 	unit.Input,
+			// 	unit.Quality,
+			// 	kick.WithTimestamps(unit.Start, unit.End),
+			// 	kick.WithWriter(unit.Output),
+			// ))
 		} else {
-			*units = append(*units, downloader.NewUnit(
+			unit := downloader.NewUnit(
 				unit.Input,
 				downloader.WithQuality(unit.Quality),
 				downloader.WithTimestamps(unit.Start, unit.End),
-				downloader.WithFile(ctx, tw, flag.Output),
-			))
+				downloader.WithFile(ctx, tw, unit.Output),
+			)
+			msg := spinner.Message{ID: unit.GetID()}
+			ch <- msg
+			*units = append(*units, unit)
 		}
 	}
 
 	return nil
 }
 
-func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client) ([]spinner.UnitProvider, error) {
+func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client, ch chan<- spinner.Message) ([]spinner.UnitProvider, error) {
 	if opts.Input == "" {
-		// TODO: print usage
 		return nil, errors.New("missing input")
 	}
 
@@ -167,9 +178,9 @@ func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client) ([]spinn
 
 	_, err := os.Stat(opts.Input)
 	if os.IsNotExist(err) {
-		opts.unitsFromFlagInput(ctx, tw, &units)
+		opts.unitsFromFlagInput(ctx, tw, &units, ch)
 	} else {
-		opts.unitsFromFileInput(ctx, tw, &units)
+		opts.unitsFromFileInput(ctx, tw, &units, ch)
 	}
 
 	return units, nil

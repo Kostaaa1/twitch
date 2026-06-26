@@ -7,7 +7,7 @@ import (
 	"regexp"
 )
 
-func newWalkPath(dstpath, filename, ext string) string {
+func walkDir(dstpath, filename, ext string) string {
 	fname := fmt.Sprintf("%s.%s", filename, ext)
 	count := 0
 	for {
@@ -37,14 +37,13 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 			}
 			dir, fname := filepath.Split(dstPath)
 			ext := filepath.Ext(fname)
-			return newWalkPath(dir, fname, ext), nil
+			return walkDir(dir, fname, ext), nil
 		}
-
 		return "", fmt.Errorf("path does not exist: %s", dstPath)
 	}
 
 	if info.IsDir() {
-		return newWalkPath(dstPath, filename, ext), nil
+		return walkDir(dstPath, filename, ext), nil
 	}
 
 	return "", fmt.Errorf("this path already exists %s: ", dstPath)

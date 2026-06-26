@@ -9,8 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/a-h/templ"
 	templruntime "github.com/a-h/templ/runtime"
 )

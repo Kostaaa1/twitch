@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
+	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/gin-gonic/gin"
 )
 

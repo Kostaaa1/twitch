@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Kostaaa1/twitch/web/server"
-	"github.com/Kostaaa1/twitch/web/server/handlers"
+	"github.com/Kostaaa1/twitch/internal/web/server"
+	"github.com/Kostaaa1/twitch/internal/web/server/handlers"
 )
 
 func main() {

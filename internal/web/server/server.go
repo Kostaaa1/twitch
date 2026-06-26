@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kostaaa1/twitch/web/server/middleware"
-	"github.com/Kostaaa1/twitch/web/views/assets"
-	"github.com/Kostaaa1/twitch/web/views/error_pages"
+	"github.com/Kostaaa1/twitch/internal/web/server/middleware"
+	"github.com/Kostaaa1/twitch/internal/web/views/assets"
+	"github.com/Kostaaa1/twitch/internal/web/views/error_pages"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )

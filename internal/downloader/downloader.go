@@ -39,7 +39,6 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	defer u.CloseWriter()
 
 	var err error
-
 	switch u.Type {
 	case TypeVOD:
 		err = dl.downloadVOD(ctx, u)

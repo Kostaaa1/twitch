@@ -80,22 +80,22 @@ func runDownloader(
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	units, err := flag.UnitsFromInput(ctx, tw)
+	var spin *spinner.Model
+	if conf.Downloader.ShowSpinner {
+		spin = spinner.New(ctx, spinner.WithCancelFunc(cancel))
+		g.Go(func() error {
+			spin.Run()
+			return nil
+		})
+	}
+
+	units, err := flag.UnitsFromInput(ctx, tw, spin.C)
 	if err != nil {
 		return err
 	}
 
 	twitchUnits, kickUnits := cli.FilterUnits(units)
 	_ = kickUnits
-
-	var spin *spinner.Model
-	if conf.Downloader.ShowSpinner {
-		spin = spinner.New(ctx, units, spinner.WithCancelFunc(cancel))
-		g.Go(func() error {
-			spin.Run()
-			return nil
-		})
-	}
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
@@ -105,9 +105,9 @@ func runDownloader(
 		// if len(kickUnits) > 0 {
 		// 	startKickDownloader(ctx, spin, flag.Threads, kickUnits, downloadGroup)
 		// }
-		if err := downloadGroup.Wait(); err == nil {
-			cancel()
-		}
+		downloadGroup.Wait()
+		// spinner cancels
+		cancel()
 		return nil
 	})
 
@@ -126,9 +126,9 @@ func startTwitchDownloader(
 
 	if spin != nil {
 		dl.SetProgressNotifier(func(pm downloader.Progress) {
-			if ctx.Err() != nil {
-				return
-			}
+			// if ctx.Err() != nil {
+			// 	pm.Err = errors.Join(pm.Err, ctx.Err())
+			// }
 			spin.C <- spinner.Message{
 				ID:    pm.ID,
 				Bytes: pm.Bytes,
@@ -159,26 +159,16 @@ func batchDownloadTwitchUnits(
 		g.SetLimit(threads)
 	}
 
-	errCh := make(chan error)
-
 	for _, unit := range units {
 		g.Go(func() error {
-			if err := dl.Download(ctx, &unit); err != nil {
-				errCh <- err
-			}
+			dl.Download(ctx, &unit)
 			return nil
 		})
 	}
 
 	g.Wait()
 
-	var dlErr error
-	for err := range errCh {
-		dlErr = errors.Join(dlErr, err)
-	}
-	close(errCh)
-
-	return dlErr
+	return nil
 }
 
 // func startKickDownloader(

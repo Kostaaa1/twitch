@@ -3,7 +3,7 @@ package server
 import (
 	"log/slog"
 
-	"github.com/Kostaaa1/twitch/web/views/layouts"
+	"github.com/Kostaaa1/twitch/internal/web/views/layouts"
 	"github.com/a-h/templ"
 	"github.com/gin-gonic/gin"
 )

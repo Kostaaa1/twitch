@@ -48,6 +48,7 @@ func TestUnits(t *testing.T) {
 
 	for _, tc := range testCases {
 		var unit *Unit
+		var err error
 
 		switch {
 		case tc.inputQuality != "":
@@ -56,7 +57,7 @@ func TestUnits(t *testing.T) {
 			unit = NewUnit(tc.input)
 		}
 
-		require.NoError(t, unit.Error)
+		require.NoError(t, err)
 		require.Equal(t, unit.ID, tc.expectedID)
 		require.Equal(t, unit.Type, tc.expectedType)
 

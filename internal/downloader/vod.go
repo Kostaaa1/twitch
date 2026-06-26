@@ -221,8 +221,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 		return err
 	}
 
-	fmt.Println("URL", playlist.URL)
-
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
 

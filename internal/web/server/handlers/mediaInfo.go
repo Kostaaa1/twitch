@@ -8,9 +8,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Kostaaa1/twitch/pkg/twitch/downloader"
-	"github.com/Kostaaa1/twitch/web/server"
-	"github.com/Kostaaa1/twitch/web/views/components"
+	"github.com/Kostaaa1/twitch/internal/downloader"
+	"github.com/Kostaaa1/twitch/internal/web/server"
+	"github.com/Kostaaa1/twitch/internal/web/views/components"
 	"github.com/gin-gonic/gin"
 )
 
