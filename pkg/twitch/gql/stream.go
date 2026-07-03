@@ -10,7 +10,7 @@ func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, 
 	if err != nil {
 		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
 	}
-	return len(data.User.ID) > 0, nil
+	return len(data.User.Stream.ID) > 0, nil
 }
 
 func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*UseLiveBroadcast, error) {

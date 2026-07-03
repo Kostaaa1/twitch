@@ -1,203 +1,178 @@
 package cli
 
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"flag"
-	"os"
-	"strings"
-	"time"
+// type Flag struct {
+// 	Input      string        `json:"input"`
+// 	Output     string        `json:"output"`
+// 	Quality    string        `json:"quality"`
+// 	Start      time.Duration `json:"start"`
+// 	End        time.Duration `json:"end"`
+// 	Verbose    bool
+// 	Print      bool
+// 	Threads    int
+// 	Highlights bool
+// 	Authorize  bool
+// 	Watch      bool
+// }
 
-	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/internal/downloader"
-	"github.com/Kostaaa1/twitch/pkg/kick"
-	"github.com/Kostaaa1/twitch/pkg/spinner"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/google/uuid"
-)
+// func (p *Flag) UnmarshalJSON(b []byte) error {
+// 	type Alias Flag
+// 	aux := &struct {
+// 		Start string `json:"start"`
+// 		End   string `json:"end"`
+// 		*Alias
+// 	}{
+// 		Alias: (*Alias)(p),
+// 	}
 
-type Category int
+// 	if err := json.Unmarshal(b, &aux); err != nil {
+// 		return err
+// 	}
 
-const (
-	Latest Category = iota
-	MostPopular
-)
+// 	var err error
 
-type Flag struct {
-	Input      string        `json:"input"`
-	Output     string        `json:"output"`
-	Quality    string        `json:"quality"`
-	Start      time.Duration `json:"start"`
-	End        time.Duration `json:"end"`
-	Verbose    bool
-	Print      bool
-	Threads    int
-	Category   string
-	Highlights bool
-	Authorize  bool
-	Watch      bool
-}
+// 	if aux.Start != "" {
+// 		p.Start, err = time.ParseDuration(aux.Start)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+// 	if aux.End != "" {
+// 		p.End, err = time.ParseDuration(aux.End)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
 
-func (p *Flag) UnmarshalJSON(b []byte) error {
-	type Alias Flag
-	aux := &struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
-		*Alias
-	}{
-		Alias: (*Alias)(p),
-	}
+// 	return nil
+// }
 
-	if err := json.Unmarshal(b, &aux); err != nil {
-		return err
-	}
+// func ParseFlags(conf config.Config) Flag {
+// 	var f Flag
+// 	flag.StringVar(&f.Input, "i", "", "input can be twitch (URL, vod id or clip slug), kick (vod URL) or json file (check example.json). Multiple inputs can be comma-separated which will be downloaded concurrently")
+// 	flag.StringVar(&f.Output, "o", conf.Downloader.Output, "Destination path for downloaded files")
+// 	flag.StringVar(&f.Quality, "q", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio")
+// 	flag.DurationVar(&f.Start, "s", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
+// 	flag.DurationVar(&f.End, "e", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
+// 	flag.BoolVar(&f.Print, "print", false, "Print data related to argument input (channel/vod/clip/stream/highlight/collections)")
+// 	// flag.BoolVar(&f.Verbose, "v", false, "Verbose mode for easier debugging")
+// 	flag.IntVar(&f.Threads, "threads", 0, "Number of parallel downloads (batch mode only)")
+// 	flag.BoolVar(&f.Watch, "watch", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
+// 	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
+// 	flag.Parse()
+// 	return f
+// }
 
-	var err error
+// func isKickEndpoint(input string) bool {
+// 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
+// }
 
-	if aux.Start != "" {
-		p.Start, err = time.ParseDuration(aux.Start)
-		if err != nil {
-			return err
-		}
-	}
-	if aux.End != "" {
-		p.End, err = time.ParseDuration(aux.End)
-		if err != nil {
-			return err
-		}
-	}
+// func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) {
+// 	inputs := strings.Split(flag.Input, ",")
 
-	return nil
-}
+// 	for _, input := range inputs {
+// 		if isKickEndpoint(input) {
+// 			*units = append(*units, kick.NewUnit(
+// 				input,
+// 				flag.Quality,
+// 				kick.WithTimestamps(flag.Start, flag.End),
+// 			))
+// 		} else {
+// 			// *units = append(*units, downloader.NewUnit(
+// 			// 	input,
+// 			// 	downloader.WithQuality(flag.Quality),
+// 			// 	downloader.WithTimestamps(flag.Start, flag.End),
+// 			// 	downloader.WithFile(ctx, c, flag.Output),
+// 			// ))
 
-func ParseFlags(conf config.Config) Flag {
-	var f Flag
-	flag.StringVar(&f.Input, "i", "", "input can be twitch (URL, vod id or clip slug), kick (vod URL) or json file (check example.json). Multiple inputs can be comma-separated which will be downloaded concurrently")
-	flag.StringVar(&f.Output, "o", conf.Downloader.Output, "Destination path for downloaded files")
-	flag.StringVar(&f.Quality, "q", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio")
-	flag.DurationVar(&f.Start, "s", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
-	flag.DurationVar(&f.End, "e", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
-	flag.BoolVar(&f.Print, "print", false, "Print data related to argument input (channel/vod/clip/stream/highlight/collections)")
-	// flag.BoolVar(&f.Verbose, "v", false, "Verbose mode for easier debugging")
-	flag.IntVar(&f.Threads, "threads", 0, "Number of parallel downloads (batch mode only)")
-	flag.BoolVar(&f.Watch, "watch", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
-	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
-	flag.Parse()
-	return f
-}
+// 			unit := downloader.NewUnit(
+// 				input,
+// 				downloader.WithQuality(flag.Quality),
+// 				downloader.WithTimestamps(flag.Start, flag.End),
+// 				downloader.WithFile(ctx, c, flag.Output),
+// 			)
+// 			msg := spinner.Message{ID: unit.ID}
+// 			ch <- msg
+// 			*units = append(*units, unit)
+// 		}
+// 	}
+// }
 
-func isKickEndpoint(input string) bool {
-	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
-}
+// func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) error {
+// 	_, err := os.Stat(flag.Input)
+// 	if os.IsNotExist(err) {
+// 		return err
+// 	}
 
-func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) {
-	inputs := strings.Split(flag.Input, ",")
+// 	content, err := os.ReadFile(flag.Input)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	for _, input := range inputs {
-		if isKickEndpoint(input) {
-			*units = append(*units, kick.NewUnit(
-				input,
-				flag.Quality,
-				kick.WithTimestamps(flag.Start, flag.End),
-			))
-		} else {
-			// *units = append(*units, downloader.NewUnit(
-			// 	input,
-			// 	downloader.WithQuality(flag.Quality),
-			// 	downloader.WithTimestamps(flag.Start, flag.End),
-			// 	downloader.WithFile(ctx, c, flag.Output),
-			// ))
+// 	var inputUnits []Flag
+// 	if err := json.Unmarshal(content, &inputUnits); err != nil {
+// 		return err
+// 	}
 
-			unit := downloader.NewUnit(
-				input,
-				downloader.WithQuality(flag.Quality),
-				downloader.WithTimestamps(flag.Start, flag.End),
-				downloader.WithFile(ctx, c, flag.Output),
-			)
-			msg := spinner.Message{ID: unit.ID}
-			ch <- msg
-			*units = append(*units, unit)
-		}
-	}
-}
+// 	for _, unit := range inputUnits {
+// 		if unit.Output == "" && flag.Output != "" {
+// 			unit.Output = flag.Output
+// 		}
+// 		if unit.Quality == "" && flag.Quality != "" {
+// 			unit.Quality = flag.Quality
+// 		}
 
-func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) error {
-	_, err := os.Stat(flag.Input)
-	if os.IsNotExist(err) {
-		return err
-	}
+// 		if isKickEndpoint(unit.Input) {
+// 			// *units = append(*units, kick.NewUnit(
+// 			// 	unit.Input,
+// 			// 	unit.Quality,
+// 			// 	kick.WithTimestamps(unit.Start, unit.End),
+// 			// 	kick.WithWriter(unit.Output),
+// 			// ))
+// 		} else {
+// 			unit := downloader.NewUnit(
+// 				unit.Input,
+// 				downloader.WithQuality(unit.Quality),
+// 				downloader.WithTimestamps(unit.Start, unit.End),
+// 				downloader.WithFile(ctx, tw, unit.Output),
+// 			)
+// 			msg := spinner.Message{ID: unit.GetID()}
+// 			ch <- msg
+// 			*units = append(*units, unit)
+// 		}
+// 	}
 
-	content, err := os.ReadFile(flag.Input)
-	if err != nil {
-		return err
-	}
+// 	return nil
+// }
 
-	var inputUnits []Flag
-	if err := json.Unmarshal(content, &inputUnits); err != nil {
-		return err
-	}
+// func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client, ch chan<- spinner.Message) ([]spinner.UnitProvider, error) {
+// 	if opts.Input == "" {
+// 		return nil, errors.New("missing input")
+// 	}
 
-	for _, unit := range inputUnits {
-		if unit.Output == "" && flag.Output != "" {
-			unit.Output = flag.Output
-		}
-		if unit.Quality == "" && flag.Quality != "" {
-			unit.Quality = flag.Quality
-		}
+// 	units := make([]spinner.UnitProvider, 0)
 
-		if isKickEndpoint(unit.Input) {
-			// *units = append(*units, kick.NewUnit(
-			// 	unit.Input,
-			// 	unit.Quality,
-			// 	kick.WithTimestamps(unit.Start, unit.End),
-			// 	kick.WithWriter(unit.Output),
-			// ))
-		} else {
-			unit := downloader.NewUnit(
-				unit.Input,
-				downloader.WithQuality(unit.Quality),
-				downloader.WithTimestamps(unit.Start, unit.End),
-				downloader.WithFile(ctx, tw, unit.Output),
-			)
-			msg := spinner.Message{ID: unit.GetID()}
-			ch <- msg
-			*units = append(*units, unit)
-		}
-	}
+// 	_, err := os.Stat(opts.Input)
+// 	if os.IsNotExist(err) {
+// 		opts.unitsFromFlagInput(ctx, tw, &units, ch)
+// 	} else {
+// 		opts.unitsFromFileInput(ctx, tw, &units, ch)
+// 	}
 
-	return nil
-}
+// 	return units, nil
+// }
 
-func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client, ch chan<- spinner.Message) ([]spinner.UnitProvider, error) {
-	if opts.Input == "" {
-		return nil, errors.New("missing input")
-	}
+// func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {
+// 	var twitchUnits []downloader.Unit
+// 	var kickUnits []kick.Unit
 
-	units := make([]spinner.UnitProvider, 0)
+// 	for _, unit := range units {
+// 		switch u := unit.(type) {
+// 		case *downloader.Unit:
+// 			twitchUnits = append(twitchUnits, *u)
+// 		case *kick.Unit:
+// 			kickUnits = append(kickUnits, *u)
+// 		}
+// 	}
 
-	_, err := os.Stat(opts.Input)
-	if os.IsNotExist(err) {
-		opts.unitsFromFlagInput(ctx, tw, &units, ch)
-	} else {
-		opts.unitsFromFileInput(ctx, tw, &units, ch)
-	}
-
-	return units, nil
-}
-
-func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {
-	var twitchUnits []downloader.Unit
-	var kickUnits []kick.Unit
-
-	for _, unit := range units {
-		switch u := unit.(type) {
-		case *downloader.Unit:
-			twitchUnits = append(twitchUnits, *u)
-		case *kick.Unit:
-			kickUnits = append(kickUnits, *u)
-		}
-	}
-
-	return twitchUnits, kickUnits
-}
+// 	return twitchUnits, kickUnits
+// }

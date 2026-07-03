@@ -1,15 +1,29 @@
 package fileutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 func walkDir(dstpath, filename, ext string) string {
-	fname := fmt.Sprintf("%s.%s", filename, ext)
+	var fname string
+	if strings.HasPrefix(ext, ".") {
+		fname = fmt.Sprintf("%s%s", filename, ext)
+	} else {
+		fname = fmt.Sprintf("%s.%s", filename, ext)
+	}
+
+	// ext := filepath.Ext(filename)
+	// if ext == "" {
+	// 	panic("ext cannot be empty")
+	// }
+
 	count := 0
+
 	for {
 		if _, err := os.Stat(filepath.Join(dstpath, fname)); os.IsNotExist(err) {
 			break
@@ -18,7 +32,23 @@ func walkDir(dstpath, filename, ext string) string {
 			fname = fmt.Sprintf("%s (%d).%s", filename, count, ext)
 		}
 	}
+
 	return filepath.Join(dstpath, fname)
+}
+
+func sanitizeFilename(filename string) string {
+	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
+	v := re.ReplaceAllString(filename, "_")
+	return v
+}
+
+func SwapExt(filename, ext string) (string, error) {
+	pathExt := filepath.Ext(filename)
+	if ext == "" {
+		return "", errors.New("")
+	}
+	// fmt.Println("EXTENSTIONS:", pathExt)
+	return strings.TrimSuffix(filename, pathExt) + ext, nil
 }
 
 func ConstructPathname(dstPath, filename, ext string) (string, error) {
@@ -36,7 +66,6 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 				return "", fmt.Errorf("directory does not exist: %s", dir)
 			}
 			dir, fname := filepath.Split(dstPath)
-			ext := filepath.Ext(fname)
 			return walkDir(dir, fname, ext), nil
 		}
 		return "", fmt.Errorf("path does not exist: %s", dstPath)
@@ -48,21 +77,3 @@ func ConstructPathname(dstPath, filename, ext string) (string, error) {
 
 	return "", fmt.Errorf("this path already exists %s: ", dstPath)
 }
-
-func sanitizeFilename(filename string) string {
-	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
-	v := re.ReplaceAllString(filename, "_")
-	return v
-}
-
-// func CreateFile(dir, filename, ext string) (*os.File, error) {
-// 	path, err := ConstructPathname(dir, filename, ext)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	f, err := os.Create(path)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return f, nil
-// }

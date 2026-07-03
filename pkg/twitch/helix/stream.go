@@ -2,7 +2,6 @@ package helix
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -75,7 +74,6 @@ func (f *stream) After(cursor string) *stream {
 
 func (s *stream) Run(ctx context.Context) (*helixPaginatedEnvelope[Stream], error) {
 	s.url.RawQuery = s.values.Encode()
-	fmt.Println("URL: ", s.url)
 	var body helixPaginatedEnvelope[Stream]
 	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
 		return nil, err

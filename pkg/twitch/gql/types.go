@@ -260,19 +260,20 @@ type Clip struct {
 		Self     interface{} `json:"self"`
 		Typename string      `json:"__typename"`
 	} `json:"broadcaster"`
-	ThumbnailURL        string      `json:"thumbnailURL"`
-	CreatedAt           time.Time   `json:"createdAt"`
-	HasCaptions         bool        `json:"hasCaptions"`
-	IsPublished         bool        `json:"isPublished"`
-	Duration            float64     `json:"duration"`
-	DurationSeconds     int         `json:"durationSeconds"`
-	ChampBadge          interface{} `json:"champBadge"`
-	PlaybackAccessToken struct {
-		Signature string `json:"signature"`
-		Value     string `json:"value"`
-		Typename  string `json:"__typename"`
-	} `json:"playbackAccessToken"`
-	Video struct {
+	ThumbnailURL    string      `json:"thumbnailURL"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	HasCaptions     bool        `json:"hasCaptions"`
+	IsPublished     bool        `json:"isPublished"`
+	Duration        float64     `json:"duration"`
+	DurationSeconds int         `json:"durationSeconds"`
+	ChampBadge      interface{} `json:"champBadge"`
+	// PlaybackAccessToken struct {
+	// 	Signature string `json:"signature"`
+	// 	Value     string `json:"value"`
+	// 	Typename  string `json:"__typename"`
+	// } `json:"playbackAccessToken"`
+	PlaybackAccessToken PlaybackAccessToken `json:"playbackAccessToken"`
+	Video               struct {
 		ID            string `json:"id"`
 		BroadcastType string `json:"broadcastType"`
 		Title         string `json:"title"`

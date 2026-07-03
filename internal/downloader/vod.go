@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/internal/httputil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"golang.org/x/sync/errgroup"
@@ -194,12 +195,10 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 		if err != nil {
 			return nil, err
 		}
-
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
-
 		resp, err = dl.http.Do(req)
 		if err != nil {
 			return nil, err
@@ -215,37 +214,39 @@ func buildSegURL(playlistURL, path string) string {
 }
 
 func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
-	playlist, err := dl.mediaPlaylistForUnit(ctx, unit)
+	list, err := dl.mediaPlaylistForUnit(ctx, unit)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(playlist.URL)
-	panic("dkaosd")
-
-	g, ctx := errgroup.WithContext(ctx)
-	currentChunk := atomic.Uint32{}
-
-	if playlist.Map != nil && playlist.Map.URI != "" {
-		initSegURL := buildSegURL(playlist.URL, playlist.Map.URI)
+	// for mp4 segments, init segment needs to be downloaded before others
+	if list.Map != nil && list.Map.URI != "" {
+		newpath, err := fileutil.SwapExt(unit.path, "mp4")
+		if err != nil {
+			return err
+		}
+		unit.path = newpath
+		initSegURL := buildSegURL(list.URL, list.Map.URI)
 		if err := unit.segmentFetchDownload(ctx, dl, initSegURL); err != nil {
 			return err
 		}
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+	currentChunk := atomic.Uint32{}
 	workerCount := 4
 
 	for i := 0; i < workerCount; i++ {
 		g.Go(func() error {
 			for {
 				chunkInx := int(currentChunk.Add(1) - 1)
-				if chunkInx >= len(playlist.Segments) {
+				if chunkInx >= len(list.Segments) {
 					return nil
 				}
 
-				seg := playlist.Segments[chunkInx]
+				seg := list.Segments[chunkInx]
 
-				body, err := dl.fetchSegment(ctx, buildSegURL(playlist.URL, seg.URI))
+				body, err := dl.fetchSegment(ctx, buildSegURL(list.URL, seg.URI))
 				if err != nil {
 					return err
 				}
@@ -257,11 +258,11 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	}
 
 	g.Go(func() error {
-		for i := 0; i < len(playlist.Segments); i++ {
+		for i := 0; i < len(list.Segments); i++ {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case chunk := <-playlist.Segments[i].Data:
+			case chunk := <-list.Segments[i].Data:
 				if err := unit.download(dl, chunk); err != nil {
 					return err
 				}

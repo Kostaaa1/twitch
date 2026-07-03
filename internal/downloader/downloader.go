@@ -8,10 +8,11 @@ import (
 )
 
 type Progress struct {
-	ID    string
+	Label string
 	Bytes int64
-	Err   error
+	Error error
 	Done  bool
+	Total float64
 }
 
 type Downloader struct {
@@ -20,14 +21,13 @@ type Downloader struct {
 	notifyFn func(Progress)
 }
 
-func New(twClient *twitch.Client) *Downloader {
-	return &Downloader{
-		twClient: twClient,
-		http:     http.DefaultClient,
-	}
+func New(twClient *twitch.Client, http *http.Client) *Downloader {
+	return &Downloader{twClient: twClient, http: http}
 }
 
-func (c *Downloader) SetProgressNotifier(fn func(Progress)) { c.notifyFn = fn }
+func (c *Downloader) SetProgressNotifier(fn func(Progress)) {
+	c.notifyFn = fn
+}
 
 func (c *Downloader) notify(msg Progress) {
 	if c.notifyFn != nil {
@@ -50,8 +50,8 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	}
 
 	dl.notify(Progress{
-		ID:    u.GetID(),
-		Err:   err,
+		Label: u.GetLabel(),
+		Error: err,
 		Bytes: 0,
 		Done:  true,
 	})

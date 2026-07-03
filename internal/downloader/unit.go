@@ -49,9 +49,11 @@ type Unit struct {
 	Start, End time.Duration
 	// writer
 	Writer io.Writer
-	// Error
-	Err      error
-	pathname string
+	Err    error
+	// for file writer
+	// dir, filename string
+	path  string
+	title string
 }
 
 func (u *Unit) Validate() error {
@@ -72,55 +74,36 @@ func WithWriter(w io.WriteCloser) unitOption {
 	}
 }
 
-func WithFile(ctx context.Context, c *twitch.Client, pathname string) unitOption {
+// file path destination of unit to be downloaded to, if file name is provided in path name,
+// then it will be used. otherwise, we fetch title for this unit based on its type (type needs to be determined beforehand)
+func WithFilepath(ctx context.Context, c *twitch.Client, pathname string) unitOption {
 	return func(u *Unit) error {
-		// detect file extension based on twitch media type (vidoe/clip/stream)
-		// this wont work as m3u8 playlists can have ts/mp4 (maybe more) segments.
-		// to know the file extension, we need to fetch the playlist and inspect it
-
-		if u.Type < 0 || u.Type > 2 {
-			return errors.New("invalid unit type")
-		}
-
-		var ext string
-		if u.Type == TypeLivestream || u.Type == TypeVOD {
-			ext = "ts"
-		}
-		if strings.HasPrefix(u.Quality.String(), "audio") {
-			ext = "mp3"
-		}
-		if u.Type == TypeClip {
-			ext = "mp4"
-		}
-
-		if ext == "" {
-			return errors.New("couldn't extract the file extension")
-		}
-
 		dir, filename := filepath.Split(pathname)
-		if filepath.Ext(filename) == "" || filename != "" {
+		// if _, err := os.Stat(dir); err != nil {
+		// 	return err
+		// }
+
+		if filepath.Ext(filename) == "" {
 			title, err := u.fetchTitle(ctx, c)
 			if err != nil {
 				return err
 			}
-			dir = pathname
+			u.title = title
 			filename = title
+			dir = pathname
 		}
 
-		pathname, err := fileutil.ConstructPathname(dir, filename, ext)
+		ext := "ts"
+		if u.Type == TypeClip {
+			ext = "mp4"
+		}
 
-		u.pathname = pathname
-
+		new, err := fileutil.ConstructPathname(dir, filename, ext)
 		if err != nil {
 			return err
 		}
 
-		f, err := os.OpenFile(pathname, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return err
-		}
-
-		u.Writer = f
+		u.path = new
 
 		return nil
 	}
@@ -172,19 +155,30 @@ func (u *Unit) fetchTitle(ctx context.Context, c *twitch.Client) (title string, 
 	return
 }
 
-func extractParamsFromURL(u *url.URL, unit *Unit) error {
-	if unit.Start == 0 {
-		if t := u.Query().Get("t"); t != "" {
-			unit.Start, _ = time.ParseDuration(t)
+func (u *Unit) parseTwitchURL(url *url.URL) error {
+	if !strings.Contains(url.Hostname(), "twitch.tv") {
+		return errors.New("'twitch.tv' missing from the URL")
+	}
+
+	_, u.ID = path.Split(url.Path)
+	if u.Start == 0 {
+		if t := url.Query().Get("t"); t != "" {
+			s, err := time.ParseDuration(t)
+			if err != nil {
+				return err
+			}
+			u.Start = s
 		}
 	}
-	if unit.Start > unit.End {
-		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", unit.Start, unit.End, u.String())
+
+	if u.Start > u.End {
+		return fmt.Errorf("invalid time range: start time (%v) must be less than end time (%v) for URL: %s", u.Start, u.End, url.String())
 	}
+
 	return nil
 }
 
-func mediaTypeFromInput(input string) MediaType {
+func discoverUnitType(input string) MediaType {
 	if _, parseErr := strconv.ParseInt(input, 10, 64); parseErr == nil {
 		return TypeVOD
 	}
@@ -194,6 +188,7 @@ func mediaTypeFromInput(input string) MediaType {
 	return TypeLivestream
 }
 
+// input could be: clip slug, vod id, channel name (stream record), or url (url can also contain query params, which will be parsed accordingly e.g. https://www.twitch.tv/videos/{VOD_ID}?t=1h
 func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := new(Unit)
 
@@ -202,19 +197,13 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 		return unit
 	}
 
-	u, err := url.ParseRequestURI(input)
-	if err != nil {
-		unit.ID = input
+	if parsedURL, err := url.ParseRequestURI(input); err == nil {
+		unit.parseTwitchURL(parsedURL)
 	} else {
-		if !strings.Contains(u.Hostname(), "twitch.tv") {
-			unit.Err = errors.New("'twitch.tv' missing from the URL")
-			return unit
-		}
-		_, unit.ID = path.Split(u.Path)
-		extractParamsFromURL(u, unit)
+		unit.ID = input
 	}
 
-	unit.Type = mediaTypeFromInput(unit.ID)
+	unit.Type = discoverUnitType(input)
 
 	for _, opt := range opts {
 		if err := opt(unit); err != nil {
@@ -223,7 +212,7 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 		}
 	}
 
-	if unit.Writer == nil && unit.pathname == "" {
+	if unit.Writer == nil || unit.path == "" {
 		unit.Err = errors.New("missing writer or pathname: must provider either")
 		return unit
 	}
@@ -231,12 +220,37 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	return unit
 }
 
+func (u *Unit) newFileWriter() error {
+	if u.path == "" {
+		return errors.New("missing dir path")
+	}
+
+	// if u.filename == "" {
+	// 	return errors.New("missing filename")
+	// }
+	// if u.ext == "" {
+	// 	return errors.New("missing file extension")
+	// }
+	// pathname, err := fileutil.ConstructPathname(u.dir, u.filename, )
+	// if err != nil {
+	// 	return err
+	// }
+
+	f, err := os.OpenFile(u.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	u.Writer = f
+
+	return nil
+}
+
 func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
 	defer r.Close()
 
 	if u.Writer == nil {
-		if u.pathname == "" {
-			return errors.New("missing output pathname")
+		if err := u.newFileWriter(); err != nil {
+			return err
 		}
 	}
 
@@ -245,7 +259,12 @@ func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
 		return err
 	}
 
-	dl.notify(Progress{ID: u.GetID(), Bytes: n})
+	dl.notify(Progress{
+		Label: u.GetLabel(),
+		Bytes: n,
+		Done:  false,
+		Error: nil,
+	})
 
 	return nil
 }
@@ -265,13 +284,21 @@ func (u *Unit) CloseWriter() error {
 	return nil
 }
 
-// this needs to return unique id
-func (u Unit) GetID() string {
-	if u.pathname != "" {
-		return u.pathname
+func (u Unit) GetLabel() string {
+	if u.Writer != nil {
+		if f, ok := u.Writer.(*os.File); ok {
+			return f.Name()
+		}
 	}
-	if u.ID != "" {
-		return u.ID
-	}
-	return "Unknown (error)"
+	return u.title
+}
+
+func (u Unit) Print() {
+	fmt.Println("--- unit ---")
+	fmt.Println("id:", u.ID)
+	fmt.Println("path:", u.path)
+	fmt.Println("qulaity", u.Quality)
+	fmt.Println("err:", u.Err)
+	fmt.Println("type:", u.Type)
+	fmt.Println("title:", u.GetLabel())
 }

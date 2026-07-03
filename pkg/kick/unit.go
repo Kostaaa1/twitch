@@ -51,17 +51,17 @@ func NewUnit(input, quality string, opts ...unitOptions) *Unit {
 	if err == nil {
 		parts := strings.Split(raw.Path, "/")
 
-		id, err := uuid.Parse(parts[3])
-		if err != nil {
-			unit.Error = err
-			return unit
-		}
+		// id, err := uuid.Parse(parts[3])
+		// if err != nil {
+		// 	unit.Error = err
+		// 	return unit
+		// }
+		// unit.UUID = id
 
 		unit.Channel = &parts[1]
-		unit.UUID = id
-	} else if uuid.Validate(input) == nil {
-		id, _ := uuid.Parse(input)
-		unit.UUID = id
+		// } else if uuid.Validate(input) == nil {
+		// id, _ := uuid.Parse(input)
+		// unit.UUID = id
 	} else {
 		unit.Error = fmt.Errorf("error: invalid input for kick video")
 		return unit
@@ -78,7 +78,8 @@ func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Mes
 	if unit.W == nil || ch == nil {
 		return
 	}
-	msg.ID = unit.GetID()
+	// msg.ID = unit.GetID()
+	msg.Label = unit.GetLabel()
 	ch <- msg
 }
 
@@ -107,6 +108,10 @@ func (u Unit) GetError() error {
 	return u.Error
 }
 
-func (u Unit) GetID() string {
-	return u.UUID.String()
+// func (u Unit) GetID() string {
+// 	return u.UUID.String()
+// }
+
+func (u Unit) GetLabel() string {
+	return u.Title
 }

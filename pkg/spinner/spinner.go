@@ -12,10 +12,10 @@ import (
 )
 
 type Message struct {
-	ID    string
+	Label string
 	Bytes int64
 	Total float64
-	Err   error
+	Error error
 	Done  bool
 }
 
@@ -31,7 +31,7 @@ type unit struct {
 }
 
 type UnitProvider interface {
-	GetID() string
+	GetLabel() string
 }
 
 type Model struct {
@@ -43,7 +43,11 @@ type Model struct {
 	units     []*unit
 	exiting   bool
 	doneCount int
-	C         chan Message
+	channel   chan Message
+}
+
+func (m *Model) Send(msg Message) {
+	m.channel <- msg
 }
 
 var (
@@ -65,11 +69,11 @@ func New(ctx context.Context, opts ...spinnerOpts) *Model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	m := &Model{
-		units:     make([]*unit, 0),
 		ctx:       ctx,
 		spinner:   s,
 		doneCount: 0,
-		C:         make(chan Message),
+		units:     make([]*unit, 0),
+		channel:   make(chan Message),
 	}
 
 	for _, opt := range opts {
@@ -81,7 +85,7 @@ func New(ctx context.Context, opts ...spinnerOpts) *Model {
 
 func (m Model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		return <-m.C
+		return <-m.channel
 	}
 }
 
@@ -90,37 +94,45 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	select {
-	case <-m.ctx.Done():
-		return m.exit()
-	default:
-		switch msg := msg.(type) {
-		case tea.QuitMsg:
+	for {
+		select {
+		case <-m.ctx.Done():
 			return m.exit()
-
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "q", "esc", "ctrl+c":
-				return m.exit()
-			default:
-				return m, nil
-			}
-
-		case tea.WindowSizeMsg:
-			m.width = msg.Width
-			return m, nil
-
-		case Message:
-			m.updateModelUnit(msg)
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, tea.Batch(cmd, m.waitForMsg())
-
 		default:
-			m.updateTime()
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
+			switch msg := msg.(type) {
+			case tea.QuitMsg:
+				return m.exit()
+
+			case tea.KeyMsg:
+				switch msg.String() {
+				case "q", "esc", "ctrl+c":
+					return m.exit()
+				default:
+					return m, nil
+				}
+
+			case tea.WindowSizeMsg:
+				m.width = msg.Width
+				return m, nil
+
+			case Message:
+				// fmt.Println("RECEIVED UNIT MESSAGE", msg.Label, msg.Bytes)
+				m.updateModelUnit(msg)
+				var cmd tea.Cmd
+				m.spinner, cmd = m.spinner.Update(msg)
+
+				// if len(m.units) == m.doneCount {
+				// 	return m.exit()
+				// } else {
+				return m, tea.Batch(cmd, m.waitForMsg())
+				// }
+
+			default:
+				m.updateTime()
+				var cmd tea.Cmd
+				m.spinner, cmd = m.spinner.Update(msg)
+				return m, cmd
+			}
 		}
 	}
 }
@@ -130,17 +142,17 @@ func (m *Model) updateModelUnit(msg Message) {
 
 	for i := 0; i < len(m.units); i++ {
 		unit := m.units[i]
-		if unit.label == msg.ID {
+		if unit.label == msg.Label {
 			unit.byteCount += float64(msg.Bytes)
 			if unit.startTime.IsZero() {
 				unit.startTime = time.Now()
 			}
-			unit.done = msg.Done
-			if msg.Err != nil {
-				unit.err = msg.Err
+			if msg.Error != nil {
+				unit.err = msg.Error
 				unit.done = true
 			}
 			if msg.Done {
+				unit.done = msg.Done
 				m.doneCount++
 			}
 			found = true
@@ -149,16 +161,16 @@ func (m *Model) updateModelUnit(msg Message) {
 
 	if !found {
 		newunit := &unit{
-			label:     msg.ID,
-			err:       msg.Err,
-			byteCount: 0,
+			label:     msg.Label,
+			err:       msg.Error,
+			byteCount: float64(msg.Bytes),
+			total:     msg.Total,
+			done:      msg.Done,
 			elapsed:   0,
 			startTime: time.Time{},
 			estimated: time.Time{},
-			total:     0,
-			done:      false,
 		}
-		if msg.Err != nil {
+		if msg.Error != nil {
 			m.doneCount++
 			newunit.done = true
 		}
@@ -197,7 +209,7 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 		unit.done = true
 	}
 
-	close(m.C)
+	close(m.channel)
 	m.cancel()
 
 	return m, tea.Quit
@@ -228,7 +240,6 @@ func progressMsg(total float64, elapsed time.Duration) string {
 		totalConverted /= 1024
 		i++
 	}
-
 	return fmt.Sprintf(
 		"%.1f %s . %.2f MB/s . %s",
 		totalConverted,

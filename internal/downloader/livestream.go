@@ -92,7 +92,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-errCh:
+		case err := <-errCh:
 			return err
 		case <-ticker.C:
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
@@ -131,6 +131,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 					if lastPollURL == lastSegmentURL {
 						seenLastSegURL = true
 					}
+
 					if lastSegmentURL == "" || seenLastSegURL && lastPollURL != lastSegmentURL {
 						segURLChan <- lastPollURL
 					}

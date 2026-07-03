@@ -77,6 +77,7 @@ func runTwitchEventSub(
 			},
 		},
 	)
+
 	if err != nil {
 		return err
 	}
@@ -187,14 +188,16 @@ func runDownloadCmd(args []string) error {
 		spin = spinner.New(ctx, spinner.WithCancelFunc(cancel))
 		g.Go(func() error {
 			spin.Run()
+			cancel()
 			return nil
 		})
 	}
 
-	tw := &twitch.Client{Gql: gql.New(http.DefaultClient)}
-	dl := downloader.New(tw)
+	c := http.DefaultClient
+	tw := &twitch.Client{Gql: gql.New(c)}
+	dl := downloader.New(tw, c)
 
-	twitchUnits := make([]downloader.Unit, 0)
+	units := make([]downloader.Unit, 0)
 
 	for _, input := range args {
 		_, err := os.Stat(input)
@@ -210,32 +213,32 @@ func runDownloadCmd(args []string) error {
 			}
 
 			for _, unit := range inputUnits {
+				// everything that is not provided should be inherited from flags
+				if unit.Output == "" {
+					unit.Output = cmdArgs.output
+				}
+
 				newunit := downloader.NewUnit(unit.Input,
 					downloader.WithQuality(unit.Quality),
 					downloader.WithTimestamps(unit.Start, unit.End),
-					downloader.WithFile(ctx, tw, unit.Output),
+					downloader.WithFilepath(ctx, tw, unit.Output),
 				)
-				twitchUnits = append(twitchUnits, *newunit)
-				if spin != nil {
-					spin.C <- spinner.Message{ID: newunit.ID}
-				}
+				units = append(units, *newunit)
 			}
 		} else {
 			unit := downloader.NewUnit(input,
 				downloader.WithQuality(cmdArgs.quality),
 				downloader.WithTimestamps(cmdArgs.start, cmdArgs.end),
-				downloader.WithFile(ctx, tw, cmdArgs.output),
+				downloader.WithFilepath(ctx, tw, cmdArgs.output),
 			)
-			twitchUnits = append(twitchUnits, *unit)
-			if spin != nil {
-				spin.C <- spinner.Message{ID: unit.GetID()}
-			}
+			units = append(units, *unit)
 		}
 	}
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
-		if len(twitchUnits) > 0 {
+
+		if len(units) > 0 {
 			if spin != nil {
 				dl.SetProgressNotifier(func(pm downloader.Progress) {
 					ctxErr := ctx.Err()
@@ -243,28 +246,31 @@ func runDownloadCmd(args []string) error {
 						if errors.Is(ctxErr, context.Canceled) {
 							return
 						}
-						pm.Err = errors.Join(pm.Err, ctxErr)
+						pm.Error = errors.Join(pm.Error, ctxErr)
 					}
-					spin.C <- spinner.Message{
-						ID:    pm.ID,
+					spin.Send(spinner.Message{
+						Label: pm.Label,
 						Bytes: pm.Bytes,
-						Err:   pm.Err,
+						Error: pm.Error,
 						Done:  pm.Done,
-					}
+						Total: pm.Total,
+					})
 				})
 			}
 
 			downloadGroup.Go(func() error {
 				if cmdArgs.watch {
-					return runTwitchEventSub(ctx, tw.Helix, dl, twitchUnits)
+					return runTwitchEventSub(ctx, tw.Helix, dl, units)
 				} else {
-					return runTwitchBatchDownload(ctx, dl, twitchUnits)
+					return runTwitchBatchDownload(ctx, dl, units)
 				}
 			})
 		}
 
 		downloadGroup.Wait()
-		cancel()
+
+		// cancel()
+
 		return nil
 	})
 

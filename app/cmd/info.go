@@ -1,6 +1,3 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -14,10 +11,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type args struct {
+	clipsLimit  int
+	videosLimit int
+	criteria    string
+}
+
+var infoArgs args
+
 func runInfoCommand(args []string) error {
 	tw := &twitch.Client{Gql: gql.New(http.DefaultClient)}
-
-	limit := 20
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -27,11 +30,11 @@ func runInfoCommand(args []string) error {
 		if err != nil {
 			return err
 		}
-		videos, err := tw.Gql.FilterableVideoTower_Videos(ctx, channel, limit)
+		videos, err := tw.Gql.FilterableVideoTower_Videos(ctx, channel, infoArgs.videosLimit)
 		if err != nil {
 			return err
 		}
-		clips, err := tw.Gql.ClipsCardsUser(ctx, channel, limit, gql.AllTime)
+		clips, err := tw.Gql.ClipsCardsUser(ctx, channel, infoArgs.clipsLimit, gql.LastMonth)
 		if err != nil {
 			return err
 		}
@@ -50,7 +53,6 @@ var infoCmd = &cobra.Command{
 		if len(args) == 0 {
 			log.Fatal("invalid usage: info <channel_name>")
 		}
-
 		if err := runInfoCommand(args); err != nil {
 			log.Fatal(err)
 		}
@@ -59,13 +61,7 @@ var infoCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(infoCmd)
-	// infoCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// infoCmd.PersistentFlags().String("foo", "", "A help for foo")
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// infoCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	infoCmd.PersistentFlags().IntVar(&infoArgs.videosLimit, "clips_limit", 20, "")
+	infoCmd.PersistentFlags().IntVar(&infoArgs.clipsLimit, "vods_limit", 20, "")
+	infoCmd.PersistentFlags().StringVarP(&infoArgs.criteria, "filter", "f", "LAST_WEEK", "")
 }

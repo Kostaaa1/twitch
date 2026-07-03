@@ -54,7 +54,7 @@ func (c *Client) Download(ctx context.Context, u Unit) error {
 	err := c.downloadVOD(ctx, u)
 
 	c.notify(Progress{
-		ID:    u.GetID(),
+		ID:    u.GetLabel(),
 		Bytes: 0,
 		Error: err,
 		Done:  true,
@@ -124,7 +124,7 @@ func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 				}
 
 				c.notify(Progress{
-					ID:    unit.GetID(),
+					ID:    unit.GetLabel(),
 					Error: unit.GetError(),
 					Bytes: int64(n),
 					Done:  false,

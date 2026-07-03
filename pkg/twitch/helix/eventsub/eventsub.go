@@ -29,6 +29,13 @@ type Payload struct {
 	Event        *NotificationEvent `json:"event"`
 }
 
+type Category int
+
+const (
+	Latest Category = iota
+	MostPopular
+)
+
 type NotificationEvent struct {
 	UserID               string    `json:"user_id"`
 	UserLogin            string    `json:"user_login"`

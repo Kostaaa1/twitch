@@ -7,14 +7,14 @@ import (
 	"net/url"
 )
 
-type criteriaFilter string
+type CriteriaFilter string
 
 const (
-	AllTime   criteriaFilter = "ALL_TIME"
-	LastDay   criteriaFilter = "LAST_DAY"
-	LastWeek  criteriaFilter = "LAST_WEEK"
-	LastMonth criteriaFilter = "LAST_MONTH"
-	LastYear  criteriaFilter = "LAST_YEAR"
+	AllTime   CriteriaFilter = "ALL_TIME"
+	LastDay   CriteriaFilter = "LAST_DAY"
+	LastWeek  CriteriaFilter = "LAST_WEEK"
+	LastMonth CriteriaFilter = "LAST_MONTH"
+	LastYear  CriteriaFilter = "LAST_YEAR"
 )
 
 func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
@@ -25,7 +25,7 @@ func (c *Client) ClipsCardsUser(
 	ctx context.Context,
 	channel string,
 	limit int,
-	filter criteriaFilter,
+	filter CriteriaFilter,
 ) (*ClipsCardsUser, error) {
 	if limit > 100 {
 		return nil, errors.New("limit value must be between 1 and 100")
