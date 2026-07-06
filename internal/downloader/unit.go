@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/fileutil"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/google/uuid"
 )
 
 type MediaType int
@@ -34,76 +32,46 @@ func (v MediaType) String() string {
 	case TypeLivestream:
 		return "stream"
 	default:
-		return fmt.Sprintf("Unknown(%d)", v)
+		return fmt.Sprintf("Unknown (%d)", v)
 	}
 }
 
 type Unit struct {
-	// id of the vod, slug of the clip, channel name (for stream)
-	ID string
-	// type of media: vod, clip, stream, highlight
-	Type MediaType
-	// type of quality:
-	Quality QualityType
-	// timestamps
-	Start, End time.Duration
-	// writer
-	Writer io.Writer
-	Err    error
-	// for file writer
-	// dir, filename string
-	path  string
-	title string
+	UUID               uuid.UUID
+	ID                 string
+	Type               MediaType
+	Quality            QualityType
+	Start, End         time.Duration
+	w                  io.Writer
+	dir, filename, ext string
+	Title              string
 }
 
 func (u *Unit) Validate() error {
-	// Validate type
 	if u.Type < 0 || u.Type > 2 {
 		return errors.New("unit type is not valid")
 	}
-	// Validate quality
 	return nil
 }
 
 type unitOption func(*Unit) error
 
-func WithWriter(w io.WriteCloser) unitOption {
+func WithPathname(pathname string) unitOption {
 	return func(u *Unit) error {
-		u.Writer = w
-		return nil
-	}
-}
-
-// file path destination of unit to be downloaded to, if file name is provided in path name,
-// then it will be used. otherwise, we fetch title for this unit based on its type (type needs to be determined beforehand)
-func WithFilepath(ctx context.Context, c *twitch.Client, pathname string) unitOption {
-	return func(u *Unit) error {
-		dir, filename := filepath.Split(pathname)
-		// if _, err := os.Stat(dir); err != nil {
-		// 	return err
-		// }
-
-		if filepath.Ext(filename) == "" {
-			title, err := u.fetchTitle(ctx, c)
-			if err != nil {
-				return err
-			}
-			u.title = title
-			filename = title
-			dir = pathname
+		info, err := os.Stat(pathname)
+		if err == nil && info.IsDir() {
+			u.dir = pathname
+			u.filename = ""
+			return nil
 		}
 
-		ext := "ts"
-		if u.Type == TypeClip {
-			ext = "mp4"
-		}
-
-		new, err := fileutil.ConstructPathname(dir, filename, ext)
-		if err != nil {
+		dir := filepath.Dir(pathname)
+		if _, err := os.Stat(dir); err != nil {
 			return err
 		}
 
-		u.path = new
+		u.dir = dir
+		u.filename = filepath.Base(pathname)
 
 		return nil
 	}
@@ -140,21 +108,6 @@ func WithQuality(q string) unitOption {
 	}
 }
 
-func (u *Unit) fetchTitle(ctx context.Context, c *twitch.Client) (title string, err error) {
-	switch u.Type {
-	case TypeClip:
-		title, err = c.Gql.ClipTitle(ctx, u.ID)
-		return
-	case TypeVOD:
-		title, err = c.Gql.VideoTitle(ctx, u.ID)
-		return
-	case TypeLivestream:
-		title, err = c.Gql.StreamTitle(ctx, u.ID)
-		return
-	}
-	return
-}
-
 func (u *Unit) parseTwitchURL(url *url.URL) error {
 	if !strings.Contains(url.Hostname(), "twitch.tv") {
 		return errors.New("'twitch.tv' missing from the URL")
@@ -188,117 +141,47 @@ func discoverUnitType(input string) MediaType {
 	return TypeLivestream
 }
 
-// input could be: clip slug, vod id, channel name (stream record), or url (url can also contain query params, which will be parsed accordingly e.g. https://www.twitch.tv/videos/{VOD_ID}?t=1h
-func NewUnit(input string, opts ...unitOption) *Unit {
-	unit := new(Unit)
-
+func NewUnit(input string, opts ...unitOption) (*Unit, error) {
 	if input == "" {
-		unit.Err = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
-		return unit
+		return nil, errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
 	}
 
-	if parsedURL, err := url.ParseRequestURI(input); err == nil {
-		unit.parseTwitchURL(parsedURL)
-	} else {
+	unit := &Unit{UUID: uuid.New()}
+
+	parsedURL, err := url.ParseRequestURI(input)
+	if err != nil {
 		unit.ID = input
+	} else {
+		unit.parseTwitchURL(parsedURL)
 	}
 
-	unit.Type = discoverUnitType(input)
+	unit.Type = discoverUnitType(unit.ID)
 
 	for _, opt := range opts {
 		if err := opt(unit); err != nil {
-			unit.Err = err
-			return unit
+			return nil, err
 		}
 	}
 
-	if unit.Writer == nil || unit.path == "" {
-		unit.Err = errors.New("missing writer or pathname: must provider either")
-		return unit
+	if unit.w == nil && unit.dir == "" {
+		return nil, errors.New("missing writer or pathname: must provide either")
 	}
 
-	return unit
-}
-
-func (u *Unit) newFileWriter() error {
-	if u.path == "" {
-		return errors.New("missing dir path")
-	}
-
-	// if u.filename == "" {
-	// 	return errors.New("missing filename")
-	// }
-	// if u.ext == "" {
-	// 	return errors.New("missing file extension")
-	// }
-	// pathname, err := fileutil.ConstructPathname(u.dir, u.filename, )
-	// if err != nil {
-	// 	return err
-	// }
-
-	f, err := os.OpenFile(u.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	u.Writer = f
-
-	return nil
-}
-
-func (u *Unit) download(dl *Downloader, r io.ReadCloser) error {
-	defer r.Close()
-
-	if u.Writer == nil {
-		if err := u.newFileWriter(); err != nil {
-			return err
-		}
-	}
-
-	n, err := io.Copy(u.Writer, r)
-	if err != nil {
-		return err
-	}
-
-	dl.notify(Progress{
-		Label: u.GetLabel(),
-		Bytes: n,
-		Done:  false,
-		Error: nil,
-	})
-
-	return nil
-}
-
-func (u *Unit) segmentFetchDownload(ctx context.Context, dl *Downloader, segURL string) error {
-	body, err := dl.fetchSegment(ctx, segURL)
-	if err != nil {
-		return err
-	}
-	return u.download(dl, body)
+	return unit, nil
 }
 
 func (u *Unit) CloseWriter() error {
-	if f, ok := u.Writer.(*os.File); ok && f != nil {
+	if f, ok := u.w.(*os.File); ok && f != nil {
 		return f.Close()
 	}
 	return nil
 }
 
+// spinner interface
 func (u Unit) GetLabel() string {
-	if u.Writer != nil {
-		if f, ok := u.Writer.(*os.File); ok {
-			return f.Name()
-		}
-	}
-	return u.title
+	return u.Title
 }
 
-func (u Unit) Print() {
-	fmt.Println("--- unit ---")
-	fmt.Println("id:", u.ID)
-	fmt.Println("path:", u.path)
-	fmt.Println("qulaity", u.Quality)
-	fmt.Println("err:", u.Err)
-	fmt.Println("type:", u.Type)
-	fmt.Println("title:", u.GetLabel())
+func (u Unit) GetID() string {
+	return u.UUID.String()
 }

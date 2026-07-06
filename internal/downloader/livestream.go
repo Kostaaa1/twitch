@@ -15,7 +15,7 @@ import (
 )
 
 func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) ([]byte, error) {
-	tok, err := dl.twClient.Gql.StreamPlaybackAccessToken(ctx, channel)
+	tok, err := dl.gql.StreamPlaybackAccessToken(ctx, channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
@@ -42,7 +42,7 @@ func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) 
 }
 
 func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
-	isLive, err := dl.twClient.Gql.IsChannelLive(ctx, unit.ID)
+	isLive, err := dl.gql.IsChannelLive(ctx, unit.ID)
 	if err != nil {
 		return err
 	}
@@ -60,6 +60,8 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 		return err
 	}
 
+	unit.ext = "ts"
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -67,7 +69,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 	defer close(segURLChan)
 
 	errCh := make(chan error, 1)
-	defer close(errCh)
 
 	go func() {
 		for {
@@ -78,8 +79,9 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 				if !ok {
 					return
 				}
-				if err := unit.segmentFetchDownload(ctx, dl, tsURL); err != nil {
+				if err := dl.segmentFetchDownload(ctx, unit, tsURL); err != nil {
 					errCh <- err
+					close(errCh)
 					return
 				}
 			}

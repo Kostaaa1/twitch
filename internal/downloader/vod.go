@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
-	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/internal/httputil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"golang.org/x/sync/errgroup"
@@ -61,7 +60,7 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3
 }
 
 func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
-	bt, previewURL, err := dl.twClient.Gql.SeekPreviewsURL(ctx, vodID)
+	bt, previewURL, err := dl.gql.SeekPreviewsURL(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +144,7 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 }
 
 func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
-	tok, err := dl.twClient.Gql.VideoPlaybackAccessToken(ctx, vodID)
+	tok, err := dl.gql.VideoPlaybackAccessToken(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
@@ -219,17 +218,13 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 		return err
 	}
 
-	// for mp4 segments, init segment needs to be downloaded before others
 	if list.Map != nil && list.Map.URI != "" {
-		newpath, err := fileutil.SwapExt(unit.path, "mp4")
-		if err != nil {
+		unit.ext = "mp4"
+		if err := dl.segmentFetchDownload(ctx, unit, buildSegURL(list.URL, list.Map.URI)); err != nil {
 			return err
 		}
-		unit.path = newpath
-		initSegURL := buildSegURL(list.URL, list.Map.URI)
-		if err := unit.segmentFetchDownload(ctx, dl, initSegURL); err != nil {
-			return err
-		}
+	} else {
+		unit.ext = "ts"
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -263,7 +258,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case chunk := <-list.Segments[i].Data:
-				if err := unit.download(dl, chunk); err != nil {
+				if err := dl.download(unit, chunk); err != nil {
 					return err
 				}
 			}

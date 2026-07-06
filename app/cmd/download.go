@@ -24,7 +24,6 @@ import (
 )
 
 type T struct {
-	// input       []string
 	output      string
 	quality     string
 	threads     int
@@ -36,14 +35,14 @@ type T struct {
 
 var cmdArgs T
 
-func runTwitchBatchDownload(ctx context.Context, dl *downloader.Downloader, units []downloader.Unit) error {
+func runTwitchBatchDownload(ctx context.Context, dl *downloader.Downloader, units []*downloader.Unit) error {
 	g, ctx := errgroup.WithContext(ctx)
 	if cmdArgs.threads > 0 {
 		g.SetLimit(cmdArgs.threads)
 	}
 	for _, unit := range units {
 		g.Go(func() error {
-			dl.Download(ctx, &unit)
+			dl.Download(ctx, unit)
 			return nil
 		})
 	}
@@ -55,7 +54,7 @@ func runTwitchEventSub(
 	ctx context.Context,
 	helix *helix.Client,
 	dl *downloader.Downloader,
-	units []downloader.Unit,
+	units []*downloader.Unit,
 ) error {
 	e, err := eventsub.WithWebsocket(
 		ctx,
@@ -68,7 +67,7 @@ func runTwitchEventSub(
 						switch msg.Metadata.SubscriptionType {
 						case eventsub.StreamOnline:
 							// start downloading
-							go dl.Download(ctx, &unit)
+							go dl.Download(ctx, unit)
 						case eventsub.StreamOffline:
 							// cancel downloading
 						}
@@ -195,9 +194,9 @@ func runDownloadCmd(args []string) error {
 
 	c := http.DefaultClient
 	tw := &twitch.Client{Gql: gql.New(c)}
-	dl := downloader.New(tw, c)
+	dl := downloader.New(tw.Gql, c)
 
-	units := make([]downloader.Unit, 0)
+	units := make([]*downloader.Unit, 0)
 
 	for _, input := range args {
 		_, err := os.Stat(input)
@@ -207,7 +206,7 @@ func runDownloadCmd(args []string) error {
 				return err
 			}
 
-			var inputUnits []Unit
+			var inputUnits []*Unit
 			if err := json.Unmarshal(b, &inputUnits); err != nil {
 				return err
 			}
@@ -218,22 +217,52 @@ func runDownloadCmd(args []string) error {
 					unit.Output = cmdArgs.output
 				}
 
-				newunit := downloader.NewUnit(unit.Input,
+				unit, err := downloader.NewUnit(unit.Input,
 					downloader.WithQuality(unit.Quality),
 					downloader.WithTimestamps(unit.Start, unit.End),
-					downloader.WithFilepath(ctx, tw, unit.Output),
+					downloader.WithPathname(unit.Output),
 				)
-				units = append(units, *newunit)
+
+				if err != nil {
+					spin.Send(spinner.Message{
+						Done:  true,
+						Error: err,
+						Label: unit.GetLabel(),
+						ID:    unit.GetID(),
+					})
+					continue
+				}
+
+				units = append(units, unit)
 			}
 		} else {
-			unit := downloader.NewUnit(input,
+			unit, err := downloader.NewUnit(input,
 				downloader.WithQuality(cmdArgs.quality),
 				downloader.WithTimestamps(cmdArgs.start, cmdArgs.end),
-				downloader.WithFilepath(ctx, tw, cmdArgs.output),
+				downloader.WithPathname(cmdArgs.output),
 			)
-			units = append(units, *unit)
+
+			if err != nil {
+				spin.Send(spinner.Message{
+					Done:  true,
+					Error: err,
+					Label: unit.GetLabel(),
+					ID:    unit.GetID(),
+				})
+				continue
+			}
+
+			units = append(units, unit)
 		}
 	}
+
+	// for _, unit := range units {
+	// 	b, err := json.MarshalIndent(unit, "", " ")
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Println("Unit:", string(b))
+	// }
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
@@ -249,6 +278,7 @@ func runDownloadCmd(args []string) error {
 						pm.Error = errors.Join(pm.Error, ctxErr)
 					}
 					spin.Send(spinner.Message{
+						ID:    pm.ID,
 						Label: pm.Label,
 						Bytes: pm.Bytes,
 						Error: pm.Error,

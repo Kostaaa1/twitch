@@ -52,9 +52,9 @@ func TestUnits(t *testing.T) {
 
 		switch {
 		case tc.inputQuality != "":
-			unit = NewUnit(tc.input, WithQuality(tc.inputQuality))
+			unit, err = NewUnit(tc.input, WithQuality(tc.inputQuality))
 		default:
-			unit = NewUnit(tc.input)
+			unit, err = NewUnit(tc.input)
 		}
 
 		require.NoError(t, err)

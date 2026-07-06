@@ -1,7 +1,6 @@
 package fileutil
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,15 +39,6 @@ func sanitizeFilename(filename string) string {
 	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
 	v := re.ReplaceAllString(filename, "_")
 	return v
-}
-
-func SwapExt(filename, ext string) (string, error) {
-	pathExt := filepath.Ext(filename)
-	if ext == "" {
-		return "", errors.New("")
-	}
-	// fmt.Println("EXTENSTIONS:", pathExt)
-	return strings.TrimSuffix(filename, pathExt) + ext, nil
 }
 
 func ConstructPathname(dstPath, filename, ext string) (string, error) {

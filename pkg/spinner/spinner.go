@@ -12,14 +12,20 @@ import (
 )
 
 type Message struct {
+	// unique id
+	ID string
+	// label what to display
 	Label string
+	// byte count
 	Bytes int64
+	// total count
 	Total float64
 	Error error
 	Done  bool
 }
 
 type unit struct {
+	id        string
 	label     string
 	err       error
 	byteCount float64
@@ -31,6 +37,7 @@ type unit struct {
 }
 
 type UnitProvider interface {
+	GetID() string
 	GetLabel() string
 }
 
@@ -116,7 +123,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 
 			case Message:
-				// fmt.Println("RECEIVED UNIT MESSAGE", msg.Label, msg.Bytes)
 				m.updateModelUnit(msg)
 				var cmd tea.Cmd
 				m.spinner, cmd = m.spinner.Update(msg)
@@ -142,25 +148,29 @@ func (m *Model) updateModelUnit(msg Message) {
 
 	for i := 0; i < len(m.units); i++ {
 		unit := m.units[i]
-		if unit.label == msg.Label {
+		if unit.id == msg.ID {
 			unit.byteCount += float64(msg.Bytes)
 			if unit.startTime.IsZero() {
 				unit.startTime = time.Now()
 			}
+
 			if msg.Error != nil {
 				unit.err = msg.Error
 				unit.done = true
 			}
+
 			if msg.Done {
 				unit.done = msg.Done
 				m.doneCount++
 			}
+
 			found = true
 		}
 	}
 
 	if !found {
 		newunit := &unit{
+			id:        msg.ID,
 			label:     msg.Label,
 			err:       msg.Error,
 			byteCount: float64(msg.Bytes),

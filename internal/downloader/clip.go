@@ -37,14 +37,15 @@ func extractClipSourceURL(videoQualities []gql.VideoQuality, quality string) str
 }
 
 func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
-	clip, err := dl.twClient.Gql.ClipMetadata(ctx, unit.ID)
+	clip, err := dl.gql.ClipMetadata(ctx, unit.ID)
 	if err != nil {
 		return err
 	}
 
+	unit.ext = "mp4"
 	clipDataURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality.String())
 
-	usherURL, err := dl.twClient.Gql.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
+	usherURL, err := dl.gql.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
 	if err != nil {
 		return err
 	}
@@ -53,7 +54,7 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
 		// n, err = extractAudio(usherURL, unit.Writer)
 		return errors.New("audio quality for clip not yet supported")
 	} else {
-		if err := unit.segmentFetchDownload(ctx, dl, usherURL); err != nil {
+		if err := dl.segmentFetchDownload(ctx, unit, usherURL); err != nil {
 			return err
 		}
 	}
