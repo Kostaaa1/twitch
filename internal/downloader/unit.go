@@ -43,6 +43,7 @@ type Unit struct {
 	Quality            QualityType
 	Start, End         time.Duration
 	w                  io.Writer
+	Error              error
 	dir, filename, ext string
 	Title              string
 }
@@ -141,12 +142,13 @@ func discoverUnitType(input string) MediaType {
 	return TypeLivestream
 }
 
-func NewUnit(input string, opts ...unitOption) (*Unit, error) {
-	if input == "" {
-		return nil, errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
-	}
-
+func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := &Unit{UUID: uuid.New()}
+
+	if input == "" {
+		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
+		return unit
+	}
 
 	parsedURL, err := url.ParseRequestURI(input)
 	if err != nil {
@@ -159,15 +161,16 @@ func NewUnit(input string, opts ...unitOption) (*Unit, error) {
 
 	for _, opt := range opts {
 		if err := opt(unit); err != nil {
-			return nil, err
+			unit.Error = err
+			return unit
 		}
 	}
 
 	if unit.w == nil && unit.dir == "" {
-		return nil, errors.New("missing writer or pathname: must provide either")
+		unit.Error = errors.New("missing writer or pathname: must provide either")
 	}
 
-	return unit, nil
+	return unit
 }
 
 func (u *Unit) CloseWriter() error {
@@ -177,11 +180,17 @@ func (u *Unit) CloseWriter() error {
 	return nil
 }
 
-// spinner interface
 func (u Unit) GetLabel() string {
-	return u.Title
+	if u.Title != "" {
+		return u.Title
+	}
+	return u.ID
 }
 
 func (u Unit) GetID() string {
 	return u.UUID.String()
+}
+
+func (u Unit) GetError() error {
+	return u.Error
 }

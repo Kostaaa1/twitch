@@ -12,13 +12,9 @@ import (
 )
 
 type Message struct {
-	// unique id
-	ID string
-	// label what to display
+	ID    string
 	Label string
-	// byte count
 	Bytes int64
-	// total count
 	Total float64
 	Error error
 	Done  bool
@@ -28,8 +24,8 @@ type unit struct {
 	id        string
 	label     string
 	err       error
-	byteCount float64
 	total     float64
+	byteCount float64
 	estimated time.Time     // estimated time for finish (based on total)
 	startTime time.Time     //
 	elapsed   time.Duration // how much time passed since start
@@ -39,6 +35,7 @@ type unit struct {
 type UnitProvider interface {
 	GetID() string
 	GetLabel() string
+	GetError() error
 }
 
 type Model struct {
@@ -70,6 +67,19 @@ func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
 	}
 }
 
+func WithUnits[T UnitProvider](units []T) spinnerOpts {
+	return func(m *Model) {
+		m.units = make([]*unit, len(units))
+		for i, u := range units {
+			m.units[i] = &unit{
+				id:    u.GetID(),
+				label: u.GetLabel(),
+				err:   u.GetError(),
+			}
+		}
+	}
+}
+
 func New(ctx context.Context, opts ...spinnerOpts) *Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -79,12 +89,16 @@ func New(ctx context.Context, opts ...spinnerOpts) *Model {
 		ctx:       ctx,
 		spinner:   s,
 		doneCount: 0,
-		units:     make([]*unit, 0),
 		channel:   make(chan Message),
+		// units:     make([]*unit, 0),
 	}
 
 	for _, opt := range opts {
 		opt(m)
+	}
+
+	if len(m.units) == 0 {
+		m.units = make([]*unit, 0)
 	}
 
 	return m
@@ -126,12 +140,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateModelUnit(msg)
 				var cmd tea.Cmd
 				m.spinner, cmd = m.spinner.Update(msg)
-
-				// if len(m.units) == m.doneCount {
-				// 	return m.exit()
-				// } else {
+				if len(m.units) == m.doneCount {
+					return m.exit()
+				}
 				return m, tea.Batch(cmd, m.waitForMsg())
-				// }
 
 			default:
 				m.updateTime()
@@ -149,6 +161,9 @@ func (m *Model) updateModelUnit(msg Message) {
 	for i := 0; i < len(m.units); i++ {
 		unit := m.units[i]
 		if unit.id == msg.ID {
+			unit.label = msg.Label
+			unit.total = msg.Total
+
 			unit.byteCount += float64(msg.Bytes)
 			if unit.startTime.IsZero() {
 				unit.startTime = time.Now()

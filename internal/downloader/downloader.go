@@ -43,6 +43,18 @@ func (c *Downloader) notify(msg Progress) {
 func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	defer u.CloseWriter()
 
+	if u.Error != nil {
+		dl.notify(Progress{
+			ID:    u.GetID(),
+			Label: u.GetLabel(),
+			Error: u.Error,
+			Bytes: 0,
+			Total: 0,
+			Done:  true,
+		})
+		return u.Error
+	}
+
 	var err error
 
 	switch u.Type {
@@ -73,7 +85,6 @@ func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 		if err := dl.openFile(context.Background(), u); err != nil {
 			return err
 		}
-		// return errors.New("missing writer")
 	}
 
 	n, err := io.Copy(u.w, r)

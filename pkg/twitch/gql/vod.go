@@ -136,11 +136,13 @@ func (gql *Client) SeekPreviewsURL(ctx context.Context, vodID string) (string, s
 	gqlPl := `{
 		"query": "query { video(id: \"%s\") { broadcastType, id, createdAt, seekPreviewsURL, owner { login } } }"
 	}`
-	var vod Video
-	if err := sendGqlLoadAndDecode(ctx, gql.http, &vod, gqlPl, vodID); err != nil {
+	var data struct {
+		Video Video `json:"video"`
+	}
+	if err := sendGqlLoadAndDecode(ctx, gql.http, &data, gqlPl, vodID); err != nil {
 		return "", "", err
 	}
-	return vod.BroadcastType, vod.SeekPreviewsURL, nil
+	return data.Video.BroadcastType, data.Video.SeekPreviewsURL, nil
 }
 
 func (tw *Client) ChannelRoot_AboutPanel(

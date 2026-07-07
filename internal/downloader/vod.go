@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 
@@ -71,12 +72,17 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 
 	u, err := url.Parse(previewURL)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	subdomain := strings.Split(u.Host, ".")[0]
-	fmt.Println("Subdomain", subdomain)
-	fmt.Println("Preview", previewURL)
+	host := u.Hostname()
+	subdomain := strings.Split(host, ".")[0]
+
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) < 1 {
+		panic("invalid path")
+	}
+	id := parts[0]
 
 	master := m3u8.MasterPlaylist{
 		Origin:          "s3",
@@ -117,6 +123,9 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 		case "UPLOAD":
 		case "HIGHLIGHT":
 		case "ARCHIVE":
+			listURL = fmt.Sprintf("https://%s.cloudfront.net/%s/%s/index-dvr.m3u8", subdomain, id, key)
+		default:
+			return nil, errors.New("unsupported broadcast type")
 		}
 
 		if listURL == "" {
@@ -179,6 +188,14 @@ func transformForbiddenSegURL(url string) (string, error) {
 }
 
 func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadCloser, error) {
+	// strip - try to fetch raw segment first
+	base := filepath.Base(url)
+	if strings.Contains(base, "-unmuted") {
+		url = strings.Replace(url, "-unmuted", "", 1)
+	} else if strings.Contains(base, "-muted") {
+		url = strings.Replace(url, "-muted", "", 1)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -190,18 +207,12 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 	}
 
 	if resp.StatusCode == http.StatusForbidden {
-		url, err = transformForbiddenSegURL(url)
-		if err != nil {
-			return nil, err
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			return nil, err
-		}
-		resp, err = dl.http.Do(req)
-		if err != nil {
-			return nil, err
-		}
+		// modify segment url - without strip
+		// add numtued
+		// if it has unmuted, then modify to muted
+		// if it has muted, then its last try and return error
+
+		return dl.fetchSegment(ctx, url)
 	}
 
 	return resp.Body, nil

@@ -182,16 +182,6 @@ func runDownloadCmd(args []string) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	var spin *spinner.Model
-	if cmdArgs.showSpinner {
-		spin = spinner.New(ctx, spinner.WithCancelFunc(cancel))
-		g.Go(func() error {
-			spin.Run()
-			cancel()
-			return nil
-		})
-	}
-
 	c := http.DefaultClient
 	tw := &twitch.Client{Gql: gql.New(c)}
 	dl := downloader.New(tw.Gql, c)
@@ -212,57 +202,36 @@ func runDownloadCmd(args []string) error {
 			}
 
 			for _, unit := range inputUnits {
-				// everything that is not provided should be inherited from flags
 				if unit.Output == "" {
 					unit.Output = cmdArgs.output
 				}
 
-				unit, err := downloader.NewUnit(unit.Input,
+				unit := downloader.NewUnit(unit.Input,
 					downloader.WithQuality(unit.Quality),
 					downloader.WithTimestamps(unit.Start, unit.End),
 					downloader.WithPathname(unit.Output),
 				)
-
-				if err != nil {
-					spin.Send(spinner.Message{
-						Done:  true,
-						Error: err,
-						Label: unit.GetLabel(),
-						ID:    unit.GetID(),
-					})
-					continue
-				}
-
 				units = append(units, unit)
 			}
 		} else {
-			unit, err := downloader.NewUnit(input,
+			unit := downloader.NewUnit(input,
 				downloader.WithQuality(cmdArgs.quality),
 				downloader.WithTimestamps(cmdArgs.start, cmdArgs.end),
 				downloader.WithPathname(cmdArgs.output),
 			)
-
-			if err != nil {
-				spin.Send(spinner.Message{
-					Done:  true,
-					Error: err,
-					Label: unit.GetLabel(),
-					ID:    unit.GetID(),
-				})
-				continue
-			}
-
 			units = append(units, unit)
 		}
 	}
 
-	// for _, unit := range units {
-	// 	b, err := json.MarshalIndent(unit, "", " ")
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	fmt.Println("Unit:", string(b))
-	// }
+	var spin *spinner.Model
+	if cmdArgs.showSpinner {
+		spin = spinner.New(ctx, spinner.WithCancelFunc(cancel), spinner.WithUnits(units))
+		g.Go(func() error {
+			spin.Run()
+			cancel()
+			return nil
+		})
+	}
 
 	g.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
