@@ -38,7 +38,7 @@ func walkDir(dstpath, filename, ext string) string {
 func sanitizeFilename(filename string) string {
 	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
 	v := re.ReplaceAllString(filename, "_")
-	return v
+	return strings.TrimSpace(v)
 }
 
 func ConstructPathname(dstPath, filename, ext string) (string, error) {

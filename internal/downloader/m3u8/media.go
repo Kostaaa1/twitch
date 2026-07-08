@@ -14,7 +14,7 @@ import (
 type Segment struct {
 	URI      string
 	Duration time.Duration
-	Data     chan io.ReadCloser
+	Data     chan []byte
 }
 
 type Map struct {
@@ -106,7 +106,7 @@ func parseExtInf(r *bufio.Reader, list *MediaPlaylist, line string) error {
 	list.Segments = append(list.Segments, Segment{
 		URI:      string(segmentURL),
 		Duration: duration,
-		Data:     make(chan io.ReadCloser, 1),
+		Data:     make(chan []byte, 1),
 	})
 
 	return nil

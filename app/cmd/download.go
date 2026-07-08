@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/cli"
+	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix/eventsub"
@@ -115,50 +115,11 @@ func runTwitchEventSub(
 	if err != nil {
 		return err
 	}
+
 	b, _ := json.MarshalIndent(subs, "", " ")
 	fmt.Println(string(b))
 
 	return e.Wait()
-}
-
-type Unit struct {
-	Input   string        `json:"input"`
-	Output  string        `json:"output"`
-	Quality string        `json:"quality"`
-	Start   time.Duration `json:"start"`
-	End     time.Duration `json:"end"`
-}
-
-func (p *Unit) UnmarshalJSON(b []byte) error {
-	type Alias Unit
-	aux := &struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
-		*Alias
-	}{
-		Alias: (*Alias)(p),
-	}
-
-	if err := json.Unmarshal(b, &aux); err != nil {
-		return err
-	}
-
-	var err error
-
-	if aux.Start != "" {
-		p.Start, err = time.ParseDuration(aux.Start)
-		if err != nil {
-			return err
-		}
-	}
-	if aux.End != "" {
-		p.End, err = time.ParseDuration(aux.End)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func runDownloadCmd(args []string) error {
@@ -166,10 +127,10 @@ func runDownloadCmd(args []string) error {
 	// 	log.Fatal(err)
 	// }
 
-	// conf, err := config.Read()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	conf, err := config.Read()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// defer func() {
 	// 	if err := conf.Save(); err != nil {
@@ -182,45 +143,27 @@ func runDownloadCmd(args []string) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	c := http.DefaultClient
-	tw := &twitch.Client{Gql: gql.New(c)}
-	dl := downloader.New(tw.Gql, c)
+	httpClient := &http.Client{
+		Timeout: time.Second * 30,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 20,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 
-	units := make([]*downloader.Unit, 0)
+	gql := gql.New(httpClient)
+	dl := downloader.New(gql, httpClient)
 
-	for _, input := range args {
-		_, err := os.Stat(input)
-		if !os.IsNotExist(err) {
-			b, err := os.ReadFile(input)
-			if err != nil {
-				return err
-			}
-
-			var inputUnits []*Unit
-			if err := json.Unmarshal(b, &inputUnits); err != nil {
-				return err
-			}
-
-			for _, unit := range inputUnits {
-				if unit.Output == "" {
-					unit.Output = cmdArgs.output
-				}
-
-				unit := downloader.NewUnit(unit.Input,
-					downloader.WithQuality(unit.Quality),
-					downloader.WithTimestamps(unit.Start, unit.End),
-					downloader.WithPathname(unit.Output),
-				)
-				units = append(units, unit)
-			}
-		} else {
-			unit := downloader.NewUnit(input,
-				downloader.WithQuality(cmdArgs.quality),
-				downloader.WithTimestamps(cmdArgs.start, cmdArgs.end),
-				downloader.WithPathname(cmdArgs.output),
-			)
-			units = append(units, unit)
-		}
+	units, err := cli.ParseUnits(
+		args,
+		cmdArgs.quality,
+		cmdArgs.start,
+		cmdArgs.end,
+		cmdArgs.output,
+	)
+	if err != nil {
+		return err
 	}
 
 	var spin *spinner.Model
@@ -259,7 +202,8 @@ func runDownloadCmd(args []string) error {
 
 			downloadGroup.Go(func() error {
 				if cmdArgs.watch {
-					return runTwitchEventSub(ctx, tw.Helix, dl, units)
+					helix := helix.New(httpClient, helix.WithOAuthCreds(&conf.OAuthCreds))
+					return runTwitchEventSub(ctx, helix, dl, units)
 				} else {
 					return runTwitchBatchDownload(ctx, dl, units)
 				}
@@ -292,12 +236,11 @@ var downloadCmd = &cobra.Command{
 
 func init() {
 	cobra.OnInitialize()
-	// downloadCmd.PersistentFlags().StringSliceVarP(&cmdArgs.input, "input", "i", nil, "")
+	// downloadCmd.PersistentFlags().BoolVarP(&cmdArgs.verbose, "verbose", "v", false, "")
+	// downloadCmd.PersistentFlags().IntVarP(&cmdArgs.threads, "threads", "t", 0, "")
 	downloadCmd.PersistentFlags().StringVarP(&cmdArgs.output, "output", "o", "", "")
 	downloadCmd.PersistentFlags().BoolVarP(&cmdArgs.watch, "watch", "w", false, "")
 	downloadCmd.PersistentFlags().BoolVar(&cmdArgs.showSpinner, "spinner", true, "")
-	downloadCmd.PersistentFlags().BoolVarP(&cmdArgs.verbose, "verbose", "v", false, "")
-	downloadCmd.PersistentFlags().IntVarP(&cmdArgs.threads, "threads", "t", 0, "")
 	downloadCmd.PersistentFlags().StringVarP(&cmdArgs.quality, "quality", "q", "best", "")
 	downloadCmd.PersistentFlags().DurationVarP(&cmdArgs.start, "start", "s", 0, " attribution")
 	downloadCmd.PersistentFlags().DurationVarP(&cmdArgs.end, "end", "e", 0, " attribution")

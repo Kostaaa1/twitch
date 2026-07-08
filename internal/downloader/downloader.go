@@ -3,9 +3,11 @@ package downloader
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
@@ -78,6 +80,30 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	return err
 }
 
+func (dl *Downloader) downloadBytes(u *Unit, b []byte) error {
+	if u.w == nil {
+		if err := dl.openFile(context.Background(), u); err != nil {
+			return err
+		}
+	}
+
+	n, err := u.w.Write(b)
+	if err != nil {
+		return err
+	}
+
+	dl.notify(Progress{
+		ID:    u.GetID(),
+		Label: u.GetLabel(),
+		Bytes: int64(n),
+		Done:  false,
+		Error: nil,
+		Total: 0,
+	})
+
+	return nil
+}
+
 func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 	defer r.Close()
 
@@ -104,8 +130,46 @@ func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 	return nil
 }
 
+func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io.ReadCloser, error) {
+	url = stripSegmentURLType(url)
+
+	u.mu.Lock()
+	if u.ext == "" {
+		u.ext = filepath.Ext(url)
+	}
+	u.mu.Unlock()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			resp, err := dl.http.Do(req)
+			if err != nil {
+				return nil, err
+			}
+
+			if resp.StatusCode == http.StatusForbidden {
+				u, err := transformSegmentURL(url)
+				if err != nil {
+					return nil, err
+				}
+				url = u
+				continue
+			}
+
+			return resp.Body, nil
+		}
+	}
+}
+
 func (dl *Downloader) segmentFetchDownload(ctx context.Context, u *Unit, segURL string) error {
-	body, err := dl.fetchSegment(ctx, segURL)
+	body, err := dl.fetchSegment(ctx, u, segURL)
 	if err != nil {
 		return err
 	}
@@ -137,8 +201,9 @@ func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 		if err != nil {
 			return err
 		}
-		u.Title = title
-		u.filename = u.Title
+		title = fmt.Sprintf("%s_%s", title, u.Quality.String())
+		u.title = title
+		u.filename = title
 	}
 
 	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)

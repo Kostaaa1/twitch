@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/Kostaaa1/twitch/internal/cli"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/spf13/cobra"
 )
@@ -20,21 +19,21 @@ type args struct {
 var infoArgs args
 
 func runInfoCommand(args []string) error {
-	tw := &twitch.Client{Gql: gql.New(http.DefaultClient)}
+	c := gql.New(http.DefaultClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	for _, channel := range args {
-		about, err := tw.Gql.ChannelRoot_AboutPanel(ctx, channel)
+		about, err := c.ChannelRoot_AboutPanel(ctx, channel)
 		if err != nil {
 			return err
 		}
-		videos, err := tw.Gql.FilterableVideoTower_Videos(ctx, channel, infoArgs.videosLimit)
+		videos, err := c.FilterableVideoTower_Videos(ctx, channel, infoArgs.videosLimit)
 		if err != nil {
 			return err
 		}
-		clips, err := tw.Gql.ClipsCardsUser(ctx, channel, infoArgs.clipsLimit, gql.LastMonth)
+		clips, err := c.ClipsCardsUser(ctx, channel, infoArgs.clipsLimit, gql.LastMonth)
 		if err != nil {
 			return err
 		}
@@ -44,7 +43,6 @@ func runInfoCommand(args []string) error {
 	return nil
 }
 
-// infoCmd represents the info command
 var infoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "",

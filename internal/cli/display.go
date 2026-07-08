@@ -89,7 +89,7 @@ func printClips(s *strings.Builder, clips *gql.ClipsCardsUser) {
 
 	if len(clips.User.Clips.Edges) == 0 {
 		s.WriteString(tab)
-		s.WriteString(mutedStyle.Render("No clips found"))
+		s.WriteString(mutedStyle.Render("No clips"))
 	} else {
 		for i, edge := range clips.User.Clips.Edges {
 			clip := edge.Node
@@ -132,14 +132,23 @@ func printClips(s *strings.Builder, clips *gql.ClipsCardsUser) {
 func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 	printHeaderLabel(s, "Socials")
 
+	socials := u.User.Channel.SocialMedias
+
+	if len(socials) == 0 {
+		s.WriteString(tab)
+		s.WriteString(mutedStyle.Render("No socials"))
+		s.WriteString("\n\n")
+		return
+	}
+
 	maxSpace := 0
-	for _, social := range u.User.Channel.SocialMedias {
+	for _, social := range socials {
 		if len(social.Name) > maxSpace {
 			maxSpace = len(social.Name)
 		}
 	}
 
-	for _, social := range u.User.Channel.SocialMedias {
+	for _, social := range socials {
 		printLabelRow(
 			s,
 			mutedStyle.Render(social.Name),
@@ -148,13 +157,20 @@ func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 			maxSpace,
 		)
 	}
+
 	s.WriteString("\n")
 }
 
-func printAbout(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
+func printAbout(s *strings.Builder, about *gql.ChannelRoot_AboutPanel) {
+	fmt.Println(about)
+
 	printHeaderLabel(s, "About")
 	s.WriteString(tab)
-	s.WriteString(mutedStyle.Render(u.User.Description))
+	if about.User.Description == "" {
+		s.WriteString(mutedStyle.Render("No description"))
+	} else {
+		s.WriteString(mutedStyle.Render(about.User.Description))
+	}
 	s.WriteString("\n\n")
 }
 
@@ -187,8 +203,8 @@ func printVideos(s *strings.Builder, videos *gql.FilterableVideoTower_Videos) {
 
 	if len(videos.User.Videos.Edges) == 0 {
 		s.WriteString(tab)
-		s.WriteString(tab)
-		s.WriteString(mutedStyle.Render("No videos found"))
+		s.WriteString(mutedStyle.Render("No videos"))
+		s.WriteString("\n")
 	} else {
 
 		for i, edge := range videos.User.Videos.Edges {

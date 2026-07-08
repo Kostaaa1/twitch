@@ -42,7 +42,6 @@ func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
 		return err
 	}
 
-	unit.ext = "mp4"
 	clipDataURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality.String())
 
 	usherURL, err := dl.gql.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)

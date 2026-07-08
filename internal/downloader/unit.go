@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,15 +38,18 @@ func (v MediaType) String() string {
 }
 
 type Unit struct {
-	UUID               uuid.UUID
-	ID                 string
-	Type               MediaType
-	Quality            QualityType
-	Start, End         time.Duration
+	mu         sync.Mutex
+	UUID       uuid.UUID
+	ID         string
+	Type       MediaType
+	Quality    QualityType
+	Start, End time.Duration
+	Error      error
+
+	readAheadDepth     int
 	w                  io.Writer
-	Error              error
 	dir, filename, ext string
-	Title              string
+	title              string
 }
 
 func (u *Unit) Validate() error {
@@ -142,8 +146,13 @@ func discoverUnitType(input string) MediaType {
 	return TypeLivestream
 }
 
+func (u *Unit) SetReadAheadDepth(n int) { u.readAheadDepth = n }
+
 func NewUnit(input string, opts ...unitOption) *Unit {
-	unit := &Unit{UUID: uuid.New()}
+	unit := &Unit{
+		UUID:           uuid.New(),
+		readAheadDepth: 16,
+	}
 
 	if input == "" {
 		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
@@ -180,17 +189,20 @@ func (u *Unit) CloseWriter() error {
 	return nil
 }
 
-func (u Unit) GetLabel() string {
-	if u.Title != "" {
-		return u.Title
+func (u *Unit) GetLabel() string {
+	if u.title != "" {
+		return u.title
+	}
+	if u.filename != "" {
+		return u.filename
 	}
 	return u.ID
 }
 
-func (u Unit) GetID() string {
+func (u *Unit) GetID() string {
 	return u.UUID.String()
 }
 
-func (u Unit) GetError() error {
+func (u *Unit) GetError() error {
 	return u.Error
 }

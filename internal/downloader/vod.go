@@ -60,6 +60,24 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3
 	return playlist, nil
 }
 
+func parsePreviewURL(previewURL string) (string, string, error) {
+	u, err := url.Parse(previewURL)
+	if err != nil {
+		return "", "", err
+	}
+
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) < 1 {
+		return "", "", errors.New("")
+	}
+
+	subdomain := strings.Split(u.Hostname(), ".")[0]
+	id := parts[0]
+
+	return subdomain, id, nil
+}
+
+// TODO: whole process of creating mock master playlists could be avoided
 func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
 	bt, previewURL, err := dl.gql.SeekPreviewsURL(ctx, vodID)
 	if err != nil {
@@ -70,19 +88,10 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 		return nil, fmt.Errorf("failed to acquire previewURL for video: %s", vodID)
 	}
 
-	u, err := url.Parse(previewURL)
+	subdomain, id, err := parsePreviewURL(previewURL)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	host := u.Hostname()
-	subdomain := strings.Split(host, ".")[0]
-
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) < 1 {
-		panic("invalid path")
-	}
-	id := parts[0]
 
 	master := m3u8.MasterPlaylist{
 		Origin:          "s3",
@@ -145,10 +154,6 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 		}
 	}
 
-	for _, list := range master.Lists {
-		fmt.Println("List:", list)
-	}
-
 	return &master, nil
 }
 
@@ -177,45 +182,35 @@ func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u
 	return m3u8.Master(b), nil
 }
 
-func transformForbiddenSegURL(url string) (string, error) {
-	switch {
-	case strings.Contains(url, "-unmuted"):
-		return strings.Replace(url, "-unmuted", "-muted", 1), nil
-	case strings.Contains(url, "-muted"):
-		return strings.Replace(url, "-muted", "", 1), nil
+func transformSegmentURL(url string) (string, error) {
+	ext := filepath.Ext(url)
+	trimmed := strings.Trim(url, ext)
+
+	if strings.HasSuffix(trimmed, "-muted") {
+		return "", fmt.Errorf("last retry: failed to download segment: %s", url)
 	}
-	return "", fmt.Errorf("forbidden for segment: %s", url)
+
+	if strings.HasSuffix(trimmed, "-unmuted") {
+		return fmt.Sprintf("%s-muted%s", trimmed, ext), nil
+	}
+
+	return fmt.Sprintf("%s-unmuted%s", trimmed, ext), nil
 }
 
-func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadCloser, error) {
-	// strip - try to fetch raw segment first
-	base := filepath.Base(url)
-	if strings.Contains(base, "-unmuted") {
-		url = strings.Replace(url, "-unmuted", "", 1)
-	} else if strings.Contains(base, "-muted") {
-		url = strings.Replace(url, "-muted", "", 1)
+func stripSegmentURLType(url string) string {
+	// strip '-unmuted', '-muted'
+	// id := strings.LastIndex(url, "-")
+	// if id == -1 {
+	// 	return url
+	// }
+	// return fmt.Sprintf("%s%s", url[:id], filepath.Ext(url))
+	if strings.Contains(url, "-unmuted") {
+		return strings.Replace(url, "-unmuted", "", 1)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
+	if strings.Contains(url, "-muted") {
+		return strings.Replace(url, "-muted", "", 1)
 	}
-
-	resp, err := dl.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusForbidden {
-		// modify segment url - without strip
-		// add numtued
-		// if it has unmuted, then modify to muted
-		// if it has muted, then its last try and return error
-
-		return dl.fetchSegment(ctx, url)
-	}
-
-	return resp.Body, nil
+	return url
 }
 
 func buildSegURL(playlistURL, path string) string {
@@ -230,13 +225,12 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	}
 
 	if list.Map != nil && list.Map.URI != "" {
-		unit.ext = "mp4"
 		if err := dl.segmentFetchDownload(ctx, unit, buildSegURL(list.URL, list.Map.URI)); err != nil {
 			return err
 		}
-	} else {
-		unit.ext = "ts"
 	}
+
+	depth := make(chan struct{}, unit.readAheadDepth)
 
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
@@ -250,14 +244,27 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 					return nil
 				}
 
-				seg := list.Segments[chunkInx]
+				select {
+				case depth <- struct{}{}:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 
-				body, err := dl.fetchSegment(ctx, buildSegURL(list.URL, seg.URI))
+				seg := list.Segments[chunkInx]
+				segURL := buildSegURL(list.URL, seg.URI)
+
+				body, err := dl.fetchSegment(ctx, unit, segURL)
 				if err != nil {
 					return err
 				}
 
-				seg.Data <- body
+				b, err := io.ReadAll(body)
+				body.Close()
+				if err != nil {
+					return err
+				}
+
+				seg.Data <- b
 				close(seg.Data)
 			}
 		})
@@ -266,14 +273,21 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	g.Go(func() error {
 		for i := 0; i < len(list.Segments); i++ {
 			select {
+			case <-depth:
 			case <-ctx.Done():
 				return ctx.Err()
-			case chunk := <-list.Segments[i].Data:
-				if err := dl.download(unit, chunk); err != nil {
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case b := <-list.Segments[i].Data:
+				if err := dl.downloadBytes(unit, b); err != nil {
 					return err
 				}
 			}
 		}
+
 		return nil
 	})
 

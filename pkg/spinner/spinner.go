@@ -206,7 +206,7 @@ func (m *Model) updateModelUnit(msg Message) {
 func (m Model) View() string {
 	var str strings.Builder
 	for _, unit := range m.units {
-		str.WriteString(m.printUnit(unit))
+		str.WriteString(m.displayUnit(unit))
 	}
 
 	style := lipgloss.NewStyle()
@@ -274,7 +274,7 @@ func progressMsg(total float64, elapsed time.Duration) string {
 	)
 }
 
-func (m Model) printUnit(u *unit) string {
+func (m Model) displayUnit(u *unit) string {
 	if m.width == 0 {
 		return ""
 	}

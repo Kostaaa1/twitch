@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,7 +23,7 @@ func (i item) FilterValue() string { return i.title }
 
 type model struct {
 	list   list.Model
-	twitch *twitch.Client
+	twitch *gql.Client
 	cfg    *config.Config
 }
 
@@ -70,7 +70,7 @@ func (m model) View() string {
 	return docStyle.Render(m.list.View())
 }
 
-func Open(twitch *twitch.Client, cfg *config.Config) {
+func Open(gqlClient *gql.Client, cfg *config.Config) {
 	var items = []list.Item{
 		item{title: "Chats", desc: "Open chats."},
 		item{title: "???", desc: "Add list."},
@@ -82,7 +82,7 @@ func Open(twitch *twitch.Client, cfg *config.Config) {
 
 	m := model{
 		list:   list.New(items, d, 0, 0),
-		twitch: twitch,
+		twitch: gqlClient,
 		cfg:    cfg,
 	}
 	m.list.Title = " Twitch "

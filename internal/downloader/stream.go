@@ -60,8 +60,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 		return err
 	}
 
-	unit.ext = "ts"
-
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -101,11 +99,15 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 			if err != nil {
 				return err
 			}
+
 			resp, err := dl.http.Do(req)
 			if err != nil {
+				resp.Body.Close()
 				return err
 			}
+
 			if resp.StatusCode == http.StatusNotFound {
+				resp.Body.Close()
 				return errors.New("playlist not found - channel is not live anymore")
 			}
 
@@ -116,7 +118,8 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 
 			for s.Scan() {
 				if s.Err() != nil {
-					return err
+					resp.Body.Close()
+					return s.Err()
 				}
 
 				line := s.Text()

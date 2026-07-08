@@ -10,8 +10,8 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/cli/view/components"
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,14 +42,14 @@ type model struct {
 
 type notifyMsg string
 
-func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *twitch.Client, cfg *config.Config) error {
+func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *helix.Client, cfg *config.Config) error {
 	err := ws.Connect()
 	if err == nil {
 		return nil
 	}
 
 	if errors.Is(err, chat.ErrAuthFailed) {
-		if err := tw.Helix.RefreshAccessToken(ctx); err != nil {
+		if err := tw.RefreshAccessToken(ctx); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}
 		if err := ws.Connect(); err != nil {
@@ -61,7 +61,7 @@ func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *twitch.Client,
 	return fmt.Errorf("connect failed: %w", err)
 }
 
-func Open(ctx context.Context, tw *twitch.Client, cfg *config.Config) error {
+func Open(ctx context.Context, tw *helix.Client, cfg *config.Config) error {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 

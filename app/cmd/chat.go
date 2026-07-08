@@ -10,8 +10,6 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/pkg/twitch"
-	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/spf13/cobra"
 )
@@ -33,17 +31,13 @@ var chatCmd = &cobra.Command{
 		}()
 
 		ctx := context.Background()
-		h := http.DefaultClient
 
-		tw := &twitch.Client{
-			Gql: gql.New(h),
-			Helix: helix.New(
-				h,
-				helix.WithOAuthCreds(&conf.OAuthCreds),
-			),
-		}
+		helix := helix.New(
+			http.DefaultClient,
+			helix.WithOAuthCreds(&conf.OAuthCreds),
+		)
 
-		if err := chat.Open(ctx, tw, conf); err != nil {
+		if err := chat.Open(ctx, helix, conf); err != nil {
 			log.Fatal(err)
 		}
 	},

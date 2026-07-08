@@ -1,66 +1,99 @@
 package cli
 
-// type Flag struct {
-// 	Input      string        `json:"input"`
-// 	Output     string        `json:"output"`
-// 	Quality    string        `json:"quality"`
-// 	Start      time.Duration `json:"start"`
-// 	End        time.Duration `json:"end"`
-// 	Verbose    bool
-// 	Print      bool
-// 	Threads    int
-// 	Highlights bool
-// 	Authorize  bool
-// 	Watch      bool
-// }
+import (
+	"encoding/json"
+	"os"
+	"time"
 
-// func (p *Flag) UnmarshalJSON(b []byte) error {
-// 	type Alias Flag
-// 	aux := &struct {
-// 		Start string `json:"start"`
-// 		End   string `json:"end"`
-// 		*Alias
-// 	}{
-// 		Alias: (*Alias)(p),
-// 	}
+	"github.com/Kostaaa1/twitch/internal/downloader"
+)
 
-// 	if err := json.Unmarshal(b, &aux); err != nil {
-// 		return err
-// 	}
+type Unit struct {
+	Input   string        `json:"input"`
+	Output  string        `json:"output"`
+	Quality string        `json:"quality"`
+	Start   time.Duration `json:"start"`
+	End     time.Duration `json:"end"`
+}
 
-// 	var err error
+func (p *Unit) UnmarshalJSON(b []byte) error {
+	type Alias Unit
+	aux := &struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
 
-// 	if aux.Start != "" {
-// 		p.Start, err = time.ParseDuration(aux.Start)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-// 	if aux.End != "" {
-// 		p.End, err = time.ParseDuration(aux.End)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
 
-// 	return nil
-// }
+	var err error
+	if aux.Start != "" {
+		p.Start, err = time.ParseDuration(aux.Start)
+		if err != nil {
+			return err
+		}
+	}
+	if aux.End != "" {
+		p.End, err = time.ParseDuration(aux.End)
+		if err != nil {
+			return err
+		}
+	}
 
-// func ParseFlags(conf config.Config) Flag {
-// 	var f Flag
-// 	flag.StringVar(&f.Input, "i", "", "input can be twitch (URL, vod id or clip slug), kick (vod URL) or json file (check example.json). Multiple inputs can be comma-separated which will be downloaded concurrently")
-// 	flag.StringVar(&f.Output, "o", conf.Downloader.Output, "Destination path for downloaded files")
-// 	flag.StringVar(&f.Quality, "q", "", "Video quality: best, 1080, 720, 480, 360, 160, worst, or audio")
-// 	flag.DurationVar(&f.Start, "s", time.Duration(0), "Start time for VOD segment (e.g., 1h30m0s). Only for VODs")
-// 	flag.DurationVar(&f.End, "e", time.Duration(0), "End time for VOD segment (e.g., 1h45m0s). Only for VODs")
-// 	flag.BoolVar(&f.Print, "print", false, "Print data related to argument input (channel/vod/clip/stream/highlight/collections)")
-// 	// flag.BoolVar(&f.Verbose, "v", false, "Verbose mode for easier debugging")
-// 	flag.IntVar(&f.Threads, "threads", 0, "Number of parallel downloads (batch mode only)")
-// 	flag.BoolVar(&f.Watch, "watch", false, "Enable live stream monitoring: starts a websocket server and uses channel names from --input flag to automatically download streams when they go live. It could be used in combination with tools such as systemd, to auto-record the stream in the background.")
-// 	flag.BoolVar(&f.Authorize, "auth", false, "Authorize with Twitch. It is mostly needed for CLI chat feature and Helix API. Downloader is not using authorization tokens")
-// 	flag.Parse()
-// 	return f
-// }
+	return nil
+}
+
+func ParseUnits(
+	args []string,
+	quality string,
+	start time.Duration,
+	end time.Duration,
+	output string,
+) ([]*downloader.Unit, error) {
+	units := make([]*downloader.Unit, 0)
+
+	for _, input := range args {
+		_, err := os.Stat(input)
+		if !os.IsNotExist(err) {
+			b, err := os.ReadFile(input)
+			if err != nil {
+				return nil, err
+			}
+
+			var inputUnits []*Unit
+			if err := json.Unmarshal(b, &inputUnits); err != nil {
+				return nil, err
+			}
+
+			for _, unit := range inputUnits {
+				if unit.Output == "" {
+					unit.Output = output
+				}
+
+				unit := downloader.NewUnit(unit.Input,
+					downloader.WithQuality(unit.Quality),
+					downloader.WithTimestamps(unit.Start, unit.End),
+					downloader.WithPathname(unit.Output),
+				)
+				units = append(units, unit)
+			}
+		} else {
+			unit := downloader.NewUnit(
+				input,
+				downloader.WithQuality(quality),
+				downloader.WithTimestamps(start, end),
+				downloader.WithPathname(output),
+			)
+			units = append(units, unit)
+		}
+	}
+
+	return units, nil
+}
 
 // func isKickEndpoint(input string) bool {
 // 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
