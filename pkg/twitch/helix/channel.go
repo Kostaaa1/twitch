@@ -35,7 +35,8 @@ func (c *channels) BroadcasterID(bid string) *channels {
 func (s *channels) Run(ctx context.Context) (*helixEnvelope[Channel], error) {
 	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[Channel]
-	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
+	err := s.c.RequestWithAccessToken(ctx, s.url.String(), http.MethodGet, nil, &body)
+	if err != nil {
 		return nil, err
 	}
 	return &body, nil

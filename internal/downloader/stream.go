@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
+	"github.com/Kostaaa1/twitch/internal/httputil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
@@ -22,21 +22,14 @@ func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) 
 
 	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", gql.UsherURL, channel, tok.Value, tok.Signature)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := dl.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+	b, _, err := httputil.DoBytes(
+		ctx,
+		dl.http,
+		url,
+		http.MethodGet,
+		nil,
+		nil,
+	)
 
 	return b, nil
 }
@@ -95,14 +88,8 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 		case err := <-errCh:
 			return err
 		case <-ticker.C:
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, variant.URL, nil)
+			resp, err := httputil.Do(ctx, dl.http, variant.URL, http.MethodGet, nil, nil)
 			if err != nil {
-				return err
-			}
-
-			resp, err := dl.http.Do(req)
-			if err != nil {
-				resp.Body.Close()
 				return err
 			}
 

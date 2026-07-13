@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	URL      = "https://gql.twitch.tv/gql"
-	ClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+	gqlURL   = "https://gql.twitch.tv/gql"
+	clientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 	UsherURL = "https://usher.ttvnw.net"
 )
 
@@ -53,13 +53,13 @@ func sendGqlLoadAndDecode[T any](
 	}
 
 	h := http.Header{}
-	h.Set("Client-Id", ClientID)
+	h.Set("Client-Id", clientID)
 	h.Set("Content-Type", "application/json")
 
-	if err := httputil.FetchWithDecode(
+	if err := httputil.DoJSON(
 		ctx,
 		c,
-		URL,
+		gqlURL,
 		http.MethodPost,
 		r,
 		&resp,

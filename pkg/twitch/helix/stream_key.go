@@ -19,7 +19,8 @@ type StreamKey struct {
 func (s *streamKey) Run(ctx context.Context) ([]StreamKey, error) {
 	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[StreamKey]
-	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
+	err := s.c.RequestWithAccessToken(ctx, s.url.String(), http.MethodGet, nil, &body)
+	if err != nil {
 		return nil, err
 	}
 	return nil, nil

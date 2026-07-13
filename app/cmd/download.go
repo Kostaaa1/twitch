@@ -42,7 +42,9 @@ func runTwitchBatchDownload(ctx context.Context, dl *downloader.Downloader, unit
 	}
 	for _, unit := range units {
 		g.Go(func() error {
-			dl.Download(ctx, unit)
+			if err := dl.Download(ctx, unit); err != nil {
+				log.Fatal(err)
+			}
 			return nil
 		})
 	}
@@ -139,9 +141,18 @@ func runDownloadCmd(args []string) error {
 	httpClient := &http.Client{
 		Timeout: time.Second * 30,
 		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 20,
-			IdleConnTimeout:     90 * time.Second,
+			// total number of idle connections that can be reused
+			MaxIdleConns: 32,
+			// number of idle conns that are kept for host (optimal for segment downloading)
+			MaxIdleConnsPerHost: 16,
+			// how long an idle conn is allowed to stay idle before being closed
+			IdleConnTimeout: 90 * time.Second,
+			//
+			ForceAttemptHTTP2: true,
+			// sets the number of max connections per host, meaning it will block until connection becomes idle upon requesting
+			// MaxConnsPerHost: 1,
+			// timeout limit for TLS handshake to establish
+			// TLSHandshakeTimeout: time.Second * 10,
 		},
 	}
 

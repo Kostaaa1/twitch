@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
+	"github.com/Kostaaa1/twitch/internal/httputil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
@@ -23,19 +24,43 @@ type Progress struct {
 	Total float64
 }
 
+type Transfer struct {
+	// max number of segments fetched accross all units
+	MaxReadSegmentsGlobal int
+	// max number of segments fetched per unit - discarded if MaxReadSegmentsGlobal > 0 (prevents unlimited fetching ahead)
+	MaxReadSegmentsPerUnit int
+	// each unit spawns N amount of workers that fetches the segments
+	MaxSegmentFetchWorkers int
+
+	// flag that disables segment stripping (-muted, -unmuted), meaning program will not try to recover muted segments by trying to fetch unmuted first
+	DisableSegmentRetries bool
+}
+
+func defaultTransfer() *Transfer {
+	return &Transfer{
+		MaxReadSegmentsGlobal:  32,
+		MaxReadSegmentsPerUnit: 0, // gloabl used
+		MaxSegmentFetchWorkers: 4,
+		DisableSegmentRetries:  false,
+	}
+}
+
 type Downloader struct {
 	gql      *gql.Client
 	http     *http.Client
 	notifyFn func(Progress)
+	transfer *Transfer
 }
 
 func New(gql *gql.Client, http *http.Client) *Downloader {
-	return &Downloader{gql: gql, http: http}
+	return &Downloader{
+		gql:      gql,
+		http:     http,
+		transfer: defaultTransfer(),
+	}
 }
 
-func (c *Downloader) SetProgressNotifier(fn func(Progress)) {
-	c.notifyFn = fn
-}
+func (c *Downloader) SetProgressNotifier(fn func(Progress)) { c.notifyFn = fn }
 
 func (c *Downloader) notify(msg Progress) {
 	if c.notifyFn != nil {
@@ -131,9 +156,33 @@ func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 	return nil
 }
 
-func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io.ReadCloser, error) {
-	url = stripSegmentURLType(url)
+func transformSegmentURL(url string) (string, error) {
+	ext := filepath.Ext(url)
+	trimmed := strings.Trim(url, ext)
 
+	if strings.HasSuffix(trimmed, "-muted") {
+		return "", fmt.Errorf("last retry: failed to download segment: %s", url)
+	}
+	if strings.HasSuffix(trimmed, "-unmuted") {
+		return fmt.Sprintf("%s-muted%s", trimmed, ext), nil
+	}
+
+	return fmt.Sprintf("%s-unmuted%s", trimmed, ext), nil
+}
+
+// segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
+// Also, we do not want to do this for all (older) videos
+// TODO: check
+func (dl *Downloader) fetchSegment(
+	ctx context.Context,
+	u *Unit,
+	url string,
+) (io.ReadCloser, error) {
+	// fmt.Println("normal: ", url)
+	url = stripSegmentURLType(url)
+	// fmt.Println("stripped: ", url)
+
+	// TODO: this is ugly - rewrite
 	u.mu.Lock()
 	if u.ext == "" {
 		paramID := strings.LastIndex(url, "?")
@@ -150,21 +199,18 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			resp, err := dl.http.Do(req)
+			resp, err := httputil.Do(ctx, dl.http, url, http.MethodGet, nil, nil)
 			if err != nil {
 				return nil, err
 			}
 
 			if resp.StatusCode == http.StatusForbidden {
+				fmt.Println("failed to fetch, transforming...", url)
 				u, err := transformSegmentURL(url)
 				if err != nil {
 					return nil, err
 				}
+				fmt.Println("transformed", url)
 				url = u
 				continue
 			}

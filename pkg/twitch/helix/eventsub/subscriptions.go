@@ -76,7 +76,7 @@ func (cmd *subGetCmd) Run(ctx context.Context) (*EventsubResponse[Subscription],
 
 	var data EventsubResponse[Subscription]
 
-	if err := cmd.c.Request(
+	if err := cmd.c.RequestWithAccessToken(
 		ctx,
 		cmd.url.String(),
 		http.MethodGet,
@@ -105,7 +105,7 @@ func (s *subscriptionCmd) Delete(id string) *subDeleteCmd {
 
 func (cmd *subDeleteCmd) Run(ctx context.Context) error {
 	cmd.url.RawQuery = cmd.values.Encode()
-	return cmd.c.Request(
+	return cmd.c.RequestWithAccessToken(
 		ctx,
 		cmd.url.String(),
 		http.MethodDelete,
@@ -154,7 +154,7 @@ func (cmd *subCreateCmd) Run(ctx context.Context) (*EventsubResponse[CreateSubsc
 
 	var data EventsubResponse[CreateSubscriptionResponse]
 
-	if err := cmd.c.Request(
+	if err := cmd.c.RequestWithAccessToken(
 		ctx,
 		cmd.url.String(),
 		http.MethodPost,

@@ -46,7 +46,8 @@ func (s *games) IgdbID(id string) *games {
 func (s *games) Run(ctx context.Context) (*helixEnvelope[Game], error) {
 	s.url.RawQuery = s.values.Encode()
 	var body helixEnvelope[Game]
-	if err := s.c.Request(ctx, s.url.String(), http.MethodGet, nil, &body); err != nil {
+	err := s.c.RequestWithAccessToken(ctx, s.url.String(), http.MethodGet, nil, &body)
+	if err != nil {
 		return nil, err
 	}
 	return &body, nil

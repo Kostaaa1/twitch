@@ -2,10 +2,11 @@ package helix
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/Kostaaa1/twitch/internal/httputil"
 )
 
 type Client struct {
@@ -53,116 +54,76 @@ type helixPaginatedEnvelope[T any] struct {
 	} `json:"pagination"`
 }
 
-func (h *Client) bearerUserToken() string {
-	return fmt.Sprintf("Bearer %s", h.OAuthCreds.UserToken.AccessToken)
+func (c *Client) bearerUserToken() string {
+	return fmt.Sprintf("Bearer %s", c.OAuthCreds.UserToken.AccessToken)
 }
 
-func (h *Client) bearerAppToken() string {
-	return fmt.Sprintf("Bearer %s", h.OAuthCreds.AppToken.AccessToken)
+func (c *Client) bearerAppToken() string {
+	return fmt.Sprintf("Bearer %s", c.OAuthCreds.AppToken.AccessToken)
 }
 
-func (h *Client) RequestWithAppToken(
+func (c *Client) RequestWithAppToken(
 	ctx context.Context,
 	url string,
 	method string,
 	body io.Reader,
 	dst interface{},
 ) error {
-	if h.OAuthCreds.ClientID == "" {
+	if c.OAuthCreds.ClientID == "" {
 		return ErrMissingClientID
 	}
 
-	if h.OAuthCreds.AppToken.AccessToken == "" || h.OAuthCreds.AppToken.Expired() {
-		if err := h.AppAccessToken(ctx); err != nil {
+	if c.OAuthCreds.AppToken.AccessToken == "" || c.OAuthCreds.AppToken.Expired() {
+		if err := c.AppAccessToken(ctx); err != nil {
 			return err
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
+	h := http.Header{}
+	h.Set("Content-Type", "application/json")
+	h.Set("Client-Id", c.OAuthCreds.ClientID)
+	h.Set("Authorization", c.bearerAppToken())
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
-	req.Header.Set("Authorization", h.bearerAppToken())
-
-	resp, err := h.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		var errResp HelixErrResponse
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return err
-		}
-		return errResp
-	}
-
-	if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-		return nil
-	}
-
-	if dst != nil {
-		if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
-			return fmt.Errorf("failed to decode response: %v", err)
-		}
-	}
-
-	return nil
+	return httputil.DoJSON(
+		ctx,
+		c.http,
+		url,
+		method,
+		body,
+		dst,
+		h,
+	)
 }
 
-func (h *Client) Request(
+func (c *Client) RequestWithAccessToken(
 	ctx context.Context,
 	url string,
 	method string,
 	body io.Reader,
 	dst interface{},
 ) error {
-	if h.OAuthCreds.ClientID == "" {
+	if c.OAuthCreds.ClientID == "" {
 		return ErrMissingClientID
 	}
 
-	if h.OAuthCreds.UserToken.Expired() {
-		if err := h.RefreshAccessToken(ctx); err != nil {
+	if c.OAuthCreds.UserToken.Expired() {
+		if err := c.RefreshAccessToken(ctx); err != nil {
 			return err
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
+	h := http.Header{}
+	h.Set("Content-Type", "application/json")
+	h.Set("Client-Id", c.OAuthCreds.ClientID)
+	h.Set("Authorization", c.bearerUserToken())
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Client-Id", h.OAuthCreds.ClientID)
-	req.Header.Set("Authorization", h.bearerUserToken())
-
-	resp, err := h.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		var errResp HelixErrResponse
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return err
-		}
-		return errResp
-	}
-
-	if resp.ContentLength == 0 || resp.StatusCode == http.StatusNoContent {
-		return nil
-	}
-
-	if dst != nil {
-		if err := json.NewDecoder(resp.Body).Decode(&dst); err != nil {
-			return fmt.Errorf("failed to decode response: %v", err)
-		}
-	}
-
-	return nil
+	return httputil.DoJSON(
+		ctx,
+		c.http,
+		url,
+		method,
+		body,
+		dst,
+		h,
+	)
 }

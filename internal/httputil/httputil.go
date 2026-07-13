@@ -9,7 +9,34 @@ import (
 	"net/http"
 )
 
-func Fetch(
+func Do(
+	ctx context.Context,
+	c *http.Client,
+	url string,
+	method string,
+	body io.Reader,
+	h http.Header,
+) (*http.Response, error) {
+	if url == "" {
+		return nil, errors.New("failed to fetch: missing url")
+	}
+	if method == "" {
+		return nil, errors.New("failed to fetch: missing method")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
+	}
+
+	if h != nil {
+		req.Header = h.Clone()
+	}
+
+	return c.Do(req)
+}
+
+func DoBytes(
 	ctx context.Context,
 	c *http.Client,
 	url string,
@@ -17,24 +44,19 @@ func Fetch(
 	body io.Reader,
 	h http.Header,
 ) ([]byte, int, error) {
-	if url == "" {
-		return nil, 0, errors.New("failed to fetch: missing url")
-	}
-	if method == "" {
-		return nil, 0, errors.New("failed to fetch: missing method")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
-	}
-	req.Header = h.Clone()
-
-	resp, err := c.Do(req)
+	resp, err := Do(ctx, c, url, method, body, h)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, resp.StatusCode, fmt.Errorf("failed to read the error response: %v", err)
+		}
+		return b, resp.StatusCode, fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
+	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -44,29 +66,20 @@ func Fetch(
 	return b, resp.StatusCode, nil
 }
 
-func FetchWithDecode(
+func DoJSON(
 	ctx context.Context,
-	httpClient *http.Client,
+	c *http.Client,
 	url string,
 	method string,
 	body io.Reader,
 	dst any,
 	h http.Header,
 ) error {
-	if url == "" {
-		return errors.New("failed to fetch: missing url")
-	}
-	if method == "" {
-		return errors.New("failed to fetch: missing method")
+	if dst == nil {
+		return errors.New("dst must not be nit")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return fmt.Errorf("failed to create the request: url=%s err=%v", url, err)
-	}
-	req.Header = h.Clone()
-
-	resp, err := httpClient.Do(req)
+	resp, err := Do(ctx, c, url, method, body, h)
 	if err != nil {
 		return err
 	}
@@ -80,11 +93,8 @@ func FetchWithDecode(
 		return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
 	}
 
-	if dst != nil && resp.Body != nil {
-		if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	err = json.NewDecoder(resp.Body).Decode(dst)
+	// drain leftover so that connection can be returned tu the pool and become reusable again
+	io.Copy(io.Discard, resp.Body)
+	return err
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 
@@ -18,12 +17,7 @@ import (
 )
 
 func (dl *Downloader) fetchMediaPlaylist(ctx context.Context, url string) (*m3u8.MediaPlaylist, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := dl.http.Do(req)
+	resp, err := httputil.Do(ctx, dl.http, url, http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -170,40 +164,27 @@ func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u
 		tok.Signature,
 	)
 
-	b, code, err := httputil.Fetch(ctx, dl.http, m3u8url, http.MethodGet, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
+	b, code, err := httputil.DoBytes(ctx, dl.http, m3u8url, http.MethodGet, nil, nil)
 	if code == http.StatusForbidden {
 		return dl.mockMasterPlaylist(ctx, vodID)
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return m3u8.Master(b), nil
 }
 
-func transformSegmentURL(url string) (string, error) {
-	ext := filepath.Ext(url)
-	trimmed := strings.Trim(url, ext)
-
-	if strings.HasSuffix(trimmed, "-muted") {
-		return "", fmt.Errorf("last retry: failed to download segment: %s", url)
-	}
-
-	if strings.HasSuffix(trimmed, "-unmuted") {
-		return fmt.Sprintf("%s-muted%s", trimmed, ext), nil
-	}
-
-	return fmt.Sprintf("%s-unmuted%s", trimmed, ext), nil
-}
-
 func stripSegmentURLType(url string) string {
+	// TODO: does not work for init-0.mp4
 	// strip '-unmuted', '-muted'
 	// id := strings.LastIndex(url, "-")
 	// if id == -1 {
 	// 	return url
 	// }
 	// return fmt.Sprintf("%s%s", url[:id], filepath.Ext(url))
+
 	if strings.Contains(url, "-unmuted") {
 		return strings.Replace(url, "-unmuted", "", 1)
 	}
@@ -230,10 +211,10 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 		}
 	}
 
-	depth := make(chan struct{}, unit.readAheadDepth)
-
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
+
+	depth := make(chan struct{}, unit.readAheadDepth)
 	workerCount := 4
 
 	for i := 0; i < workerCount; i++ {

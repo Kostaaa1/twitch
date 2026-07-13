@@ -150,7 +150,7 @@ func (h *Client) AppAccessToken(ctx context.Context) error {
 	header := http.Header{}
 	header.Add("Content-Type", " x-www-form-urlencoded")
 
-	return httputil.FetchWithDecode(
+	return httputil.DoJSON(
 		ctx,
 		h.http,
 		url.String(),
@@ -171,7 +171,7 @@ func (h *Client) RefreshAccessToken(ctx context.Context) error {
 
 	url := "https://id.twitch.tv/oauth2/token?" + values.Encode()
 
-	return httputil.FetchWithDecode(
+	return httputil.DoJSON(
 		ctx,
 		h.http,
 		url,
@@ -197,7 +197,8 @@ type UserInfo struct {
 func (h *Client) Claims(ctx context.Context) (*UserInfo, error) {
 	url := "https://id.twitch.tv/oauth2/userinfo"
 	var userInfo UserInfo
-	if err := h.Request(ctx, url, http.MethodGet, nil, &userInfo); err != nil {
+	err := h.RequestWithAccessToken(ctx, url, http.MethodGet, nil, &userInfo)
+	if err != nil {
 		return nil, err
 	}
 	return &userInfo, nil
@@ -213,7 +214,7 @@ func (h *Client) RevokeAccessToken(ctx context.Context) error {
 	url := "https://id.twitch.tv/oauth2/revoke?" + values.Encode()
 
 	headers := http.Header{"Content-Type": {"x-www-form-urlencoded"}}
-	return httputil.FetchWithDecode(ctx, h.http, url, http.MethodPost, nil, nil, headers)
+	return httputil.DoJSON(ctx, h.http, url, http.MethodPost, nil, nil, headers)
 }
 
 type ValidatedAccessToken struct {
@@ -225,8 +226,10 @@ type ValidatedAccessToken struct {
 }
 
 func (h *Client) ValidateAccessToken(ctx context.Context) (*ValidatedAccessToken, error) {
+	vURL := "https://id.twitch.tv/oauth2/validate"
 	var resp ValidatedAccessToken
-	if err := h.Request(ctx, "https://id.twitch.tv/oauth2/validate", http.MethodGet, nil, &resp); err != nil {
+	err := h.RequestWithAccessToken(ctx, vURL, http.MethodGet, nil, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -244,7 +247,7 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 	headers := http.Header{}
 	headers.Set("Content-Type", "x-www-form-urlencoded")
 
-	return httputil.FetchWithDecode(
+	return httputil.DoJSON(
 		ctx,
 		h.http,
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
@@ -304,6 +307,7 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 		if code == "" {
 			panic("code is empty")
 		}
+
 		if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {
 			panic(err)
 		}
