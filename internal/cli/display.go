@@ -162,8 +162,6 @@ func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
 }
 
 func printAbout(s *strings.Builder, about *gql.ChannelRoot_AboutPanel) {
-	fmt.Println(about)
-
 	printHeaderLabel(s, "About")
 	s.WriteString(tab)
 	if about.User.Description == "" {

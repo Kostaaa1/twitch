@@ -8,62 +8,61 @@ import (
 	"strings"
 )
 
-func walkDir(dstpath, filename, ext string) string {
-	var fname string
-	if strings.HasPrefix(ext, ".") {
-		fname = fmt.Sprintf("%s%s", filename, ext)
-	} else {
-		fname = fmt.Sprintf("%s.%s", filename, ext)
-	}
+var (
+	sanitizeRe = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
+)
 
-	// ext := filepath.Ext(filename)
-	// if ext == "" {
-	// 	panic("ext cannot be empty")
-	// }
+func uniquePath(dir, file, ext string) string {
+	ext = strings.TrimPrefix(ext, ".")
+	fname := file + "." + ext
 
 	count := 0
 
 	for {
-		if _, err := os.Stat(filepath.Join(dstpath, fname)); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(dir, fname)); os.IsNotExist(err) {
 			break
 		} else {
 			count++
-			fname = fmt.Sprintf("%s (%d).%s", filename, count, ext)
+			fname = fmt.Sprintf("%s (%d).%s", file, count, ext)
 		}
 	}
 
-	return filepath.Join(dstpath, fname)
+	return filepath.Join(dir, fname)
 }
 
 func sanitizeFilename(filename string) string {
-	re := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
-	v := re.ReplaceAllString(filename, "_")
+	v := sanitizeRe.ReplaceAllString(filename, "_")
 	return strings.TrimSpace(v)
 }
 
-func ConstructPathname(dstPath, filename, ext string) (string, error) {
-	if dstPath == "" {
-		return "", fmt.Errorf("the output path was not provided. Add output either by -output flag or add it via twitch_config.json (outputPath)")
+func validateInputs(dir, name, ext string) error {
+	if strings.TrimSpace(dir) == "" {
+		return fmt.Errorf("dir path not provided")
+	}
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("file name not provided")
+	}
+	if strings.TrimSpace(ext) == "" {
+		return fmt.Errorf("file ext not provided")
+	}
+	return nil
+}
+
+func ConstructPathname(dir, name, ext string) (string, error) {
+	if err := validateInputs(dir, name, ext); err != nil {
+		return "", err
 	}
 
-	filename = sanitizeFilename(filename)
+	name = sanitizeFilename(name)
 
-	info, err := os.Stat(dstPath)
-	if os.IsNotExist(err) {
-		if filepath.Ext(dstPath) != "" {
-			dir := filepath.Dir(dstPath)
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				return "", fmt.Errorf("directory does not exist: %s", dir)
-			}
-			dir, fname := filepath.Split(dstPath)
-			return walkDir(dir, fname, ext), nil
-		}
-		return "", fmt.Errorf("path does not exist: %s", dstPath)
+	info, err := os.Stat(dir)
+	if err != nil {
+		return "", err
 	}
 
-	if info.IsDir() {
-		return walkDir(dstPath, filename, ext), nil
+	if !info.IsDir() {
+		return "", fmt.Errorf("%q is not a directory", dir)
 	}
 
-	return "", fmt.Errorf("this path already exists %s: ", dstPath)
+	return uniquePath(dir, name, ext), nil
 }

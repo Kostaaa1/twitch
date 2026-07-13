@@ -110,12 +110,10 @@ func runTwitchEventSub(
 		}
 	}
 
-	// verify
 	subs, err := e.Subscriptions().Get().Run(ctx)
 	if err != nil {
 		return err
 	}
-
 	b, _ := json.MarshalIndent(subs, "", " ")
 	fmt.Println(string(b))
 
@@ -123,20 +121,15 @@ func runTwitchEventSub(
 }
 
 func runDownloadCmd(args []string) error {
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	conf, err := config.Read()
+	cfg, err := config.Get()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// defer func() {
-	// 	if err := conf.Save(); err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }()
+	defer func() {
+		if err := config.Save(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -162,6 +155,7 @@ func runDownloadCmd(args []string) error {
 		cmdArgs.end,
 		cmdArgs.output,
 	)
+
 	if err != nil {
 		return err
 	}
@@ -202,7 +196,10 @@ func runDownloadCmd(args []string) error {
 
 			downloadGroup.Go(func() error {
 				if cmdArgs.watch {
-					helix := helix.New(httpClient, helix.WithOAuthCreds(&conf.OAuthCreds))
+					helix := helix.New(
+						httpClient,
+						helix.WithOAuthCreds(&cfg.OAuthCreds),
+					)
 					return runTwitchEventSub(ctx, helix, dl, units)
 				} else {
 					return runTwitchBatchDownload(ctx, dl, units)
@@ -236,8 +233,6 @@ var downloadCmd = &cobra.Command{
 
 func init() {
 	cobra.OnInitialize()
-	// downloadCmd.PersistentFlags().BoolVarP(&cmdArgs.verbose, "verbose", "v", false, "")
-	// downloadCmd.PersistentFlags().IntVarP(&cmdArgs.threads, "threads", "t", 0, "")
 	downloadCmd.PersistentFlags().StringVarP(&cmdArgs.output, "output", "o", "", "")
 	downloadCmd.PersistentFlags().BoolVarP(&cmdArgs.watch, "watch", "w", false, "")
 	downloadCmd.PersistentFlags().BoolVar(&cmdArgs.showSpinner, "spinner", true, "")

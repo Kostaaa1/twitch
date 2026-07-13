@@ -4,13 +4,6 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"context"
-	"log"
-	"net/http"
-
-	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
-	"github.com/Kostaaa1/twitch/internal/config"
-	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/spf13/cobra"
 )
 
@@ -20,26 +13,26 @@ var chatCmd = &cobra.Command{
 	Short: "",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		conf, err := config.Read()
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() {
-			if err := conf.Save(); err != nil {
-				log.Fatal(err)
-			}
-		}()
+		// conf, err := config.Read()
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// defer func() {
+		// 	if err := conf.Save(); err != nil {
+		// 		log.Fatal(err)
+		// 	}
+		// }()
 
-		ctx := context.Background()
+		// ctx := context.Background()
 
-		helix := helix.New(
-			http.DefaultClient,
-			helix.WithOAuthCreds(&conf.OAuthCreds),
-		)
+		// helix := helix.New(
+		// 	http.DefaultClient,
+		// 	helix.WithOAuthCreds(&conf.OAuthCreds),
+		// )
 
-		if err := chat.Open(ctx, helix, conf); err != nil {
-			log.Fatal(err)
-		}
+		// if err := chat.Open(ctx, helix, conf); err != nil {
+		// 	log.Fatal(err)
+		// }
 	},
 }
 

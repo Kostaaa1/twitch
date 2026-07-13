@@ -67,11 +67,11 @@ func (t *UserToken) UnmarshalJSON(data []byte) error {
 func (ut *UserToken) Expired() bool { return time.Since(ut.ExpiryDate) > 0 }
 
 type OAuthCreds struct {
-	ClientID     string    `json:"client_id"`
-	ClientSecret string    `json:"client_secret"`
-	RedirectURL  string    `json:"redirect_url"`
-	AppToken     AppToken  `json:"app_token"`
-	UserToken    UserToken `json:"user_token"`
+	ClientID     string    `mapstructure:"client_id" json:"client_id"`
+	ClientSecret string    `mapstructure:"client_secret" json:"client_secret"`
+	RedirectURL  string    `mapstructure:"redirect_url" json:"redirect_url"`
+	AppToken     AppToken  `mapstructure:"app_token" json:"app_token"`
+	UserToken    UserToken `mapstructure:"user_token" json:"user_token"`
 }
 
 type AuthOpts struct {

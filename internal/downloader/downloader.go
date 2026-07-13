@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
@@ -135,7 +136,12 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io
 
 	u.mu.Lock()
 	if u.ext == "" {
-		u.ext = filepath.Ext(url)
+		paramID := strings.LastIndex(url, "?")
+		if paramID != -1 {
+			u.ext = filepath.Ext(url[:paramID])
+		} else {
+			u.ext = filepath.Ext(url)
+		}
 	}
 	u.mu.Unlock()
 

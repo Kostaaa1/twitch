@@ -190,7 +190,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEsc, tea.KeyCtrlC:
-			m.conf.Save()
 			return m, tea.Quit
 		case tea.KeyEnter:
 			m.sendMessage()
