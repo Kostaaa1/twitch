@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -38,7 +39,6 @@ func (v MediaType) String() string {
 }
 
 type Unit struct {
-	mu         sync.Mutex
 	UUID       uuid.UUID
 	ID         string
 	Type       MediaType
@@ -46,10 +46,36 @@ type Unit struct {
 	Start, End time.Duration
 	Error      error
 
-	readAheadDepth     int
+	mu                 sync.Mutex
 	w                  io.Writer
 	dir, filename, ext string
 	title              string
+	audioRecoverable   bool
+}
+
+func (u *Unit) getAudioRecoverable() bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.audioRecoverable
+}
+
+func (u *Unit) setAudiorecoverable(v bool) {
+	u.mu.Lock()
+	u.audioRecoverable = v
+	u.mu.Unlock()
+}
+
+func (u *Unit) ensureExt(url string) {
+	u.mu.Lock()
+	if u.ext == "" {
+		paramID := strings.LastIndex(url, "?")
+		if paramID != -1 {
+			u.ext = filepath.Ext(url[:paramID])
+		} else {
+			u.ext = filepath.Ext(url)
+		}
+	}
+	u.mu.Unlock()
 }
 
 func (u *Unit) Validate() error {
@@ -146,12 +172,10 @@ func discoverUnitType(input string) MediaType {
 	return TypeLivestream
 }
 
-func (u *Unit) SetReadAheadDepth(n int) { u.readAheadDepth = n }
-
 func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := &Unit{
-		UUID:           uuid.New(),
-		readAheadDepth: 16,
+		UUID:             uuid.New(),
+		audioRecoverable: true,
 	}
 
 	if input == "" {
@@ -180,6 +204,26 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	}
 
 	return unit
+}
+
+func (u *Unit) restampFrames() error {
+	// when downloading vod, it can happen that interval between frames is not steady, for example if source vod should be at 60 FPS, meaning that each frame needs to be displayed at 16.667 ms rate interval, but this isn't the case sometimes. some frames are at rounded 16/17 ms, which will cause occasional video playback jitter. we can fix this and snap them at this fixed interval. basically scheduling issue (no touching frames, just rescheduling)
+	if f, ok := u.w.(*os.File); ok {
+		fname := f.Name()
+		cmd := exec.Command(
+			"ffmpeg", "-y",
+			"-i", fname,
+			"-c", "copy",
+			"-bsf:v", "setts=pts=round((PTS-STARTPTS)/1500)*1500+STARTPTS:dts=round((DTS-STARTDTS)/1500)*1500+STARTDTS",
+			"-movflags", "+faststart",
+			strings.Replace(fname, filepath.Ext(f.Name()), ".mp4", 1),
+		)
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (u *Unit) CloseWriter() error {

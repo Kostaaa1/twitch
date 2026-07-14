@@ -26,30 +26,30 @@ type Progress struct {
 
 type Transfer struct {
 	// max number of segments fetched accross all units
-	MaxReadSegmentsGlobal int
+	MaxReadAheadGlobal int
 	// max number of segments fetched per unit - discarded if MaxReadSegmentsGlobal > 0 (prevents unlimited fetching ahead)
-	MaxReadSegmentsPerUnit int
+	MaxReadAheadPerUnit int
 	// each unit spawns N amount of workers that fetches the segments
-	MaxSegmentFetchWorkers int
-
+	MaxWorkersPerUnit int
 	// flag that disables segment stripping (-muted, -unmuted), meaning program will not try to recover muted segments by trying to fetch unmuted first
 	DisableSegmentRetries bool
 }
 
 func defaultTransfer() *Transfer {
 	return &Transfer{
-		MaxReadSegmentsGlobal:  32,
-		MaxReadSegmentsPerUnit: 0, // gloabl used
-		MaxSegmentFetchWorkers: 4,
-		DisableSegmentRetries:  false,
+		MaxReadAheadGlobal:    0,
+		MaxWorkersPerUnit:     4,
+		MaxReadAheadPerUnit:   32,
+		DisableSegmentRetries: false,
 	}
 }
 
 type Downloader struct {
-	gql      *gql.Client
-	http     *http.Client
-	notifyFn func(Progress)
-	transfer *Transfer
+	gql               *gql.Client
+	http              *http.Client
+	notifyFn          func(Progress)
+	transfer          *Transfer
+	isFfmpegAvailable bool
 }
 
 func New(gql *gql.Client, http *http.Client) *Downloader {
@@ -102,6 +102,10 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 		Total: 0,
 		Done:  true,
 	})
+
+	if dl.isFfmpegAvailable {
+		u.restampFrames()
+	}
 
 	return err
 }
@@ -156,43 +160,41 @@ func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 	return nil
 }
 
-func transformSegmentURL(url string) (string, error) {
-	ext := filepath.Ext(url)
-	trimmed := strings.Trim(url, ext)
+func stripSegmentURLType(url string) string {
+	url = strings.Replace(url, "-unmuted", "", 1)
+	url = strings.Replace(url, "-muted", "", 1)
+	return url
+}
 
-	if strings.HasSuffix(trimmed, "-muted") {
-		return "", fmt.Errorf("last retry: failed to download segment: %s", url)
-	}
-	if strings.HasSuffix(trimmed, "-unmuted") {
-		return fmt.Sprintf("%s-muted%s", trimmed, ext), nil
+// this is called when 403 occurs (meaning the url failed to download). used when retrying to recover the unmuted segments (if unit VOD audio is recoverable). n-muted.ts should be the output for the last try
+// init-0.ts -> init-0.ts
+// n.ts -> n-unmuted.ts
+// n-unmuted.ts -> n-muted.ts
+// n-muted.ts -> n-muted.ts
+func transformSegmentURL(url string) (string, bool) {
+	if strings.LastIndex(filepath.Base(url), "-") == -1 {
+		ext := filepath.Ext(url)
+		return strings.TrimSuffix(url, ext) + "-unmuted" + ext, false
 	}
 
-	return fmt.Sprintf("%s-unmuted%s", trimmed, ext), nil
+	replaced := strings.Replace(url, "-unmuted", "-muted", 1)
+	if replaced != url {
+		return replaced, false
+	}
+
+	return url, true
 }
 
 // segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
 // Also, we do not want to do this for all (older) videos
-// TODO: check
-func (dl *Downloader) fetchSegment(
-	ctx context.Context,
-	u *Unit,
-	url string,
-) (io.ReadCloser, error) {
-	// fmt.Println("normal: ", url)
-	url = stripSegmentURLType(url)
-	// fmt.Println("stripped: ", url)
+func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io.ReadCloser, error) {
+	audioRecoverable := u.getAudioRecoverable()
 
-	// TODO: this is ugly - rewrite
-	u.mu.Lock()
-	if u.ext == "" {
-		paramID := strings.LastIndex(url, "?")
-		if paramID != -1 {
-			u.ext = filepath.Ext(url[:paramID])
-		} else {
-			u.ext = filepath.Ext(url)
-		}
+	if audioRecoverable {
+		url = stripSegmentURLType(url)
 	}
-	u.mu.Unlock()
+
+	u.ensureExt(url)
 
 	for {
 		select {
@@ -205,14 +207,23 @@ func (dl *Downloader) fetchSegment(
 			}
 
 			if resp.StatusCode == http.StatusForbidden {
-				fmt.Println("failed to fetch, transforming...", url)
-				u, err := transformSegmentURL(url)
-				if err != nil {
-					return nil, err
+				if !audioRecoverable {
+					err := fmt.Errorf("got 403 forbidden and audio not recoverable for url: %s", url)
+					panic(err)
 				}
-				fmt.Println("transformed", url)
+
+				u, done := transformSegmentURL(url)
+				if done {
+					err := fmt.Errorf("got 403 error for -muted segment: %s", url)
+					panic(err)
+				}
 				url = u
+
 				continue
+			}
+
+			if audioRecoverable && strings.HasSuffix(strings.TrimSuffix(url, filepath.Ext(url)), "-muted") {
+				u.setAudiorecoverable(false)
 			}
 
 			return resp.Body, nil

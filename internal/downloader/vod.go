@@ -176,24 +176,6 @@ func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u
 	return m3u8.Master(b), nil
 }
 
-func stripSegmentURLType(url string) string {
-	// TODO: does not work for init-0.mp4
-	// strip '-unmuted', '-muted'
-	// id := strings.LastIndex(url, "-")
-	// if id == -1 {
-	// 	return url
-	// }
-	// return fmt.Sprintf("%s%s", url[:id], filepath.Ext(url))
-
-	if strings.Contains(url, "-unmuted") {
-		return strings.Replace(url, "-unmuted", "", 1)
-	}
-	if strings.Contains(url, "-muted") {
-		return strings.Replace(url, "-muted", "", 1)
-	}
-	return url
-}
-
 func buildSegURL(playlistURL, path string) string {
 	lastIndex := strings.LastIndex(playlistURL, "/")
 	return fmt.Sprintf("%s/%s", playlistURL[:lastIndex], path)
@@ -214,10 +196,9 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
 
-	depth := make(chan struct{}, unit.readAheadDepth)
-	workerCount := 4
+	depth := make(chan struct{}, dl.transfer.MaxReadAheadPerUnit)
 
-	for i := 0; i < workerCount; i++ {
+	for i := 0; i < dl.transfer.MaxWorkersPerUnit; i++ {
 		g.Go(func() error {
 			for {
 				chunkInx := int(currentChunk.Add(1) - 1)

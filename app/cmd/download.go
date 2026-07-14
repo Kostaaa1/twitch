@@ -1,6 +1,3 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -42,9 +39,7 @@ func runTwitchBatchDownload(ctx context.Context, dl *downloader.Downloader, unit
 	}
 	for _, unit := range units {
 		g.Go(func() error {
-			if err := dl.Download(ctx, unit); err != nil {
-				log.Fatal(err)
-			}
+			dl.Download(ctx, unit)
 			return nil
 		})
 	}
