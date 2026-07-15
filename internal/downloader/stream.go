@@ -34,21 +34,21 @@ func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) 
 	return b, nil
 }
 
-func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
-	isLive, err := dl.gql.IsChannelLive(ctx, unit.ID)
+func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
+	isLive, err := dl.gql.IsChannelLive(ctx, u.ID)
 	if err != nil {
 		return err
 	}
 	if !isLive {
-		return fmt.Errorf("%s is offline", unit.ID)
+		return fmt.Errorf("%s is offline", u.ID)
 	}
 
-	b, err := dl.MasterPlaylistStream(ctx, unit.ID)
+	b, err := dl.MasterPlaylistStream(ctx, u.ID)
 	if err != nil {
 		return err
 	}
 
-	variant, err := m3u8.Master(b).VariantPlaylistByQuality(unit.Quality.String())
+	list, err := m3u8.Master(b).VariantPlaylistByQuality(u.Quality.String())
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 				if !ok {
 					return
 				}
-				if err := dl.segmentFetchDownload(ctx, unit, tsURL); err != nil {
+				if err := dl.fetchDownload(ctx, u, tsURL); err != nil {
 					errCh <- err
 					close(errCh)
 					return
@@ -88,7 +88,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 		case err := <-errCh:
 			return err
 		case <-ticker.C:
-			resp, err := httputil.Do(ctx, dl.http, variant.URL, http.MethodGet, nil, nil)
+			resp, err := httputil.Do(ctx, dl.http, list.URL, http.MethodGet, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,6 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 					}
 
 					s.Scan()
-
 					lastPollURL = s.Text()
 
 					if lastPollURL == lastSegmentURL {
@@ -125,6 +124,11 @@ func (dl *Downloader) recordLivestream(ctx context.Context, unit *Unit) error {
 					}
 
 					if lastSegmentURL == "" || seenLastSegURL && lastPollURL != lastSegmentURL {
+						if u.ext == "" {
+							if err := u.setFileExt(lastPollURL); err != nil {
+								return err
+							}
+						}
 						segURLChan <- lastPollURL
 					}
 				}

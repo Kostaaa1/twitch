@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 )
 
 type CriteriaFilter string
@@ -16,10 +15,6 @@ const (
 	LastMonth CriteriaFilter = "LAST_MONTH"
 	LastYear  CriteriaFilter = "LAST_YEAR"
 )
-
-func (c *Client) ConstructUsherURL(clip PlaybackAccessToken, sourceURL string) (string, error) {
-	return fmt.Sprintf("%s?sig=%s&token=%s", sourceURL, url.QueryEscape(clip.Signature), url.QueryEscape(clip.Value)), nil
-}
 
 func (c *Client) ClipsCardsUser(
 	ctx context.Context,

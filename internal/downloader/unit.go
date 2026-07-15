@@ -6,12 +6,12 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,36 +46,29 @@ type Unit struct {
 	Start, End time.Duration
 	Error      error
 
-	mu                 sync.Mutex
 	w                  io.Writer
 	dir, filename, ext string
-	title              string
-	audioRecoverable   bool
+	total              float64
+	recoverAudio       atomic.Bool
+	mu                 sync.Mutex
 }
 
-func (u *Unit) getAudioRecoverable() bool {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return u.audioRecoverable
-}
-
-func (u *Unit) setAudiorecoverable(v bool) {
-	u.mu.Lock()
-	u.audioRecoverable = v
-	u.mu.Unlock()
-}
-
-func (u *Unit) ensureExt(url string) {
-	u.mu.Lock()
-	if u.ext == "" {
-		paramID := strings.LastIndex(url, "?")
-		if paramID != -1 {
-			u.ext = filepath.Ext(url[:paramID])
-		} else {
-			u.ext = filepath.Ext(url)
-		}
+func (u *Unit) setFileExt(url string) error {
+	if u.w != nil {
+		return errors.New("writer already provided - no need for setting up its extension")
 	}
-	u.mu.Unlock()
+	if u.ext != "" {
+		return errors.New("ext already provided")
+	}
+
+	paramID := strings.LastIndex(url, "?")
+	if paramID != -1 {
+		u.ext = filepath.Ext(url[:paramID])
+	} else {
+		u.ext = filepath.Ext(url)
+	}
+
+	return nil
 }
 
 func (u *Unit) Validate() error {
@@ -174,9 +167,10 @@ func discoverUnitType(input string) MediaType {
 
 func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := &Unit{
-		UUID:             uuid.New(),
-		audioRecoverable: true,
+		UUID:         uuid.New(),
+		recoverAudio: atomic.Bool{},
 	}
+	unit.recoverAudio.Store(true)
 
 	if input == "" {
 		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
@@ -206,26 +200,6 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	return unit
 }
 
-func (u *Unit) restampFrames() error {
-	// when downloading vod, it can happen that interval between frames is not steady, for example if source vod should be at 60 FPS, meaning that each frame needs to be displayed at 16.667 ms rate interval, but this isn't the case sometimes. some frames are at rounded 16/17 ms, which will cause occasional video playback jitter. we can fix this and snap them at this fixed interval. basically scheduling issue (no touching frames, just rescheduling)
-	if f, ok := u.w.(*os.File); ok {
-		fname := f.Name()
-		cmd := exec.Command(
-			"ffmpeg", "-y",
-			"-i", fname,
-			"-c", "copy",
-			"-bsf:v", "setts=pts=round((PTS-STARTPTS)/1500)*1500+STARTPTS:dts=round((DTS-STARTDTS)/1500)*1500+STARTDTS",
-			"-movflags", "+faststart",
-			strings.Replace(fname, filepath.Ext(f.Name()), ".mp4", 1),
-		)
-		if err := cmd.Run(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (u *Unit) CloseWriter() error {
 	if f, ok := u.w.(*os.File); ok && f != nil {
 		return f.Close()
@@ -233,10 +207,8 @@ func (u *Unit) CloseWriter() error {
 	return nil
 }
 
+// implement spinner writer
 func (u *Unit) GetLabel() string {
-	if u.title != "" {
-		return u.title
-	}
 	if u.filename != "" {
 		return u.filename
 	}

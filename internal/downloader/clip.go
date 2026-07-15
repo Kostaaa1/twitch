@@ -3,6 +3,8 @@ package downloader
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
@@ -36,24 +38,25 @@ func extractClipSourceURL(videoQualities []gql.VideoQuality, quality string) str
 	}
 }
 
-func (dl *Downloader) downloadClip(ctx context.Context, unit *Unit) error {
-	clip, err := dl.gql.ClipMetadata(ctx, unit.ID)
+func (dl *Downloader) downloadClip(ctx context.Context, u *Unit) error {
+	clip, err := dl.gql.ClipMetadata(ctx, u.ID)
 	if err != nil {
 		return err
 	}
+	at := clip.PlaybackAccessToken
 
-	clipDataURL := extractClipSourceURL(clip.Assets[0].VideoQualities, unit.Quality.String())
+	clipSrc := extractClipSourceURL(clip.Assets[0].VideoQualities, u.Quality.String())
+	signedURL := fmt.Sprintf("%s?sig=%s&token=%s", clipSrc, url.QueryEscape(at.Signature), url.QueryEscape(at.Value))
 
-	usherURL, err := dl.gql.ConstructUsherURL(clip.PlaybackAccessToken, clipDataURL)
-	if err != nil {
+	if err := u.setFileExt(signedURL); err != nil {
 		return err
 	}
 
-	if unit.Quality == QualityAudioOnly {
+	if u.Quality == QualityAudioOnly {
 		// n, err = extractAudio(usherURL, unit.Writer)
-		return errors.New("audio quality for clip not yet supported")
+		return errors.New("audio quality for clip not supported yet")
 	} else {
-		if err := dl.segmentFetchDownload(ctx, unit, usherURL); err != nil {
+		if err := dl.fetchDownload(ctx, u, signedURL); err != nil {
 			return err
 		}
 	}

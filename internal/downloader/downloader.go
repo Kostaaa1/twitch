@@ -15,15 +15,6 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
-type Progress struct {
-	ID    string
-	Label string
-	Bytes int64
-	Error error
-	Done  bool
-	Total float64
-}
-
 type Transfer struct {
 	// max number of segments fetched accross all units
 	MaxReadAheadGlobal int
@@ -38,18 +29,17 @@ type Transfer struct {
 func defaultTransfer() *Transfer {
 	return &Transfer{
 		MaxReadAheadGlobal:    0,
-		MaxWorkersPerUnit:     4,
 		MaxReadAheadPerUnit:   32,
+		MaxWorkersPerUnit:     4,
 		DisableSegmentRetries: false,
 	}
 }
 
 type Downloader struct {
-	gql               *gql.Client
-	http              *http.Client
-	notifyFn          func(Progress)
-	transfer          *Transfer
-	isFfmpegAvailable bool
+	gql      *gql.Client
+	http     *http.Client
+	notifyFn func(Progress)
+	transfer *Transfer
 }
 
 func New(gql *gql.Client, http *http.Client) *Downloader {
@@ -60,26 +50,15 @@ func New(gql *gql.Client, http *http.Client) *Downloader {
 	}
 }
 
-func (c *Downloader) SetProgressNotifier(fn func(Progress)) { c.notifyFn = fn }
-
-func (c *Downloader) notify(msg Progress) {
-	if c.notifyFn != nil {
-		c.notifyFn(msg)
-	}
+func (dl *Downloader) SetProgressNotifier(fn func(Progress)) {
+	dl.notifyFn = fn
 }
 
 func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	defer u.CloseWriter()
 
 	if u.Error != nil {
-		dl.notify(Progress{
-			ID:    u.GetID(),
-			Label: u.GetLabel(),
-			Error: u.Error,
-			Bytes: 0,
-			Total: 0,
-			Done:  true,
-		})
+		dl.notifyDone(u)
 		return u.Error
 	}
 
@@ -94,20 +73,18 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 		err = dl.recordLivestream(ctx, u)
 	}
 
-	dl.notify(Progress{
-		ID:    u.GetID(),
-		Label: u.GetLabel(),
-		Error: err,
-		Bytes: 0,
-		Total: 0,
-		Done:  true,
-	})
+	u.Error = err
+	dl.notifyDone(u)
 
-	if dl.isFfmpegAvailable {
-		u.restampFrames()
+	return u.Error
+}
+
+func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
+	body, err := dl.fetchSegment(ctx, u, segURL)
+	if err != nil {
+		return err
 	}
-
-	return err
+	return dl.download(u, body)
 }
 
 func (dl *Downloader) downloadBytes(u *Unit, b []byte) error {
@@ -116,54 +93,27 @@ func (dl *Downloader) downloadBytes(u *Unit, b []byte) error {
 			return err
 		}
 	}
-
 	n, err := u.w.Write(b)
 	if err != nil {
 		return err
 	}
-
-	dl.notify(Progress{
-		ID:    u.GetID(),
-		Label: u.GetLabel(),
-		Bytes: int64(n),
-		Done:  false,
-		Error: nil,
-		Total: 0,
-	})
-
+	dl.notifyProgress(u, int64(n))
 	return nil
 }
 
 func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 	defer r.Close()
-
 	if u.w == nil {
 		if err := dl.openFile(context.Background(), u); err != nil {
 			return err
 		}
 	}
-
 	n, err := io.Copy(u.w, r)
 	if err != nil {
 		return err
 	}
-
-	dl.notify(Progress{
-		ID:    u.GetID(),
-		Label: u.GetLabel(),
-		Bytes: n,
-		Done:  false,
-		Error: nil,
-		Total: 0,
-	})
-
+	dl.notifyProgress(u, n)
 	return nil
-}
-
-func stripSegmentURLType(url string) string {
-	url = strings.Replace(url, "-unmuted", "", 1)
-	url = strings.Replace(url, "-muted", "", 1)
-	return url
 }
 
 // this is called when 403 occurs (meaning the url failed to download). used when retrying to recover the unmuted segments (if unit VOD audio is recoverable). n-muted.ts should be the output for the last try
@@ -185,16 +135,18 @@ func transformSegmentURL(url string) (string, bool) {
 	return url, true
 }
 
+func stripSegmentURLType(url string) string {
+	url = strings.Replace(url, "-unmuted", "", 1)
+	url = strings.Replace(url, "-muted", "", 1)
+	return url
+}
+
 // segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
 // Also, we do not want to do this for all (older) videos
 func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io.ReadCloser, error) {
-	audioRecoverable := u.getAudioRecoverable()
-
-	if audioRecoverable {
+	if u.recoverAudio.Load() {
 		url = stripSegmentURLType(url)
 	}
-
-	u.ensureExt(url)
 
 	for {
 		select {
@@ -207,36 +159,22 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io
 			}
 
 			if resp.StatusCode == http.StatusForbidden {
-				if !audioRecoverable {
-					err := fmt.Errorf("got 403 forbidden and audio not recoverable for url: %s", url)
-					panic(err)
-				}
-
 				u, done := transformSegmentURL(url)
 				if done {
-					err := fmt.Errorf("got 403 error for -muted segment: %s", url)
-					panic(err)
+					panic(fmt.Errorf("got 403 error for -muted segment: %s", url))
 				}
 				url = u
-
 				continue
 			}
 
-			if audioRecoverable && strings.HasSuffix(strings.TrimSuffix(url, filepath.Ext(url)), "-muted") {
-				u.setAudiorecoverable(false)
+			// if success with muted in url, means that segment is not recoverable
+			if u.recoverAudio.Load() && strings.Contains(url, "-muted") {
+				u.recoverAudio.Store(false)
 			}
 
 			return resp.Body, nil
 		}
 	}
-}
-
-func (dl *Downloader) segmentFetchDownload(ctx context.Context, u *Unit, segURL string) error {
-	body, err := dl.fetchSegment(ctx, u, segURL)
-	if err != nil {
-		return err
-	}
-	return dl.download(u, body)
 }
 
 func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (title string, err error) {
@@ -251,6 +189,7 @@ func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (title string, er
 	return
 }
 
+// TODO: should not depend on fileutil
 func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 	if u.dir == "" {
 		return errors.New("missing dir")
@@ -265,7 +204,6 @@ func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 			return err
 		}
 		title = fmt.Sprintf("%s_%s", title, u.Quality.String())
-		u.title = title
 		u.filename = title
 	}
 

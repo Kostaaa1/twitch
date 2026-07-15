@@ -14,7 +14,9 @@ type QualityType int
 
 const (
 	Quality1080p60 QualityType = iota
+	Quality1080p30
 	Quality720p60
+	Quality720p30
 	Quality480p30
 	Quality360p30
 	Quality160p30
@@ -22,26 +24,25 @@ const (
 	QualityWorst
 )
 
-func (qt *QualityType) Downgrade() {
-	if *qt == QualityWorst {
-		return
+func (qt QualityType) FPS() int {
+	switch qt {
+	case Quality1080p60, Quality720p60:
+		return 60
+	default:
+		return 30
 	}
-	*qt += 1
-}
-
-func (qt *QualityType) Upgrade() {
-	if *qt == Quality1080p60 {
-		return
-	}
-	*qt -= 1
 }
 
 func (qt QualityType) String() string {
 	switch qt {
 	case Quality1080p60:
 		return "1080p60"
+	case Quality1080p30:
+		return "1080p30"
 	case Quality720p60:
 		return "720p60"
+	case Quality720p30:
+		return "720p30"
 	case Quality480p30:
 		return "480p30"
 	case Quality360p30:

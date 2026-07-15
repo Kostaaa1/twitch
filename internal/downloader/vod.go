@@ -181,14 +181,19 @@ func buildSegURL(playlistURL, path string) string {
 	return fmt.Sprintf("%s/%s", playlistURL[:lastIndex], path)
 }
 
-func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
-	list, err := dl.mediaPlaylistForUnit(ctx, unit)
+func (dl *Downloader) downloadVOD(ctx context.Context, u *Unit) error {
+	list, err := dl.mediaPlaylistForUnit(ctx, u)
 	if err != nil {
 		return err
 	}
 
+	if err := u.setFileExt(list.Segments[0].URI); err != nil {
+		return err
+	}
+
 	if list.Map != nil && list.Map.URI != "" {
-		if err := dl.segmentFetchDownload(ctx, unit, buildSegURL(list.URL, list.Map.URI)); err != nil {
+		if err := dl.fetchDownload(ctx, u, buildSegURL(list.URL, list.Map.URI)); err != nil {
+			fmt.Println("GOT ERRJ", err)
 			return err
 		}
 	}
@@ -215,7 +220,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 				seg := list.Segments[chunkInx]
 				segURL := buildSegURL(list.URL, seg.URI)
 
-				body, err := dl.fetchSegment(ctx, unit, segURL)
+				body, err := dl.fetchSegment(ctx, u, segURL)
 				if err != nil {
 					return err
 				}
@@ -244,7 +249,7 @@ func (dl *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case b := <-list.Segments[i].Data:
-				if err := dl.downloadBytes(unit, b); err != nil {
+				if err := dl.downloadBytes(u, b); err != nil {
 					return err
 				}
 			}

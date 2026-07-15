@@ -32,7 +32,11 @@ type T struct {
 
 var cmdArgs T
 
-func runTwitchBatchDownload(ctx context.Context, dl *downloader.Downloader, units []*downloader.Unit) error {
+func runTwitchBatchDownload(
+	ctx context.Context,
+	dl *downloader.Downloader,
+	units []*downloader.Unit,
+) error {
 	g, ctx := errgroup.WithContext(ctx)
 	if cmdArgs.threads > 0 {
 		g.SetLimit(cmdArgs.threads)
