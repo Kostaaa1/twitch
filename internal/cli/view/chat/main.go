@@ -61,7 +61,18 @@ func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *helix.Client, 
 	return fmt.Errorf("connect failed: %w", err)
 }
 
-func Open(ctx context.Context, tw *helix.Client, cfg *config.Config) error {
+func defaultScopes() []helix.Scope {
+	return []helix.Scope{helix.ChatEdit, helix.ChatRead}
+}
+
+func Open(ctx context.Context, c *helix.Client, cfg *config.Config) error {
+	if err := c.Authorize(ctx, helix.AuthOpts{
+		ForceVerify: false,
+		Scopes:      defaultScopes(),
+	}); err != nil {
+		return err
+	}
+
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 
@@ -93,7 +104,7 @@ func Open(ctx context.Context, tw *helix.Client, cfg *config.Config) error {
 	ws.SetMessageChan(msgChan)
 
 	go func() {
-		if err := ConnectWithRetry(ctx, ws, tw, cfg); err != nil {
+		if err := ConnectWithRetry(ctx, ws, c, cfg); err != nil {
 			log.Fatal(err)
 		}
 	}()

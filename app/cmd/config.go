@@ -33,6 +33,7 @@ var configCmd = &cobra.Command{
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			b, err := json.MarshalIndent(cfg, "", " ")
 			if err != nil {
 				log.Fatal(err)

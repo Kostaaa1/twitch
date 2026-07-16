@@ -13,7 +13,6 @@ import (
 const (
 	gqlURL   = "https://gql.twitch.tv/gql"
 	clientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-	UsherURL = "https://usher.ttvnw.net"
 )
 
 type Client struct {

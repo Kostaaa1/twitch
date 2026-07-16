@@ -12,27 +12,36 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
 	"github.com/Kostaaa1/twitch/internal/httputil"
-	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"golang.org/x/sync/errgroup"
 )
 
-func (dl *Downloader) fetchMediaPlaylist(ctx context.Context, url string) (*m3u8.MediaPlaylist, error) {
-	resp, err := httputil.Do(ctx, dl.http, url, http.MethodGet, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, url)
+func (dl *Downloader) MasterPlaylistVideo(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
+	tok, err := dl.gql.VideoPlaybackAccessToken(ctx, vodID)
 	if err != nil {
 		return nil, err
 	}
 
-	return playlist, nil
+	// TODO: investigate params
+	m3u8url := fmt.Sprintf("https://usher.ttvnw.net/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true",
+		vodID,
+		tok.Value,
+		tok.Signature,
+	)
+
+	b, code, err := httputil.DoBytes(ctx, dl.http, m3u8url, http.MethodGet, nil, nil)
+	if code == http.StatusForbidden {
+		return dl.mockMasterPlaylist(ctx, vodID)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return m3u8.Master(b), nil
 }
 
-func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3u8.MediaPlaylist, error) {
-	master, err := dl.MasterPlaylistVOD(ctx, unit.ID)
+func (dl *Downloader) mediaPlaylistVideo(ctx context.Context, unit *Unit) (*m3u8.MediaPlaylist, error) {
+	master, err := dl.MasterPlaylistVideo(ctx, unit.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +51,13 @@ func (dl *Downloader) mediaPlaylistForUnit(ctx context.Context, unit *Unit) (*m3
 		return nil, err
 	}
 
-	playlist, err := dl.fetchMediaPlaylist(ctx, variant.URL)
+	resp, err := httputil.Do(ctx, dl.http, variant.URL, http.MethodGet, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -151,38 +166,13 @@ func (dl *Downloader) mockMasterPlaylist(ctx context.Context, vodID string) (*m3
 	return &master, nil
 }
 
-func (dl *Downloader) MasterPlaylistVOD(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
-	tok, err := dl.gql.VideoPlaybackAccessToken(ctx, vodID)
-	if err != nil {
-		return nil, err
-	}
-
-	m3u8url := fmt.Sprintf("%s/vod/%s?nauth=%s&nauthsig=%s&allow_audio_only=true&allow_source=true",
-		gql.UsherURL,
-		vodID,
-		tok.Value,
-		tok.Signature,
-	)
-
-	b, code, err := httputil.DoBytes(ctx, dl.http, m3u8url, http.MethodGet, nil, nil)
-	if code == http.StatusForbidden {
-		return dl.mockMasterPlaylist(ctx, vodID)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return m3u8.Master(b), nil
-}
-
 func buildSegURL(playlistURL, path string) string {
 	lastIndex := strings.LastIndex(playlistURL, "/")
 	return fmt.Sprintf("%s/%s", playlistURL[:lastIndex], path)
 }
 
-func (dl *Downloader) downloadVOD(ctx context.Context, u *Unit) error {
-	list, err := dl.mediaPlaylistForUnit(ctx, u)
+func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
+	list, err := dl.mediaPlaylistVideo(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -193,15 +183,14 @@ func (dl *Downloader) downloadVOD(ctx context.Context, u *Unit) error {
 
 	if list.Map != nil && list.Map.URI != "" {
 		if err := dl.fetchDownload(ctx, u, buildSegURL(list.URL, list.Map.URI)); err != nil {
-			fmt.Println("GOT ERRJ", err)
 			return err
 		}
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
 	currentChunk := atomic.Uint32{}
-
 	depth := make(chan struct{}, dl.transfer.MaxReadAheadPerUnit)
+
+	g, ctx := errgroup.WithContext(ctx)
 
 	for i := 0; i < dl.transfer.MaxWorkersPerUnit; i++ {
 		g.Go(func() error {
@@ -244,7 +233,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, u *Unit) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -254,7 +242,6 @@ func (dl *Downloader) downloadVOD(ctx context.Context, u *Unit) error {
 				}
 			}
 		}
-
 		return nil
 	})
 

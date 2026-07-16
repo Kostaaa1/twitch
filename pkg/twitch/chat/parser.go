@@ -239,8 +239,12 @@ func parseNOTICE(rawMsg string) Notice {
 	}
 
 	if len(parts) >= 3 {
-		notice.MsgID = strings.Split(parts[0], "=")[1]
-		notice.DisplayName = strings.Split(parts[1], "#")[1]
+		if parts[2] == "Invalid NICK" {
+			notice.Err = ErrInvalidNick
+		} else {
+			notice.MsgID = strings.Split(parts[0], "=")[1]
+			notice.DisplayName = strings.Split(parts[1], "#")[1]
+		}
 	}
 
 	return notice

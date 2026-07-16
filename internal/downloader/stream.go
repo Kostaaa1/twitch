@@ -11,16 +11,15 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
 	"github.com/Kostaaa1/twitch/internal/httputil"
-	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
-func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) ([]byte, error) {
+func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) (*m3u8.MasterPlaylist, error) {
 	tok, err := dl.gql.StreamPlaybackAccessToken(ctx, channel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", gql.UsherURL, channel, tok.Value, tok.Signature)
+	url := fmt.Sprintf("https://usher.ttvnw.net/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", channel, tok.Value, tok.Signature)
 
 	b, _, err := httputil.DoBytes(
 		ctx,
@@ -31,7 +30,7 @@ func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) 
 		nil,
 	)
 
-	return b, nil
+	return m3u8.Master(b), nil
 }
 
 func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
@@ -43,12 +42,12 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 		return fmt.Errorf("%s is offline", u.ID)
 	}
 
-	b, err := dl.MasterPlaylistStream(ctx, u.ID)
+	master, err := dl.MasterPlaylistStream(ctx, u.ID)
 	if err != nil {
 		return err
 	}
 
-	list, err := m3u8.Master(b).VariantPlaylistByQuality(u.Quality.String())
+	list, err := master.VariantPlaylistByQuality(u.Quality.String())
 	if err != nil {
 		return err
 	}
@@ -112,6 +111,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 				line := s.Text()
 
 				if strings.HasPrefix(line, "#EXTINF") {
+					// skipping ads..
 					if strings.Contains(line, "Amazon") {
 						continue
 					}

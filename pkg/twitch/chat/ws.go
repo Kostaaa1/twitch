@@ -20,12 +20,13 @@ type WSClient struct {
 
 var (
 	re                    = regexp.MustCompile(`\b(PING|PRIVMSG|ROOMSTATE|USERNOTICE|USERSTATE|NOTICE|GLOBALUSERSTATE|CLEARMSG|CLEARCHAT)\b`)
+	ErrInvalidNick        = errors.New("failed to join iirc: invalid nick")
 	ErrAuthFailed         = errors.New("login authentication failed")
 	ErrAuthImproperFormat = errors.New("improperly formatted auth")
 )
 
 func DialWS(username, accessToken string, channels []string) (*WSClient, error) {
-	socketURL := "ws://irc-ws.chat.twitch.tv:80"
+	socketURL := "wss://irc-ws.chat.twitch.tv:443"
 	conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
 	if err != nil {
 		return nil, err

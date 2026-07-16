@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/downloader"
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/a-h/templ"
 	templruntime "github.com/a-h/templ/runtime"
 )
@@ -30,7 +31,7 @@ type FormData struct {
 	Qualities           []Quality
 	Duration            string
 	Type                downloader.MediaType
-	Curator             twitch.Curator
+	Curator             gql.Curator
 }
 
 func DownloadForm(media FormData) templ.Component {

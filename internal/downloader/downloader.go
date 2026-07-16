@@ -66,7 +66,7 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 
 	switch u.Type {
 	case TypeVOD:
-		err = dl.downloadVOD(ctx, u)
+		err = dl.downloadVideo(ctx, u)
 	case TypeClip:
 		err = dl.downloadClip(ctx, u)
 	case TypeLivestream:
@@ -79,12 +79,48 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	return u.Error
 }
 
-func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
-	body, err := dl.fetchSegment(ctx, u, segURL)
+func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (title string, err error) {
+	switch u.Type {
+	case TypeClip:
+		title, err = dl.gql.ClipTitle(ctx, u.ID)
+	case TypeVOD:
+		title, err = dl.gql.VideoTitle(ctx, u.ID)
+	case TypeLivestream:
+		title, err = dl.gql.StreamTitle(ctx, u.ID)
+	}
+	return
+}
+
+// TODO: should not depend on fileutil
+func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
+	if u.dir == "" {
+		return errors.New("missing dir")
+	}
+	if u.ext == "" {
+		return errors.New("missing file extension")
+	}
+
+	if u.filename == "" {
+		title, err := dl.fetchTitle(ctx, u)
+		if err != nil {
+			return err
+		}
+		title = fmt.Sprintf("%s_%s", title, u.Quality.String())
+		u.filename = title
+	}
+
+	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
 	if err != nil {
 		return err
 	}
-	return dl.download(u, body)
+
+	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	u.w = f
+
+	return nil
 }
 
 func (dl *Downloader) downloadBytes(u *Unit, b []byte) error {
@@ -114,6 +150,14 @@ func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 	}
 	dl.notifyProgress(u, n)
 	return nil
+}
+
+func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
+	body, err := dl.fetchSegment(ctx, u, segURL)
+	if err != nil {
+		return err
+	}
+	return dl.download(u, body)
 }
 
 // this is called when 403 occurs (meaning the url failed to download). used when retrying to recover the unmuted segments (if unit VOD audio is recoverable). n-muted.ts should be the output for the last try
@@ -175,48 +219,4 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io
 			return resp.Body, nil
 		}
 	}
-}
-
-func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (title string, err error) {
-	switch u.Type {
-	case TypeClip:
-		title, err = dl.gql.ClipTitle(ctx, u.ID)
-	case TypeVOD:
-		title, err = dl.gql.VideoTitle(ctx, u.ID)
-	case TypeLivestream:
-		title, err = dl.gql.StreamTitle(ctx, u.ID)
-	}
-	return
-}
-
-// TODO: should not depend on fileutil
-func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
-	if u.dir == "" {
-		return errors.New("missing dir")
-	}
-	if u.ext == "" {
-		return errors.New("missing file extension")
-	}
-
-	if u.filename == "" {
-		title, err := dl.fetchTitle(ctx, u)
-		if err != nil {
-			return err
-		}
-		title = fmt.Sprintf("%s_%s", title, u.Quality.String())
-		u.filename = title
-	}
-
-	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	u.w = f
-
-	return nil
 }

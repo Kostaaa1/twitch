@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -20,7 +21,7 @@ type Handler interface {
 	Register(*gin.RouterGroup)
 }
 
-func NewServer(addr string, handler ...Handler) (*Server, error) {
+func NewServer(port int, handler ...Handler) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 
 	g := gin.New()
@@ -40,7 +41,7 @@ func NewServer(addr string, handler ...Handler) (*Server, error) {
 
 	return &Server{
 		server: &http.Server{
-			Addr:    addr,
+			Addr:    fmt.Sprintf(":%d", port),
 			Handler: g,
 			// ReadTimeout:    30 * time.Second,
 			// WriteTimeout:   30 * time.Second,

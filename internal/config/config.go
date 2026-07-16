@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -39,7 +40,7 @@ type Config struct {
 	User            User             `mapstructure:"user" json:"user"`
 	Downloader      Downloader       `mapstructure:"downloader" json:"downloader"`
 	CommandLineChat CommandLineChat  `mapstructure:"chat" json:"chat"`
-	OAuthCreds      helix.OAuthCreds `mapstructure:"oauth_creds" json:"oauth_creds"`
+	OAuthCreds      helix.OAuthCreds `mapstructure:"creds" json:"creds"`
 }
 
 type Messages struct {
@@ -133,7 +134,7 @@ func Dir() (string, error) {
 func Set(c *Config) {
 	viper.Set("user", c.User)
 	viper.Set("downloader", c.Downloader)
-	viper.Set("oauth_creds", c.OAuthCreds)
+	viper.Set("creds", c.OAuthCreds)
 	viper.Set("chat", c.CommandLineChat)
 }
 
@@ -165,6 +166,8 @@ func Get() (*Config, error) {
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
 	}
+
+	fmt.Println("CONFIG", config)
 
 	return &config, nil
 }

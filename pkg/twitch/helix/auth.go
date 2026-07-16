@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -17,54 +16,28 @@ import (
 )
 
 type AppToken struct {
-	AccessToken string    `json:"access_token"`
-	ExpiresIn   int       `json:"expires_in"`
-	TokenType   string    `json:"token_type"`
-	ExpiryDate  time.Time `json:"expiry_date"`
+	AccessToken string `mapstructure:"access_token" json:"access_token"`
+	ExpiresIn   int    `mapstructure:"expires_in" json:"expires_in"`
+	TokenType   string `mapstructure:"token_type" json:"token_type"`
 }
 
-func (at *AppToken) UnmarshalJSON(data []byte) error {
-	type Alias AppToken
-
-	aux := &struct{ *Alias }{Alias: (*Alias)(at)}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if at.ExpiresIn > 0 {
-		at.ExpiryDate = time.Now().Add(time.Duration(at.ExpiresIn))
-	}
-
-	return nil
+func (at *AppToken) Expired() bool {
+	date := time.Now().Add(time.Duration(at.ExpiresIn))
+	return time.Since(date) > 0
 }
-
-func (ut *AppToken) Expired() bool { return time.Since(ut.ExpiryDate) > 0 }
 
 type UserToken struct {
-	RefreshToken string    `json:"refresh_token"`
-	AccessToken  string    `json:"access_token"`
-	Scope        []string  `json:"scope"`
-	ExpiresIn    int       `json:"expires_in"`
-	TokenType    string    `json:"token_type"`
-	ExpiryDate   time.Time `json:"expiry_date"`
+	RefreshToken string   `mapstructure:"refresh_token" json:"refresh_token"`
+	AccessToken  string   `mapstructure:"access_token" json:"access_token"`
+	Scope        []string `mapstructure:"scope" json:"scope"`
+	ExpiresIn    int      `mapstructure:"expires_in" json:"expires_in"`
+	TokenType    string   `mapstructure:"token_type" json:"token_type"`
 }
 
-func (t *UserToken) UnmarshalJSON(data []byte) error {
-	type Alias UserToken
-
-	aux := &struct{ *Alias }{Alias: (*Alias)(t)}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if t.ExpiresIn > 0 {
-		t.ExpiryDate = time.Now().Add(time.Duration(t.ExpiresIn))
-	}
-
-	return nil
+func (ut *UserToken) Expired() bool {
+	date := time.Now().Add(time.Duration(ut.ExpiresIn))
+	return time.Since(date) > 0
 }
-
-func (ut *UserToken) Expired() bool { return time.Since(ut.ExpiryDate) > 0 }
 
 type OAuthCreds struct {
 	ClientID     string    `mapstructure:"client_id" json:"client_id"`

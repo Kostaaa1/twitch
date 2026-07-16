@@ -4,6 +4,17 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
+	"github.com/Kostaaa1/twitch/internal/config"
+
+	// "github.com/Kostaaa1/twitch/pkg/twitch/chat"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+
 	"github.com/spf13/cobra"
 )
 
@@ -13,26 +24,67 @@ var chatCmd = &cobra.Command{
 	Short: "",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		// conf, err := config.Read()
+		conf, err := config.Get()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			fmt.Println("saving")
+			if err := config.Save(); err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		client := helix.New(
+			http.DefaultClient,
+			helix.WithOAuthCreds(&conf.OAuthCreds),
+		)
+
+		ctx := context.Background()
+
+		users, err := client.Users().Run(ctx)
+		if err != nil {
+			fmt.Println("this failed", err)
+			log.Fatal(err)
+		}
+
+		user := users.Data[0].Login
+		conf.User.Login = user
+
+		if err := chat.Open(ctx, client, conf); err != nil {
+			log.Fatal(err)
+		}
+
+		// c, err := chat.DialWS(
+		// 	conf.User.Login,
+		// 	conf.OAuthCreds.UserToken.AccessToken,
+		// 	conf.CommandLineChat.OpenedChats,
+		// )
 		// if err != nil {
 		// 	log.Fatal(err)
 		// }
-		// defer func() {
-		// 	if err := conf.Save(); err != nil {
-		// 		log.Fatal(err)
+
+		// msgCh := make(chan interface{})
+
+		// c.SetMessageChan(msgCh)
+
+		// var wg sync.WaitGroup
+
+		// wg.Add(1)
+		// go func() {
+		// 	defer wg.Done()
+		// 	for msg := range msgCh {
+		// 		fmt.Println("MESSAGE:", msg)
 		// 	}
 		// }()
 
-		// ctx := context.Background()
+		// wg.Add(1)
+		// go func() {
+		// 	defer wg.Done()
+		// 	c.Connect()
+		// }()
 
-		// helix := helix.New(
-		// 	http.DefaultClient,
-		// 	helix.WithOAuthCreds(&conf.OAuthCreds),
-		// )
-
-		// if err := chat.Open(ctx, helix, conf); err != nil {
-		// 	log.Fatal(err)
-		// }
+		// wg.Wait()
 	},
 }
 
