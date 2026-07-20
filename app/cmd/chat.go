@@ -37,22 +37,7 @@ func ensureUserData(ctx context.Context, c *helix.Client, conf *config.Config) e
 		if err != nil {
 			return err
 		}
-
-		user := users.Data[0]
-
-		conf.User = config.User{
-			ID:              user.ID,
-			Login:           user.Login,
-			DisplayName:     user.DisplayName,
-			Type:            user.Type,
-			BroadcasterType: user.BroadcasterType,
-			Description:     user.Description,
-			ProfileImageURL: user.ProfileImageURL,
-			OfflineImageURL: user.OfflineImageURL,
-			ViewCount:       user.ViewCount,
-			Email:           user.Email,
-			CreatedAt:       user.CreatedAt,
-		}
+		conf.User = users.Data[0]
 	}
 
 	return nil
@@ -68,7 +53,7 @@ var chatCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		defer func() {
-			if err := config.Save(); err != nil {
+			if err := config.Save(conf); err != nil {
 				log.Fatal(err)
 			}
 		}()

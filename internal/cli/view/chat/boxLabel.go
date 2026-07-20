@@ -14,7 +14,7 @@ type BoxWithLabel struct {
 	width      int
 }
 
-func NewBoxWithLabel(color string) BoxWithLabel {
+func newBoxWithLabel(color string) BoxWithLabel {
 	c := lipgloss.Color(color)
 	return BoxWithLabel{
 		BoxStyle: lipgloss.NewStyle().

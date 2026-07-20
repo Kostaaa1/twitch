@@ -127,7 +127,7 @@ func runDownloadCmd(args []string) error {
 		log.Fatal(err)
 	}
 	defer func() {
-		if err := config.Save(); err != nil {
+		if err := config.Save(cfg); err != nil {
 			log.Fatal(err)
 		}
 	}()

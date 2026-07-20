@@ -85,14 +85,18 @@ func Open(ctx context.Context, cfg *config.Config) error {
 		chats:           chats,
 		width:           0,
 		height:          0,
-		labelBox:        NewBoxWithLabel(cfg.CommandLineChat.Colors.Primary),
+		labelBox:        newBoxWithLabel(cfg.CommandLineChat.Colors.Primary),
 		viewport:        vp,
 		showHelpMenu:    false,
 		helperMenuWidth: 32,
 		footer:          newFooter(2),
 	}
 
-	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(
+		m,
+		tea.WithAltScreen(),
+		// tea.WithMouseAllMotion(),
+	).Run(); err != nil {
 		return nil
 	}
 
@@ -393,7 +397,7 @@ func (m *model) appendMessage(chat *Chat, message string) {
 
 func (m *model) updateChatViewport(chat *Chat) {
 	m.viewport.SetContent(strings.Join(chat.Messages, "\n"))
-	// m.viewport.GotoBottom()
+	m.viewport.GotoBottom()
 }
 
 func (m model) getActiveChat() *Chat {
