@@ -97,7 +97,7 @@ func (m model) FormatMessage(message chat.Message, width int) string {
 		return fmt.Sprintf("%s %s", timestamp, strings.TrimSpace(msg))
 	} else {
 		firstMsgColor := m.conf.CommandLineChat.Colors.Messages.First
-		box := NewBoxWithLabel(firstMsgColor)
+		box := newBoxWithLabel(firstMsgColor)
 		msg := wrapText(msgStr.String(), width-6, 0)
 		return box.RenderBox(msgStyle.Foreground(lipgloss.Color(firstMsgColor)).Render(" First message "), msg)
 	}
@@ -109,7 +109,7 @@ func (m model) FormatSubMessage(message chat.SubNotice, width int) string {
 	}
 	msg := fmt.Sprintf(" ✯ %s", message.Metadata.SystemMsg)
 	subColor := m.conf.CommandLineChat.Colors.Messages.Sub
-	box := NewBoxWithLabel(subColor)
+	box := newBoxWithLabel(subColor)
 	msg = wrapText(msg, width-50, 0)
 	color := lipgloss.Color(subColor)
 	label := lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf(" %s ", capitalize(message.SubPlan)))
@@ -128,7 +128,7 @@ func (m model) FormatRaidMessage(message chat.RaidNotice, width int) string {
 		message.Metadata.SystemMsg,
 	)
 	raidColor := m.conf.CommandLineChat.Colors.Messages.Raid
-	box := NewBoxWithLabel(raidColor)
+	box := newBoxWithLabel(raidColor)
 	msg = wrapText(msg, width-50, 0)
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color(raidColor)).Render("Raid")
 	return box.RenderBox(label, msg)
