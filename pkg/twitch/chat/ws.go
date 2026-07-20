@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -10,12 +11,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type WSClient struct {
-	Conn        *websocket.Conn
-	Username    string
-	Channels    []string
-	AccessToken string
-	ch          chan interface{}
+type TwitchIRC struct {
+	conn *websocket.Conn
+	C    chan interface{}
 }
 
 var (
@@ -25,64 +23,70 @@ var (
 	ErrAuthImproperFormat = errors.New("improperly formatted auth")
 )
 
-func DialWS(username, accessToken string, channels []string) (*WSClient, error) {
+func DialIRC(username, accessToken string, channels []string) (*TwitchIRC, error) {
 	socketURL := "wss://irc-ws.chat.twitch.tv:443"
+
 	conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &WSClient{
-		Conn:        conn,
-		Username:    username,
-		AccessToken: accessToken,
-		Channels:    channels,
+
+	return &TwitchIRC{
+		conn: conn,
+		C:    make(chan interface{}),
 	}, nil
 }
 
-func (c *WSClient) SetMessageChan(ch chan interface{}) {
-	c.ch = ch
+func (c *TwitchIRC) Close() error {
+	return c.conn.Close()
 }
 
-func (c *WSClient) SendMessage(msg []byte) error {
-	return c.Conn.WriteMessage(websocket.TextMessage, msg)
+func (c *TwitchIRC) SendMessage(msg []byte) error {
+	return c.conn.WriteMessage(websocket.TextMessage, msg)
 }
 
-func (c *WSClient) FormatIRCMsgAndSend(tag, channel, msg string) error {
+func (c *TwitchIRC) FormatIRCMsgAndSend(tag, channel, msg string) error {
 	formatted := fmt.Sprintf("%s #%s :%s", tag, channel, msg)
 	return c.SendMessage([]byte(formatted))
 }
 
-func (c *WSClient) LeaveChannel(channel string) {
+func (c *TwitchIRC) LeaveChannel(channel string) {
 	part := fmt.Sprintf("PART #%s", channel)
 	c.SendMessage([]byte(part))
 }
 
-func (c *WSClient) ConnectToChannel(channel string) {
+func (c *TwitchIRC) ConnectToChannel(channel string) {
 	join := fmt.Sprintf("JOIN #%s", channel)
 	c.SendMessage([]byte(join))
 }
 
-func (c *WSClient) writeToChannel(msg interface{}) {
-	if c.ch == nil {
+func (c *TwitchIRC) writeToChannel(msg interface{}) {
+	if c.C == nil {
 		return
 	}
-	c.ch <- msg
+	c.C <- msg
 }
 
-func (c *WSClient) Connect() error {
+func (c *TwitchIRC) Connect(ctx context.Context, accessToken, username string, channels []string) error {
 	c.SendMessage([]byte("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands"))
 
-	pass := fmt.Sprintf("PASS oauth:%s", c.AccessToken)
+	pass := fmt.Sprintf("PASS oauth:%s", accessToken)
 	c.SendMessage([]byte(pass))
 
-	nick := fmt.Sprintf("NICK %s", c.Username)
+	nick := fmt.Sprintf("NICK %s", username)
 	c.SendMessage([]byte(nick))
 
-	join := fmt.Sprintf("JOIN #%s", strings.Join(c.Channels, ",#"))
+	join := fmt.Sprintf("JOIN #%s", strings.Join(channels, ",#"))
 	c.SendMessage([]byte(join))
 
 	for {
-		msgType, msg, err := c.Conn.ReadMessage()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		msgType, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			log.Printf("Error reading WebSocket message: %v", err)
 			return err
@@ -103,11 +107,14 @@ func (c *WSClient) Connect() error {
 					c.writeToChannel(msg)
 				case "USERNOTICE":
 					// fmt.Println("USERNOTICE")
-					parseUSERNOTICE(rawIRCMessage, c.ch)
+					parseUSERNOTICE(rawIRCMessage, c.C)
 				case "PING":
 					c.SendMessage([]byte("PONG :tmi.twitch.tv"))
 				case "NOTICE":
 					msg := parseNOTICE(rawIRCMessage)
+					if msg.Err != nil {
+						return err
+					}
 					if msg.SystemMsg == "Login authentication failed" {
 						return ErrAuthFailed
 					}

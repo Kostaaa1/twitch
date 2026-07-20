@@ -14,7 +14,20 @@ type footer struct {
 	height    int
 }
 
-func NewFooter(t textarea.Model, height int) footer {
+func newFooter(height int) footer {
+	t := textarea.New()
+	t.CharLimit = 500
+	t.Placeholder = "Send a message"
+	t.Prompt = ""
+	t.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	t.ShowLineNumbers = false
+	t.SetWidth(0)
+	t.SetHeight(3)
+	t.Cursor.Blink = true
+	// t.Prompt = " ▶ "
+	// t.Prompt = "┃ "
+	t.Focus()
+
 	return footer{
 		roomState: new(roomState),
 		textarea:  t,
@@ -59,17 +72,15 @@ func (m model) renderRoomState() {
 		return
 	}
 
-	style := lipgloss.NewStyle().Faint(true)
-
 	switch {
 	case chat.Room.FollowersOnly != "-1":
 		m.footer.roomState.content = "[Followers-Only Chat]"
-		m.footer.roomState.render = style.Render(m.footer.roomState.content)
+		m.footer.roomState.render = faintStyle.Render(m.footer.roomState.content)
 	case chat.Room.IsSubsOnly:
 		m.footer.roomState.content = "[Subscriber-Only Chat]"
-		m.footer.roomState.render = style.Render(m.footer.roomState.content)
+		m.footer.roomState.render = faintStyle.Render(m.footer.roomState.content)
 	case chat.Room.IsEmoteOnly:
 		m.footer.roomState.content = "[Emote-Only Chat]"
-		m.footer.roomState.render = style.Render(m.footer.roomState.content)
+		m.footer.roomState.render = faintStyle.Render(m.footer.roomState.content)
 	}
 }

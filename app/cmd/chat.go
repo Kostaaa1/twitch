@@ -5,20 +5,59 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
 
-	// "github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 
 	"github.com/spf13/cobra"
 )
 
-// chatCmd represents the chat command
+func ensureUserData(ctx context.Context, c *helix.Client, conf *config.Config) error {
+	if conf.OAuthCreds.UserToken == nil {
+		if err := c.Authorize(ctx, helix.AuthOpts{
+			ForceVerify: true,
+			Scopes:      chat.DefaultScopes(),
+		}); err != nil {
+			return err
+		}
+	}
+
+	if conf.OAuthCreds.UserToken.Expired() {
+		if err := c.RefreshAccessToken(ctx); err != nil {
+			return err
+		}
+	}
+
+	if conf.User.ID == "" {
+		users, err := c.Users().Run(ctx)
+		if err != nil {
+			return err
+		}
+
+		user := users.Data[0]
+
+		conf.User = config.User{
+			ID:              user.ID,
+			Login:           user.Login,
+			DisplayName:     user.DisplayName,
+			Type:            user.Type,
+			BroadcasterType: user.BroadcasterType,
+			Description:     user.Description,
+			ProfileImageURL: user.ProfileImageURL,
+			OfflineImageURL: user.OfflineImageURL,
+			ViewCount:       user.ViewCount,
+			Email:           user.Email,
+			CreatedAt:       user.CreatedAt,
+		}
+	}
+
+	return nil
+}
+
 var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "",
@@ -29,62 +68,25 @@ var chatCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		defer func() {
-			fmt.Println("saving")
 			if err := config.Save(); err != nil {
 				log.Fatal(err)
 			}
 		}()
 
-		client := helix.New(
+		c := helix.New(
 			http.DefaultClient,
 			helix.WithOAuthCreds(&conf.OAuthCreds),
 		)
 
 		ctx := context.Background()
 
-		users, err := client.Users().Run(ctx)
-		if err != nil {
-			fmt.Println("this failed", err)
+		if err := ensureUserData(ctx, c, conf); err != nil {
 			log.Fatal(err)
 		}
 
-		user := users.Data[0].Login
-		conf.User.Login = user
-
-		if err := chat.Open(ctx, client, conf); err != nil {
+		if err := chat.Open(ctx, conf); err != nil {
 			log.Fatal(err)
 		}
-
-		// c, err := chat.DialWS(
-		// 	conf.User.Login,
-		// 	conf.OAuthCreds.UserToken.AccessToken,
-		// 	conf.CommandLineChat.OpenedChats,
-		// )
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-
-		// msgCh := make(chan interface{})
-
-		// c.SetMessageChan(msgCh)
-
-		// var wg sync.WaitGroup
-
-		// wg.Add(1)
-		// go func() {
-		// 	defer wg.Done()
-		// 	for msg := range msgCh {
-		// 		fmt.Println("MESSAGE:", msg)
-		// 	}
-		// }()
-
-		// wg.Add(1)
-		// go func() {
-		// 	defer wg.Done()
-		// 	c.Connect()
-		// }()
-
-		// wg.Wait()
 	},
 }
 

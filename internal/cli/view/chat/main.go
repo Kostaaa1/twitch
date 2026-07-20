@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -12,10 +11,16 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
-	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	errTimer           *time.Timer
+	maxMessagesLimit   = 100
+	maxOpenedChatLimit = 5
+	faintStyle         = lipgloss.NewStyle().Faint(true)
 )
 
 type Chat struct {
@@ -26,13 +31,12 @@ type Chat struct {
 }
 
 type model struct {
-	ws              *chat.WSClient
+	irc             *chat.TwitchIRC
 	conf            *config.Config
 	viewport        viewport.Model
 	labelBox        BoxWithLabel
 	width           int
 	height          int
-	msgChan         chan interface{}
 	chats           []Chat
 	showHelpMenu    bool
 	helperMenuWidth int
@@ -42,57 +46,15 @@ type model struct {
 
 type notifyMsg string
 
-func ConnectWithRetry(ctx context.Context, ws *chat.WSClient, tw *helix.Client, cfg *config.Config) error {
-	err := ws.Connect()
-	if err == nil {
-		return nil
-	}
-
-	if errors.Is(err, chat.ErrAuthFailed) {
-		if err := tw.RefreshAccessToken(ctx); err != nil {
-			return fmt.Errorf("failed to refresh token: %w", err)
-		}
-		if err := ws.Connect(); err != nil {
-			return fmt.Errorf("retry connect failed: %w", err)
-		}
-		return nil
-	}
-
-	return fmt.Errorf("connect failed: %w", err)
-}
-
-func defaultScopes() []helix.Scope {
+func DefaultScopes() []helix.Scope {
 	return []helix.Scope{helix.ChatEdit, helix.ChatRead}
 }
 
-func Open(ctx context.Context, c *helix.Client, cfg *config.Config) error {
-	if err := c.Authorize(ctx, helix.AuthOpts{
-		ForceVerify: false,
-		Scopes:      defaultScopes(),
-	}); err != nil {
-		return err
-	}
-
+func Open(ctx context.Context, cfg *config.Config) error {
 	vp := viewport.New(0, 0)
 	vp.SetContent("")
 
-	t := textarea.New()
-	t.CharLimit = 500
-	t.Placeholder = "Send a message"
-	t.Prompt = ""
-	// t.Prompt = " ▶ "
-	// t.Prompt = "┃ "
-	t.FocusedStyle.CursorLine = lipgloss.NewStyle()
-	t.ShowLineNumbers = false
-	t.SetWidth(0)
-	t.SetHeight(3)
-	t.Cursor.Blink = true
-
-	t.Focus()
-
-	msgChan := make(chan interface{})
-
-	ws, err := chat.DialWS(
+	irc, err := chat.DialIRC(
 		cfg.User.Login,
 		cfg.OAuthCreds.UserToken.AccessToken,
 		cfg.CommandLineChat.OpenedChats,
@@ -101,10 +63,13 @@ func Open(ctx context.Context, c *helix.Client, cfg *config.Config) error {
 		return err
 	}
 
-	ws.SetMessageChan(msgChan)
-
 	go func() {
-		if err := ConnectWithRetry(ctx, ws, c, cfg); err != nil {
+		if err := irc.Connect(
+			ctx,
+			cfg.OAuthCreds.UserToken.AccessToken,
+			cfg.User.Login,
+			cfg.CommandLineChat.OpenedChats,
+		); err != nil {
 			log.Fatal(err)
 		}
 	}()
@@ -116,21 +81,18 @@ func Open(ctx context.Context, c *helix.Client, cfg *config.Config) error {
 
 	m := model{
 		conf:            cfg,
-		ws:              ws,
+		irc:             irc,
 		chats:           chats,
 		width:           0,
 		height:          0,
-		msgChan:         msgChan,
 		labelBox:        NewBoxWithLabel(cfg.CommandLineChat.Colors.Primary),
 		viewport:        vp,
 		showHelpMenu:    false,
 		helperMenuWidth: 32,
-		footer:          NewFooter(t, 2),
+		footer:          newFooter(2),
 	}
 
-	p := tea.NewProgram(m, tea.WithAltScreen())
-
-	if _, err := p.Run(); err != nil {
+	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		return nil
 	}
 
@@ -141,22 +103,20 @@ func (m model) Init() tea.Cmd {
 	return m.waitForMsg()
 }
 
-var errTimer *time.Timer
-
 type NewChannelMessage struct {
 	Data interface{}
 }
 
 func (m model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		newMsg := <-m.msgChan
+		newMsg := <-m.irc.C
 		switch newMsg.(type) {
 		case notifyMsg:
 			if errTimer != nil {
 				errTimer.Stop()
 			}
 			errTimer = time.AfterFunc(time.Second*2, func() {
-				m.msgChan <- newMsg
+				m.irc.C <- newMsg
 			})
 			return newMsg
 		default:
@@ -249,9 +209,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case chat.Notice:
 			if chanMsg.Err != nil {
-				m.msgChan <- notifyMsg(chanMsg.SystemMsg)
-				m.msgChan <- notifyMsg(chanMsg.Err.Error())
-				m.ws.Conn.Close()
+				m.irc.C <- notifyMsg(chanMsg.SystemMsg)
+				m.irc.C <- notifyMsg(chanMsg.Err.Error())
+				if err := m.irc.Close(); err != nil {
+					fmt.Println(err)
+				}
 			}
 
 			chat := m.getChat(chanMsg.DisplayName)
@@ -330,7 +292,7 @@ func (m *model) sendMessage() {
 	if !strings.HasPrefix(input, "/") {
 		chat := m.getActiveChat()
 		if chat != nil {
-			m.ws.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
+			m.irc.FormatIRCMsgAndSend("PRIVMSG", chat.Channel, input)
 			chat.Messages = append(chat.Messages, m.FormatMessage(m.newMessage(chat), m.width))
 			m.updateChatViewport(chat)
 		}
@@ -350,7 +312,7 @@ func (m *model) handleInputCommand(cmd string) {
 	switch parts[0] {
 	case "/add":
 		if len(parts[1]) >= 25 {
-			m.msgChan <- notifyMsg("Channel name is too long. Limit is 25 characters.")
+			m.irc.C <- notifyMsg("Channel name is too long. Limit is 25 characters.")
 			return
 		}
 		channelName := strings.TrimSpace(parts[1])
@@ -358,7 +320,7 @@ func (m *model) handleInputCommand(cmd string) {
 	case "/info":
 		fmt.Println(parts[1])
 	default:
-		m.msgChan <- notifyMsg(fmt.Sprintf("invalid command: %s", cmd))
+		m.irc.C <- notifyMsg(fmt.Sprintf("invalid command: %s", cmd))
 	}
 }
 
@@ -376,7 +338,7 @@ func createNewChat(channel string, isActive bool) Chat {
 func (m *model) addChat(channelName string) {
 	newChat := createNewChat(channelName, true)
 	m.chats = append(m.chats, newChat)
-	m.ws.ConnectToChannel(newChat.Channel)
+	m.irc.ConnectToChannel(newChat.Channel)
 	m.updateChatViewport(&newChat)
 
 	chats := []string{}
@@ -399,7 +361,7 @@ func (m *model) removeActiveChatAndDisconnect() {
 			chats = append(chats, chat)
 		} else {
 			openedChats = append(openedChats[:i], openedChats[i+1:]...)
-			m.ws.LeaveChannel(chat.Channel)
+			m.irc.LeaveChannel(chat.Channel)
 			newActiveId = i
 			if i == len(m.chats)-1 {
 				newActiveId--
@@ -420,7 +382,7 @@ func (m *model) removeActiveChatAndDisconnect() {
 }
 
 func (m *model) appendMessage(chat *Chat, message string) {
-	if len(chat.Messages) > 100 {
+	if len(chat.Messages) > maxMessagesLimit {
 		chat.Messages = chat.Messages[1:]
 	}
 	chat.Messages = append(chat.Messages, message)
@@ -431,7 +393,7 @@ func (m *model) appendMessage(chat *Chat, message string) {
 
 func (m *model) updateChatViewport(chat *Chat) {
 	m.viewport.SetContent(strings.Join(chat.Messages, "\n"))
-	m.viewport.GotoBottom()
+	// m.viewport.GotoBottom()
 }
 
 func (m model) getActiveChat() *Chat {

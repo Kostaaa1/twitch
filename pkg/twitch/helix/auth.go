@@ -40,11 +40,11 @@ func (ut *UserToken) Expired() bool {
 }
 
 type OAuthCreds struct {
-	ClientID     string    `mapstructure:"client_id" json:"client_id"`
-	ClientSecret string    `mapstructure:"client_secret" json:"client_secret"`
-	RedirectURL  string    `mapstructure:"redirect_url" json:"redirect_url"`
-	AppToken     AppToken  `mapstructure:"app_token" json:"app_token"`
-	UserToken    UserToken `mapstructure:"user_token" json:"user_token"`
+	ClientID     string     `mapstructure:"client_id" json:"client_id"`
+	ClientSecret string     `mapstructure:"client_secret" json:"client_secret"`
+	RedirectURL  string     `mapstructure:"redirect_url" json:"redirect_url"`
+	AppToken     *AppToken  `mapstructure:"app_token" json:"app_token"`
+	UserToken    *UserToken `mapstructure:"user_token" json:"user_token"`
 }
 
 type AuthOpts struct {

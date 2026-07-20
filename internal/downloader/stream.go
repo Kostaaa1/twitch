@@ -9,29 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/downloader/m3u8"
 	"github.com/Kostaaa1/twitch/internal/httputil"
 )
-
-func (dl *Downloader) MasterPlaylistStream(ctx context.Context, channel string) (*m3u8.MasterPlaylist, error) {
-	tok, err := dl.gql.StreamPlaybackAccessToken(ctx, channel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get livestream credentials: %w", err)
-	}
-
-	url := fmt.Sprintf("https://usher.ttvnw.net/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_audio_only=true&allow_source=true", channel, tok.Value, tok.Signature)
-
-	b, _, err := httputil.DoBytes(
-		ctx,
-		dl.http,
-		url,
-		http.MethodGet,
-		nil,
-		nil,
-	)
-
-	return m3u8.Master(b), nil
-}
 
 func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 	isLive, err := dl.gql.IsChannelLive(ctx, u.ID)
@@ -42,7 +21,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 		return fmt.Errorf("%s is offline", u.ID)
 	}
 
-	master, err := dl.MasterPlaylistStream(ctx, u.ID)
+	master, err := dl.usher.MasterPlaylistStream(ctx, u.ID)
 	if err != nil {
 		return err
 	}

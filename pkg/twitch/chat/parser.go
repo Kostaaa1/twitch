@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+var (
+	emojiRx = regexp.MustCompile(`[^\p{L}\p{N}\p{Zs}:/?&=.-@]+`)
+)
+
 func parseROOMSTATE(rawMsg string) Room {
 	var parts []string
 	metadata := strings.Split(rawMsg, "@")
@@ -46,7 +50,6 @@ func parseROOMSTATE(rawMsg string) Room {
 }
 
 func parsePRIVMSG(msg string) Message {
-	emojiRx := regexp.MustCompile(`[^\p{L}\p{N}\p{Zs}:/?&=.-@]+`)
 	parts := strings.SplitN(msg, " :", 2)
 	extracted := strings.TrimSpace(strings.Split(parts[1], " :")[1])
 	message := Message{

@@ -13,6 +13,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/internal/httputil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
+	"github.com/Kostaaa1/twitch/pkg/usher"
 )
 
 type Transfer struct {
@@ -38,12 +39,14 @@ func defaultTransfer() *Transfer {
 type Downloader struct {
 	gql      *gql.Client
 	http     *http.Client
+	usher    *usher.Client
 	notifyFn func(Progress)
 	transfer *Transfer
 }
 
 func New(gql *gql.Client, http *http.Client) *Downloader {
 	return &Downloader{
+		usher:    usher.New(http, gql),
 		gql:      gql,
 		http:     http,
 		transfer: defaultTransfer(),
