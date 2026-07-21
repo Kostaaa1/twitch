@@ -106,8 +106,6 @@ func (c *Client) RequestWithAccessToken(
 		return ErrMissingClientID
 	}
 
-	fmt.Println("EXPIRED ACCESS TOKEN?", c.OAuthCreds.UserToken.Expired())
-
 	if c.OAuthCreds.UserToken.Expired() {
 		if err := c.RefreshAccessToken(ctx); err != nil {
 			return err

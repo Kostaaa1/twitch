@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -16,35 +17,69 @@ import (
 )
 
 type AppToken struct {
-	AccessToken string `mapstructure:"access_token" json:"access_token"`
-	ExpiresIn   int    `mapstructure:"expires_in" json:"expires_in"`
-	TokenType   string `mapstructure:"token_type" json:"token_type"`
+	AccessToken string    `json:"access_token"`
+	ExpiresIn   int       `json:"expires_in"`
+	TokenType   string    `json:"token_type"`
+	ExpiresDate time.Time `json:"expires_date"`
+}
+
+func (p *AppToken) UnmarshalJSON(b []byte) error {
+	type Alias AppToken
+	aux := &struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	p.ExpiresDate = time.Now().Add(time.Second * time.Duration(p.ExpiresIn))
+	return nil
 }
 
 func (at *AppToken) Expired() bool {
-	date := time.Now().Add(time.Duration(at.ExpiresIn))
-	return time.Since(date) > 0
+	return time.Since(at.ExpiresDate) > 0
 }
 
 type UserToken struct {
-	RefreshToken string   `mapstructure:"refresh_token" json:"refresh_token"`
-	AccessToken  string   `mapstructure:"access_token" json:"access_token"`
-	Scope        []string `mapstructure:"scope" json:"scope"`
-	ExpiresIn    int      `mapstructure:"expires_in" json:"expires_in"`
-	TokenType    string   `mapstructure:"token_type" json:"token_type"`
+	RefreshToken string    `json:"refresh_token"`
+	AccessToken  string    `json:"access_token"`
+	Scope        []string  `json:"scope"`
+	ExpiresIn    int       `json:"expires_in"`
+	TokenType    string    `json:"token_type"`
+	ExpiresDate  time.Time `json:"expires_date"`
+}
+
+func (p *UserToken) UnmarshalJSON(b []byte) error {
+	type Alias UserToken
+	aux := &struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	p.ExpiresDate = time.Now().Add(time.Second * time.Duration(p.ExpiresIn))
+	return nil
+
 }
 
 func (ut *UserToken) Expired() bool {
-	date := time.Now().Add(time.Duration(ut.ExpiresIn))
-	return time.Since(date) > 0
+	return time.Since(ut.ExpiresDate) > 0
 }
 
 type OAuthCreds struct {
-	ClientID     string     `mapstructure:"client_id" json:"client_id"`
-	ClientSecret string     `mapstructure:"client_secret" json:"client_secret"`
-	RedirectURL  string     `mapstructure:"redirect_url" json:"redirect_url"`
-	AppToken     *AppToken  `mapstructure:"app_token" json:"app_token"`
-	UserToken    *UserToken `mapstructure:"user_token" json:"user_token"`
+	ClientID     string     `json:"client_id"`
+	ClientSecret string     `json:"client_secret"`
+	RedirectURL  string     `json:"redirect_url"`
+	AppToken     *AppToken  `json:"app_token"`
+	UserToken    *UserToken `json:"user_token"`
+	ExpiresDate  time.Time  `json:"expires_date"`
 }
 
 type AuthOpts struct {
@@ -260,7 +295,12 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 		Handler: mux,
 	}
 
-	mux.HandleFunc(redirectURL.Path, func(w http.ResponseWriter, r *http.Request) {
+	pattern := "/"
+	if len(redirectURL.Path) > 0 {
+		pattern = redirectURL.Path
+	}
+
+	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := srv.Shutdown(context.Background()); err != nil {
 				log.Printf("server shutdown error: %v", err)
@@ -273,10 +313,12 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 		if vstate != qstate {
 			panic(fmt.Errorf("oauth states do not match - (%s - %s) CSRF attempt\n", vstate, qstate))
 		}
+
 		if err != "" {
 			errDesc := q.Get("error_description")
 			panic(errors.Join(errors.New(errDesc), errors.New(err)))
 		}
+
 		if code == "" {
 			panic("code is empty")
 		}

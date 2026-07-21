@@ -67,7 +67,7 @@ func (c *TwitchIRC) writeToChannel(msg interface{}) {
 	c.C <- msg
 }
 
-func (c *TwitchIRC) Connect(ctx context.Context, accessToken, username string, channels []string) error {
+func (c *TwitchIRC) Connect(accessToken, username string, channels []string) error {
 	c.SendMessage([]byte("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands"))
 
 	pass := fmt.Sprintf("PASS oauth:%s", accessToken)
@@ -79,6 +79,10 @@ func (c *TwitchIRC) Connect(ctx context.Context, accessToken, username string, c
 	join := fmt.Sprintf("JOIN #%s", strings.Join(channels, ",#"))
 	c.SendMessage([]byte(join))
 
+	return nil
+}
+
+func (c *TwitchIRC) Listen(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -91,6 +95,8 @@ func (c *TwitchIRC) Connect(ctx context.Context, accessToken, username string, c
 			log.Printf("Error reading WebSocket message: %v", err)
 			return err
 		}
+
+		fmt.Println(string(msg))
 
 		if msgType == websocket.TextMessage {
 			rawIRCMessage := strings.TrimSpace(string(msg))

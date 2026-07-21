@@ -15,7 +15,7 @@ func (m *model) moveTabForward() {
 
 func (m *model) addRoomToChat(chanMsg chat.Room) {
 	for i := range m.chats {
-		c := &(m.chats)[i]
+		c := m.chats[i]
 		if c.Channel == chanMsg.Metadata.Channel {
 			c.Room = chanMsg
 			break
@@ -42,10 +42,11 @@ func (m *model) nextTab() {
 			break
 		}
 	}
-	(m.chats)[activeIndex].IsActive = false
+	m.chats[activeIndex].IsActive = false
 	nextIndex := (activeIndex + 1) % len(m.chats)
-	(m.chats)[nextIndex].IsActive = true
-	m.updateChatViewport(&(m.chats)[nextIndex])
+	m.chats[nextIndex].IsActive = true
+	m.viewport.GotoBottom()
+	m.updateChatViewport(m.chats[nextIndex])
 }
 
 func (m *model) prevTab() {
@@ -59,5 +60,6 @@ func (m *model) prevTab() {
 	(m.chats)[activeIndex].IsActive = false
 	prevIndex := (activeIndex - 1 + len(m.chats)) % len(m.chats)
 	(m.chats)[prevIndex].IsActive = true
-	m.updateChatViewport(&(m.chats)[prevIndex])
+	m.viewport.GotoBottom()
+	m.updateChatViewport(m.chats[prevIndex])
 }

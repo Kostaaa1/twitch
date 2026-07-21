@@ -75,7 +75,7 @@ func (b *BoxWithLabel) renderTab(chat Chat, id int) string {
 	return l.Render(fmt.Sprintf(" %s ", chat.Channel))
 }
 
-func (b *BoxWithLabel) RenderBoxWithTabs(chats []Chat, content string) string {
+func (b *BoxWithLabel) RenderBoxWithTabs(chats []*Chat, content string) string {
 	var (
 		topBorderStyler func(strs ...string) string = lipgloss.NewStyle().
 				Foreground(b.BoxStyle.GetBorderTopForeground()).
@@ -94,7 +94,7 @@ func (b *BoxWithLabel) RenderBoxWithTabs(chats []Chat, content string) string {
 
 	var stack []string
 	for i := range chats {
-		stack = append(stack, b.renderTab(chats[i], i))
+		stack = append(stack, b.renderTab(*chats[i], i))
 	}
 	labels := lipgloss.JoinHorizontal(lipgloss.Position(0), stack...)
 

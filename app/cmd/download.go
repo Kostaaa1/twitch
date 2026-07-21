@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type T struct {
+var (
 	output      string
 	quality     string
 	threads     int
@@ -28,9 +28,7 @@ type T struct {
 	start, end  time.Duration
 	showSpinner bool
 	verbose     bool
-}
-
-var cmdArgs T
+)
 
 func runTwitchBatchDownload(
 	ctx context.Context,
@@ -38,8 +36,8 @@ func runTwitchBatchDownload(
 	units []*downloader.Unit,
 ) error {
 	g, ctx := errgroup.WithContext(ctx)
-	if cmdArgs.threads > 0 {
-		g.SetLimit(cmdArgs.threads)
+	if threads > 0 {
+		g.SetLimit(threads)
 	}
 	for _, unit := range units {
 		g.Go(func() error {
@@ -160,10 +158,10 @@ func runDownloadCmd(args []string) error {
 
 	units, err := cli.ParseUnits(
 		args,
-		cmdArgs.quality,
-		cmdArgs.start,
-		cmdArgs.end,
-		cmdArgs.output,
+		quality,
+		start,
+		end,
+		output,
 	)
 
 	if err != nil {
@@ -171,7 +169,7 @@ func runDownloadCmd(args []string) error {
 	}
 
 	var spin *spinner.Model
-	if cmdArgs.showSpinner {
+	if showSpinner {
 		spin = spinner.New(ctx, spinner.WithCancelFunc(cancel), spinner.WithUnits(units))
 		g.Go(func() error {
 			spin.Run()
@@ -205,7 +203,7 @@ func runDownloadCmd(args []string) error {
 			}
 
 			downloadGroup.Go(func() error {
-				if cmdArgs.watch {
+				if watch {
 					helix := helix.New(
 						httpClient,
 						helix.WithOAuthCreds(&cfg.OAuthCreds),
@@ -243,11 +241,11 @@ var downloadCmd = &cobra.Command{
 
 func init() {
 	cobra.OnInitialize()
-	downloadCmd.PersistentFlags().StringVarP(&cmdArgs.output, "output", "o", "", "")
-	downloadCmd.PersistentFlags().BoolVarP(&cmdArgs.watch, "watch", "w", false, "")
-	downloadCmd.PersistentFlags().BoolVar(&cmdArgs.showSpinner, "spinner", true, "")
-	downloadCmd.PersistentFlags().StringVarP(&cmdArgs.quality, "quality", "q", "best", "")
-	downloadCmd.PersistentFlags().DurationVarP(&cmdArgs.start, "start", "s", 0, " attribution")
-	downloadCmd.PersistentFlags().DurationVarP(&cmdArgs.end, "end", "e", 0, " attribution")
+	downloadCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "")
+	downloadCmd.PersistentFlags().BoolVarP(&watch, "watch", "w", false, "")
+	downloadCmd.PersistentFlags().BoolVar(&showSpinner, "spinner", true, "")
+	downloadCmd.PersistentFlags().StringVarP(&quality, "quality", "q", "best", "")
+	downloadCmd.PersistentFlags().DurationVarP(&start, "start", "s", 0, " attribution")
+	downloadCmd.PersistentFlags().DurationVarP(&end, "end", "e", 0, " attribution")
 	rootCmd.AddCommand(downloadCmd)
 }

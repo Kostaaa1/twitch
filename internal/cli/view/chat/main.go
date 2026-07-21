@@ -17,10 +17,9 @@ import (
 )
 
 var (
-	errTimer           *time.Timer
-	maxMessagesLimit   = 100
-	maxOpenedChatLimit = 5
-	faintStyle         = lipgloss.NewStyle().Faint(true)
+	errTimer            *time.Timer
+	maxMessagesLimit    = 50
+	maxOpenedChatsLimit = 5
 )
 
 type Chat struct {
@@ -37,7 +36,7 @@ type model struct {
 	labelBox        BoxWithLabel
 	width           int
 	height          int
-	chats           []Chat
+	chats           []*Chat
 	showHelpMenu    bool
 	helperMenuWidth int
 	notifyMsg       string
@@ -52,37 +51,38 @@ func DefaultScopes() []helix.Scope {
 
 func Open(ctx context.Context, cfg *config.Config) error {
 	vp := viewport.New(0, 0)
+	vp.MouseWheelEnabled = true
+	vp.MouseWheelDelta = 3
 	vp.SetContent("")
 
-	irc, err := chat.DialIRC(
-		cfg.User.Login,
-		cfg.OAuthCreds.UserToken.AccessToken,
-		cfg.CommandLineChat.OpenedChats,
-	)
+	accessToken := cfg.OAuthCreds.UserToken.AccessToken
+	login := cfg.User.Login
+	opened := cfg.CommandLineChat.OpenedChats
+
+	irc, err := chat.DialIRC(login, accessToken, opened)
 	if err != nil {
 		return err
 	}
 
+	if err := irc.Connect(accessToken, login, opened); err != nil {
+		log.Fatal(err)
+	}
+
 	go func() {
-		if err := irc.Connect(
-			ctx,
-			cfg.OAuthCreds.UserToken.AccessToken,
-			cfg.User.Login,
-			cfg.CommandLineChat.OpenedChats,
-		); err != nil {
+		if err := irc.Listen(ctx); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	var chats []Chat
+	var chats []*Chat
 	for i, channel := range cfg.CommandLineChat.OpenedChats {
 		chats = append(chats, createNewChat(channel, i == 0))
 	}
 
 	m := model{
+		chats:           chats,
 		conf:            cfg,
 		irc:             irc,
-		chats:           chats,
 		width:           0,
 		height:          0,
 		labelBox:        newBoxWithLabel(cfg.CommandLineChat.Colors.Primary),
@@ -95,7 +95,7 @@ func Open(ctx context.Context, cfg *config.Config) error {
 	if _, err := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),
-		// tea.WithMouseAllMotion(),
+		tea.WithMouseCellMotion(),
 	).Run(); err != nil {
 		return nil
 	}
@@ -136,12 +136,16 @@ func (m *model) showNoActiveChatsMessage() {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		tiCmd tea.Cmd
+		tiCmd, vpCmd tea.Cmd
 	)
 
 	m.footer.textarea, tiCmd = m.footer.textarea.Update(msg)
 
 	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		m.viewport, vpCmd = m.viewport.Update(msg)
+		return m, tea.Batch(tiCmd, vpCmd)
+
 	case tea.WindowSizeMsg:
 		w := msg.Width - 2
 		h := msg.Height - 8
@@ -157,7 +161,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Height(m.viewport.Height)
 
 		if len(m.chats) > 0 && m.chats[0].IsActive {
-			m.updateChatViewport(&m.chats[0])
+			m.updateChatViewport(m.chats[0])
 		} else if len(m.chats) == 0 {
 			m.showNoActiveChatsMessage()
 		}
@@ -168,9 +172,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case tea.KeyEnter:
 			m.sendMessage()
-		case tea.KeyCtrlRight:
+		case tea.KeyCtrlRight, tea.KeyTab:
 			m.nextTab()
-		case tea.KeyCtrlLeft:
+		case tea.KeyCtrlLeft, tea.KeyShiftTab:
 			m.prevTab()
 		case tea.KeyCtrlShiftRight:
 			m.moveTabForward()
@@ -179,15 +183,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlW:
 			m.removeActiveChatAndDisconnect()
 		case tea.KeyCtrlO:
-		case tea.KeyTab:
+		case tea.KeyCtrlG:
 			m.showHelpMenu = !m.showHelpMenu
 			if m.showHelpMenu {
 				newWidth := m.width - m.helperMenuWidth
 				m.viewport.Width = newWidth
-				// m.footer.textarea.Width = newWidth - m.footer.roomState.Len() - 4
 			} else {
 				m.viewport.Width = m.width
-				// m.footer.textarea.Width = m.width - m.footer.roomState.Len() - 4
 			}
 		}
 
@@ -225,8 +227,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.appendMessage(chat, chanMsg.SystemMsg)
 			}
 		}
+
 		return m, m.waitForMsg()
 	}
+
 	return m, tea.Batch(tiCmd)
 }
 
@@ -273,6 +277,7 @@ func (m *model) newMessage(newChat *Chat) chat.Message {
 	newMessage := chat.Message{
 		Message: m.footer.textarea.Value(),
 		Metadata: chat.MessageMetadata{
+			RoomID: newChat.Room.RoomID,
 			Metadata: chat.Metadata{
 				Color:        newChat.Room.Metadata.Color,
 				DisplayName:  newChat.Room.Metadata.DisplayName,
@@ -280,7 +285,6 @@ func (m *model) newMessage(newChat *Chat) chat.Message {
 				IsSubscriber: newChat.Room.Metadata.IsSubscriber,
 				UserType:     newChat.Room.Metadata.UserType,
 			},
-			RoomID: newChat.Room.RoomID,
 		},
 	}
 	return newMessage
@@ -320,7 +324,7 @@ func (m *model) handleInputCommand(cmd string) {
 			return
 		}
 		channelName := strings.TrimSpace(parts[1])
-		m.addChat(channelName)
+		m.addChat(channelName, false)
 	case "/info":
 		fmt.Println(parts[1])
 	default:
@@ -328,36 +332,35 @@ func (m *model) handleInputCommand(cmd string) {
 	}
 }
 
-func createNewChat(channel string, isActive bool) Chat {
-	return Chat{
-		IsActive: isActive,
+func createNewChat(channel string, active bool) *Chat {
+	return &Chat{
+		IsActive: active,
+		Channel:  channel,
+		Room:     chat.Room{},
 		Messages: []string{
-			lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Welcome to %s channel", channel)),
+			faintStyle.Render(fmt.Sprintf("Welcome to %s channel", channel)),
 		},
-		Room:    chat.Room{},
-		Channel: channel,
 	}
 }
 
-func (m *model) addChat(channelName string) {
-	newChat := createNewChat(channelName, true)
-	m.chats = append(m.chats, newChat)
-	m.irc.ConnectToChannel(newChat.Channel)
-	m.updateChatViewport(&newChat)
-
-	chats := []string{}
-	for i := range m.chats {
-		if m.chats[i].Channel != newChat.Channel {
-			m.chats[i].IsActive = false
+func (m *model) addChat(channel string, active bool) {
+	for _, chat := range m.chats {
+		if chat.Channel == channel {
+			return
 		}
-		chats = append(chats, m.chats[i].Channel)
 	}
-	m.conf.CommandLineChat.OpenedChats = chats
+
+	m.irc.ConnectToChannel(channel)
+
+	c := createNewChat(channel, active)
+	m.conf.CommandLineChat.OpenedChats = append(m.conf.CommandLineChat.OpenedChats, channel)
+	m.chats = append(m.chats, c)
+	m.updateChatViewport(c)
 }
 
 func (m *model) removeActiveChatAndDisconnect() {
 	openedChats := m.conf.CommandLineChat.OpenedChats
-	var chats []Chat
+	var chats []*Chat
 	newActiveId := -1
 
 	for i, chat := range m.chats {
@@ -376,7 +379,7 @@ func (m *model) removeActiveChatAndDisconnect() {
 	if newActiveId > -1 {
 		chats[newActiveId].IsActive = true
 		chat := chats[newActiveId]
-		m.updateChatViewport(&chat)
+		m.updateChatViewport(chat)
 	} else {
 		m.showNoActiveChatsMessage()
 	}
@@ -386,9 +389,6 @@ func (m *model) removeActiveChatAndDisconnect() {
 }
 
 func (m *model) appendMessage(chat *Chat, message string) {
-	if len(chat.Messages) > maxMessagesLimit {
-		chat.Messages = chat.Messages[1:]
-	}
 	chat.Messages = append(chat.Messages, message)
 	if chat.IsActive {
 		m.updateChatViewport(chat)
@@ -396,14 +396,19 @@ func (m *model) appendMessage(chat *Chat, message string) {
 }
 
 func (m *model) updateChatViewport(chat *Chat) {
-	m.viewport.SetContent(strings.Join(chat.Messages, "\n"))
-	m.viewport.GotoBottom()
+	if m.viewport.AtBottom() {
+		if len(chat.Messages) >= maxMessagesLimit {
+			chat.Messages = chat.Messages[len(chat.Messages)-maxMessagesLimit:]
+		}
+		m.viewport.SetContent(strings.Join(chat.Messages, "\n"))
+		m.viewport.GotoBottom()
+	}
 }
 
 func (m model) getActiveChat() *Chat {
 	for i := range m.chats {
 		if (m.chats)[i].IsActive {
-			return &(m.chats[i])
+			return m.chats[i]
 		}
 	}
 	return nil
@@ -412,7 +417,7 @@ func (m model) getActiveChat() *Chat {
 func (m model) getChat(roomID string) *Chat {
 	for i := range m.chats {
 		if (m.chats)[i].Room.RoomID == roomID || (m.chats)[i].Channel == roomID {
-			return &(m.chats[i])
+			return m.chats[i]
 		}
 	}
 	return nil

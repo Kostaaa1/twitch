@@ -7,6 +7,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	faintStyle = lipgloss.NewStyle().Faint(true)
+)
+
 type footer struct {
 	roomState *roomState
 	textarea  textarea.Model
