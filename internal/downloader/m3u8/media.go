@@ -23,7 +23,7 @@ type Map struct {
 }
 
 type MediaPlaylist struct {
-	URL             string
+	Source          string
 	Version         string
 	Timestamp       string
 	PlaylistType    string
@@ -91,6 +91,7 @@ func parsePlaylistMap(list *MediaPlaylist, value string) error {
 
 func parseExtInf(r *bufio.Reader, list *MediaPlaylist, line string) error {
 	trimmed := line[:len(line)-1]
+
 	seconds, err := strconv.ParseFloat(trimmed, 64)
 	if err != nil {
 		return err
@@ -113,7 +114,7 @@ func parseExtInf(r *bufio.Reader, list *MediaPlaylist, line string) error {
 }
 
 func ParseMediaPlaylist(r io.Reader, url string) (*MediaPlaylist, error) {
-	mediaList := &MediaPlaylist{URL: url}
+	mediaList := &MediaPlaylist{Source: url}
 
 	reader := bufio.NewReader(r)
 

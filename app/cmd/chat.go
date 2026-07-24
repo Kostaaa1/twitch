@@ -1,6 +1,3 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -10,9 +7,9 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/cli/view/chat"
 	"github.com/Kostaaa1/twitch/internal/config"
-
+	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
-
+	"github.com/Kostaaa1/twitch/pkg/twitch/usher"
 	"github.com/spf13/cobra"
 )
 
@@ -25,19 +22,48 @@ func ensureUserData(ctx context.Context, c *helix.Client, conf *config.Config) e
 			return err
 		}
 	}
-
 	if conf.OAuthCreds.UserToken.Expired() {
 		if err := c.RefreshAccessToken(ctx); err != nil {
 			return err
 		}
 	}
-
 	if conf.User.ID == "" {
 		users, err := c.Users().Run(ctx)
 		if err != nil {
 			return err
 		}
 		conf.User = users.Data[0]
+	}
+	return nil
+}
+
+func runChat() error {
+	conf, err := config.Get()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := config.Save(conf); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	http := http.DefaultClient
+
+	c := helix.New(
+		http,
+		helix.WithOAuthCreds(&conf.OAuthCreds),
+	)
+	usher := usher.New(http, gql.New(http))
+
+	ctx := context.Background()
+
+	if err := ensureUserData(ctx, c, conf); err != nil {
+		return err
+	}
+
+	if err := chat.Open(ctx, conf, usher); err != nil {
+		return err
 	}
 
 	return nil
@@ -48,28 +74,7 @@ var chatCmd = &cobra.Command{
 	Short: "",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		conf, err := config.Get()
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() {
-			if err := config.Save(conf); err != nil {
-				log.Fatal(err)
-			}
-		}()
-
-		c := helix.New(
-			http.DefaultClient,
-			helix.WithOAuthCreds(&conf.OAuthCreds),
-		)
-
-		ctx := context.Background()
-
-		if err := ensureUserData(ctx, c, conf); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := chat.Open(ctx, conf); err != nil {
+		if err := runChat(); err != nil {
 			log.Fatal(err)
 		}
 	},

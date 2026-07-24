@@ -25,12 +25,10 @@ var (
 
 func DialIRC(username, accessToken string, channels []string) (*TwitchIRC, error) {
 	socketURL := "wss://irc-ws.chat.twitch.tv:443"
-
 	conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	return &TwitchIRC{
 		conn: conn,
 		C:    make(chan interface{}),
@@ -95,8 +93,6 @@ func (c *TwitchIRC) Listen(ctx context.Context) error {
 			log.Printf("Error reading WebSocket message: %v", err)
 			return err
 		}
-
-		fmt.Println(string(msg))
 
 		if msgType == websocket.TextMessage {
 			rawIRCMessage := strings.TrimSpace(string(msg))

@@ -16,6 +16,12 @@ import (
 	"github.com/Kostaaa1/twitch/internal/httputil"
 )
 
+var (
+	ErrMissingClientID     = errors.New("client ID is missing")
+	ErrMissingClientSecret = errors.New("client secret is missing")
+	ErrMissingRedirectURL  = errors.New("redirect url is missing")
+)
+
 type AppToken struct {
 	AccessToken string    `json:"access_token"`
 	ExpiresIn   int       `json:"expires_in"`
@@ -23,24 +29,31 @@ type AppToken struct {
 	ExpiresDate time.Time `json:"expires_date"`
 }
 
-func (p *AppToken) UnmarshalJSON(b []byte) error {
+func (t *AppToken) UnmarshalJSON(b []byte) error {
 	type Alias AppToken
 	aux := &struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
 		*Alias
+		ExpiresDate string `json:"expires_date"`
 	}{
-		Alias: (*Alias)(p),
+		Alias: (*Alias)(t),
 	}
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
 	}
-	p.ExpiresDate = time.Now().Add(time.Second * time.Duration(p.ExpiresIn))
+	if aux.ExpiresDate != "" {
+		parsed, err := time.Parse(time.RFC3339, aux.ExpiresDate)
+		if err != nil {
+			return err
+		}
+		t.ExpiresDate = parsed
+	} else if t.ExpiresIn > 0 {
+		t.ExpiresDate = time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)
+	}
 	return nil
 }
 
-func (at *AppToken) Expired() bool {
-	return time.Since(at.ExpiresDate) > 0
+func (t *AppToken) Expired() bool {
+	return t.ExpiresDate.IsZero() || time.Since(t.ExpiresDate) > 0
 }
 
 type UserToken struct {
@@ -52,25 +65,31 @@ type UserToken struct {
 	ExpiresDate  time.Time `json:"expires_date"`
 }
 
-func (p *UserToken) UnmarshalJSON(b []byte) error {
+func (t *UserToken) UnmarshalJSON(b []byte) error {
 	type Alias UserToken
 	aux := &struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
 		*Alias
+		ExpiresDate string `json:"expires_date"`
 	}{
-		Alias: (*Alias)(p),
+		Alias: (*Alias)(t),
 	}
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
 	}
-	p.ExpiresDate = time.Now().Add(time.Second * time.Duration(p.ExpiresIn))
+	if aux.ExpiresDate != "" {
+		parsed, err := time.Parse(time.RFC3339, aux.ExpiresDate)
+		if err != nil {
+			return err
+		}
+		t.ExpiresDate = parsed
+	} else if t.ExpiresIn > 0 {
+		t.ExpiresDate = time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)
+	}
 	return nil
-
 }
 
-func (ut *UserToken) Expired() bool {
-	return time.Since(ut.ExpiresDate) > 0
+func (t *UserToken) Expired() bool {
+	return t.ExpiresDate.IsZero() || time.Since(t.ExpiresDate) > 0
 }
 
 type OAuthCreds struct {
@@ -79,7 +98,6 @@ type OAuthCreds struct {
 	RedirectURL  string     `json:"redirect_url"`
 	AppToken     *AppToken  `json:"app_token"`
 	UserToken    *UserToken `json:"user_token"`
-	ExpiresDate  time.Time  `json:"expires_date"`
 }
 
 type AuthOpts struct {
@@ -138,12 +156,6 @@ func (c *OAuthCreds) Validate() error {
 	}
 	return nil
 }
-
-var (
-	ErrMissingClientID     = errors.New("client ID is missing")
-	ErrMissingClientSecret = errors.New("client secret is missing")
-	ErrMissingRedirectURL  = errors.New("redirect url is missing")
-)
 
 func (h *Client) AppAccessToken(ctx context.Context) error {
 	values := url.Values{

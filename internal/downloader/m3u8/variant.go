@@ -10,13 +10,13 @@ type VariantPlaylist struct {
 	Resolution string
 	Video      string
 	FrameRate  string
-	URL        string
+	Source     string
 	Serialized string
 }
 
 func parseVariantPlaylist(line, URL string) *VariantPlaylist {
 	var variant VariantPlaylist
-	variant.URL = URL
+	variant.Source = URL
 
 	line = strings.TrimPrefix(line, "#EXT-X-STREAM-INF:")
 	params := strings.Split(line, ",")

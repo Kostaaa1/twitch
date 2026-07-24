@@ -14,8 +14,8 @@ type MasterPlaylist struct {
 	ServingID       string `m3u8:"SERVING-ID"`
 	Cluster         string `m3u8:"CLUSTER"`
 	UserCountry     string `m3u8:"USER-COUNTRY"`
+	Source          string
 	ManifestCluster string `m3u8:"MANIFEST-CLUSTER"`
-	UsherURL        string
 	Lists           []*VariantPlaylist
 	Serialized      string
 }
@@ -69,7 +69,6 @@ func (m *MasterPlaylist) parse() {
 		if strings.HasPrefix(line, "#EXT-X-TWITCH-INFO:") {
 			m.parseLineInfo(line)
 		}
-
 		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
 			vl := parseVariantPlaylist(line, lines[i+1])
 			m.Lists = append(m.Lists, vl)

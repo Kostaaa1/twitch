@@ -24,13 +24,13 @@ func (dl *Downloader) mediaPlaylistVideo(ctx context.Context, unit *Unit) (*m3u8
 		return nil, err
 	}
 
-	resp, err := httputil.Do(ctx, dl.http, variant.URL, http.MethodGet, nil, nil)
+	resp, err := httputil.Do(ctx, dl.http, variant.Source, http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.URL)
+	playlist, err := m3u8.ParseMediaPlaylist(resp.Body, variant.Source)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 	}
 
 	if list.Map != nil && list.Map.URI != "" {
-		if err := dl.fetchDownload(ctx, u, buildSegURL(list.URL, list.Map.URI)); err != nil {
+		if err := dl.fetchDownload(ctx, u, buildSegURL(list.Source, list.Map.URI)); err != nil {
 			return err
 		}
 	}
@@ -83,7 +83,7 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 				}
 
 				seg := list.Segments[chunkInx]
-				segURL := buildSegURL(list.URL, seg.URI)
+				segURL := buildSegURL(list.Source, seg.URI)
 
 				body, err := dl.fetchSegment(ctx, u, segURL)
 				if err != nil {

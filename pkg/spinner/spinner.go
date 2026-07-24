@@ -26,9 +26,9 @@ type unit struct {
 	err       error
 	total     float64
 	byteCount float64
-	estimated time.Time     // estimated time for finish (based on total)
-	startTime time.Time     //
-	elapsed   time.Duration // how much time passed since start
+	estimated time.Time
+	startTime time.Time
+	elapsed   time.Duration
 	done      bool
 }
 

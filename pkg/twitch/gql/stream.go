@@ -5,13 +5,13 @@ import (
 	"fmt"
 )
 
-func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, error) {
-	data, err := tw.StreamMetadata(ctx, channelName)
-	if err != nil {
-		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
-	}
-	return len(data.User.Stream.ID) > 0, nil
-}
+// func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, error) {
+// 	data, err := tw.StreamMetadata(ctx, channelName)
+// 	if err != nil {
+// 		return false, fmt.Errorf("failed to get the stream metadata for user: %s. error: %v", channelName, err)
+// 	}
+// 	return len(data.User.Stream.ID) > 0, nil
+// }
 
 func (tw *Client) UseLiveBroadcast(ctx context.Context, channelName string) (*UseLiveBroadcast, error) {
 	gqlPl := `{

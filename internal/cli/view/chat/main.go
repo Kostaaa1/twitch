@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/Kostaaa1/twitch/internal/cli/view/components"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+	"github.com/Kostaaa1/twitch/pkg/twitch/usher"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	errTimer            *time.Timer
 	maxMessagesLimit    = 50
 	maxOpenedChatsLimit = 5
 )
@@ -29,6 +29,8 @@ type Chat struct {
 	Room     chat.Room
 }
 
+type errMsg string
+
 type model struct {
 	irc             *chat.TwitchIRC
 	conf            *config.Config
@@ -39,17 +41,20 @@ type model struct {
 	chats           []*Chat
 	showHelpMenu    bool
 	helperMenuWidth int
-	notifyMsg       string
 	footer          footer
+	usher           *usher.Client
+	errMsg          errMsg
 }
-
-type notifyMsg string
 
 func DefaultScopes() []helix.Scope {
 	return []helix.Scope{helix.ChatEdit, helix.ChatRead}
 }
 
-func Open(ctx context.Context, cfg *config.Config) error {
+// TODO:
+// responsive - wrap messages based on window width
+// display livestream info - online/ofline, viewers
+// display chat history from past 15 min
+func Open(ctx context.Context, cfg *config.Config, usher *usher.Client) error {
 	vp := viewport.New(0, 0)
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
@@ -75,7 +80,7 @@ func Open(ctx context.Context, cfg *config.Config) error {
 	}()
 
 	var chats []*Chat
-	for i, channel := range cfg.CommandLineChat.OpenedChats {
+	for i, channel := range opened {
 		chats = append(chats, createNewChat(channel, i == 0))
 	}
 
@@ -83,6 +88,7 @@ func Open(ctx context.Context, cfg *config.Config) error {
 		chats:           chats,
 		conf:            cfg,
 		irc:             irc,
+		errMsg:          "",
 		width:           0,
 		height:          0,
 		labelBox:        newBoxWithLabel(cfg.CommandLineChat.Colors.Primary),
@@ -90,6 +96,7 @@ func Open(ctx context.Context, cfg *config.Config) error {
 		showHelpMenu:    false,
 		helperMenuWidth: 32,
 		footer:          newFooter(2),
+		usher:           usher,
 	}
 
 	if _, err := tea.NewProgram(
@@ -107,31 +114,45 @@ func (m model) Init() tea.Cmd {
 	return m.waitForMsg()
 }
 
-type NewChannelMessage struct {
+type ircMessage struct {
 	Data interface{}
 }
 
-func (m model) waitForMsg() tea.Cmd {
+func (m *model) waitForMsg() tea.Cmd {
 	return func() tea.Msg {
-		newMsg := <-m.irc.C
-		switch newMsg.(type) {
-		case notifyMsg:
-			if errTimer != nil {
-				errTimer.Stop()
-			}
-			errTimer = time.AfterFunc(time.Second*2, func() {
-				m.irc.C <- newMsg
-			})
-			return newMsg
-		default:
-			return NewChannelMessage{Data: newMsg}
-		}
+		msg := <-m.irc.C
+		return ircMessage{Data: msg}
+		// switch msg.(type) {
+		// case errMsg:
+		// 	if errTimer != nil {
+		// 		errTimer.Stop()
+		// 	}
+		// 	errTimer = time.AfterFunc(time.Second*2, func() {
+		// 		fmt.Println("RAN AFTER FUNC")
+		// 		m.errMsg = ""
+		// 	})
+		// 	return msg
+		// default:
+		// }
 	}
 }
 
 func (m *model) showNoActiveChatsMessage() {
 	msg := "No active chats. Use '/add <channel_name>' to join channel."
 	m.viewport.SetContent(lipgloss.NewStyle().Faint(true).Render(msg))
+}
+
+func (m *model) openWithVLC(ctx context.Context) error {
+	chat := m.getActiveChat()
+	master, err := m.usher.MasterPlaylistStream(ctx, chat.Channel)
+	if err != nil {
+		return err
+	}
+	variant, err := master.VariantPlaylistByQuality("1080")
+	if err != nil {
+		return err
+	}
+	return exec.Command("open", "-a", "VLC", variant.Source).Start()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -183,6 +204,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlW:
 			m.removeActiveChatAndDisconnect()
 		case tea.KeyCtrlO:
+			if err := m.openWithVLC(context.Background()); err != nil {
+				m.errMsg = errMsg(err.Error())
+			}
 		case tea.KeyCtrlG:
 			m.showHelpMenu = !m.showHelpMenu
 			if m.showHelpMenu {
@@ -193,41 +217,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case notifyMsg:
+	case errMsg:
 		return m, m.waitForMsg()
 
-	case NewChannelMessage:
+	case ircMessage:
 		switch chanMsg := msg.Data.(type) {
 		case chat.Room:
 			m.addRoomToChat(chanMsg)
-
 		case chat.Message:
 			chat := m.getChat(chanMsg.Metadata.RoomID)
 			if chat != nil {
 				m.appendMessage(chat, m.FormatMessage(chanMsg, m.width))
 			}
-
 		case chat.SubNotice:
 			chat := m.getChat(chanMsg.Metadata.RoomID)
 			if chat != nil {
 				m.appendMessage(chat, m.FormatSubMessage(chanMsg, m.width))
 			}
-
 		case chat.Notice:
 			if chanMsg.Err != nil {
-				m.irc.C <- notifyMsg(chanMsg.SystemMsg)
-				m.irc.C <- notifyMsg(chanMsg.Err.Error())
+				// m.irc.C <- errMsg(chanMsg.SystemMsg)
+				// m.irc.C <- errMsg(chanMsg.Err.Error())
 				if err := m.irc.Close(); err != nil {
 					fmt.Println(err)
 				}
 			}
-
 			chat := m.getChat(chanMsg.DisplayName)
 			if chat != nil {
 				m.appendMessage(chat, chanMsg.SystemMsg)
 			}
 		}
-
 		return m, m.waitForMsg()
 	}
 
@@ -267,8 +286,8 @@ func (m model) View() string {
 }
 
 func (m *model) renderError() string {
-	if m.notifyMsg != "" {
-		return fmt.Sprintf("\n\n[ERROR] - %s", m.notifyMsg)
+	if m.errMsg != "" {
+		return faintStyle.Render(fmt.Sprintf("\n[ERROR] - %s", m.errMsg))
 	}
 	return ""
 }
@@ -320,7 +339,7 @@ func (m *model) handleInputCommand(cmd string) {
 	switch parts[0] {
 	case "/add":
 		if len(parts[1]) >= 25 {
-			m.irc.C <- notifyMsg("Channel name is too long. Limit is 25 characters.")
+			// m.irc.C <- errMsg("Channel name is too long. Limit is 25 characters.")
 			return
 		}
 		channelName := strings.TrimSpace(parts[1])
@@ -328,7 +347,7 @@ func (m *model) handleInputCommand(cmd string) {
 	case "/info":
 		fmt.Println(parts[1])
 	default:
-		m.irc.C <- notifyMsg(fmt.Sprintf("invalid command: %s", cmd))
+		// m.irc.C <- errMsg(fmt.Sprintf("invalid command: %s", cmd))
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -13,14 +12,6 @@ import (
 )
 
 func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
-	isLive, err := dl.gql.IsChannelLive(ctx, u.ID)
-	if err != nil {
-		return err
-	}
-	if !isLive {
-		return fmt.Errorf("%s is offline", u.ID)
-	}
-
 	master, err := dl.usher.MasterPlaylistStream(ctx, u.ID)
 	if err != nil {
 		return err
@@ -66,7 +57,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 		case err := <-errCh:
 			return err
 		case <-ticker.C:
-			resp, err := httputil.Do(ctx, dl.http, list.URL, http.MethodGet, nil, nil)
+			resp, err := httputil.Do(ctx, dl.http, list.Source, http.MethodGet, nil, nil)
 			if err != nil {
 				return err
 			}

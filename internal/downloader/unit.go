@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,8 +47,7 @@ type Unit struct {
 	w                  io.Writer
 	dir, filename, ext string
 	total              float64
-	recoverAudio       atomic.Bool
-	mu                 sync.Mutex
+	// recoverAudio       atomic.Bool
 }
 
 func (u *Unit) setFileExt(url string) error {
@@ -82,6 +79,10 @@ type unitOption func(*Unit) error
 
 func WithPathname(pathname string) unitOption {
 	return func(u *Unit) error {
+		if pathname == "" {
+			pathname = "./"
+		}
+
 		info, err := os.Stat(pathname)
 		if err == nil && info.IsDir() {
 			u.dir = pathname
@@ -93,7 +94,6 @@ func WithPathname(pathname string) unitOption {
 		if _, err := os.Stat(dir); err != nil {
 			return err
 		}
-
 		u.dir = dir
 		u.filename = filepath.Base(pathname)
 
@@ -167,10 +167,10 @@ func discoverUnitType(input string) MediaType {
 
 func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := &Unit{
-		UUID:         uuid.New(),
-		recoverAudio: atomic.Bool{},
+		UUID: uuid.New(),
+		// recoverAudio: atomic.Bool{},
 	}
-	unit.recoverAudio.Store(true)
+	// unit.recoverAudio.Store(true)
 
 	if input == "" {
 		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")

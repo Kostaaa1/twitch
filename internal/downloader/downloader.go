@@ -13,43 +13,43 @@ import (
 	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/Kostaaa1/twitch/internal/httputil"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
-	"github.com/Kostaaa1/twitch/pkg/usher"
+	"github.com/Kostaaa1/twitch/pkg/twitch/usher"
 )
 
 type Transfer struct {
-	// max number of segments fetched accross all units
+	// max number of segments that can be fetched ahead accross all units
+	// if specified it will be used instead of MaxReadAheadPerUnit
 	MaxReadAheadGlobal int
-	// max number of segments fetched per unit - discarded if MaxReadSegmentsGlobal > 0 (prevents unlimited fetching ahead)
+	// max number of segments that can be fetched ahead per unit (prevent unlimited ahead fetching)
 	MaxReadAheadPerUnit int
 	// each unit spawns N amount of workers that fetches the segments
 	MaxWorkersPerUnit int
-	// flag that disables segment stripping (-muted, -unmuted), meaning program will not try to recover muted segments by trying to fetch unmuted first
-	DisableSegmentRetries bool
 }
 
 func defaultTransfer() *Transfer {
 	return &Transfer{
-		MaxReadAheadGlobal:    0,
-		MaxReadAheadPerUnit:   32,
-		MaxWorkersPerUnit:     4,
-		DisableSegmentRetries: false,
+		MaxReadAheadGlobal:  0,
+		MaxReadAheadPerUnit: 32,
+		MaxWorkersPerUnit:   4,
 	}
 }
 
 type Downloader struct {
-	gql      *gql.Client
-	http     *http.Client
-	usher    *usher.Client
-	notifyFn func(Progress)
-	transfer *Transfer
+	gql          *gql.Client
+	http         *http.Client
+	usher        *usher.Client
+	notifyFn     func(Progress)
+	transfer     *Transfer
+	retryMuteSeg bool
 }
 
 func New(gql *gql.Client, http *http.Client) *Downloader {
 	return &Downloader{
-		usher:    usher.New(http, gql),
-		gql:      gql,
-		http:     http,
-		transfer: defaultTransfer(),
+		usher:        usher.New(http, gql),
+		gql:          gql,
+		http:         http,
+		retryMuteSeg: true,
+		transfer:     defaultTransfer(),
 	}
 }
 
@@ -108,7 +108,6 @@ func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 		if err != nil {
 			return err
 		}
-		title = fmt.Sprintf("%s_%s", title, u.Quality.String())
 		u.filename = title
 	}
 
@@ -191,9 +190,9 @@ func stripSegmentURLType(url string) string {
 // segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
 // Also, we do not want to do this for all (older) videos
 func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io.ReadCloser, error) {
-	if u.recoverAudio.Load() {
-		url = stripSegmentURLType(url)
-	}
+	// if u.recoverAudio.Load() {
+	url = stripSegmentURLType(url)
+	// }
 
 	for {
 		select {
@@ -215,9 +214,9 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io
 			}
 
 			// if success with muted in url, means that segment is not recoverable
-			if u.recoverAudio.Load() && strings.Contains(url, "-muted") {
-				u.recoverAudio.Store(false)
-			}
+			// if u.recoverAudio.Load() && strings.Contains(url, "-muted") {
+			// 	u.recoverAudio.Store(false)
+			// }
 
 			return resp.Body, nil
 		}

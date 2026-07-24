@@ -14,12 +14,12 @@ import (
 )
 
 type Client struct {
-	gql  *gql.Client
 	http *http.Client
+	gql  *gql.Client
 }
 
-func New(gql *gql.Client, http *http.Client) *Client {
-	return &Client{gql, http}
+func New(http *http.Client, gql *gql.Client) *Client {
+	return &Client{http, gql}
 }
 
 func (c *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u8.MasterPlaylist, error) {
@@ -35,7 +35,7 @@ func (c *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u
 		tok.Signature,
 	)
 
-	b, _, err := httputil.DoBytes(
+	b, code, err := httputil.DoBytes(
 		ctx,
 		c.http,
 		url,
@@ -44,7 +44,17 @@ func (c *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u
 		nil,
 	)
 
-	return m3u8.Master(b), nil
+	if code == http.StatusNotFound {
+		return nil, fmt.Errorf("channel %s is not currently live", channel)
+	}
+	if code < http.StatusOK || code >= http.StatusMultipleChoices {
+		return nil, errors.New("master m3u8: got invalid status when fetched")
+	}
+
+	master := m3u8.Master(b)
+	master.Source = url
+
+	return master, nil
 }
 
 func (c *Client) MasterPlaylistVideo(ctx context.Context, vodID string) (*m3u8.MasterPlaylist, error) {
@@ -160,7 +170,7 @@ func (c *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.Ma
 
 		if isQualityValid(listURL) {
 			vp := &m3u8.VariantPlaylist{
-				URL:        listURL,
+				Source:     listURL,
 				Bandwidth:  "", // ????
 				Codecs:     "avc1.64002A,mp4a.40.2",
 				Resolution: value.Res,

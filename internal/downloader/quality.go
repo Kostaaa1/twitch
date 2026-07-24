@@ -50,7 +50,7 @@ func (qt QualityType) String() string {
 	case Quality160p30:
 		return "160p30"
 	case QualityAudioOnly:
-		return "audio_only"
+		return "audio"
 	default:
 		return ""
 	}
@@ -62,7 +62,7 @@ var qualities = []string{
 	"720p60",
 	"720p30",
 	"480p30",
-	"audio_only",
+	"audio",
 	"360p30",
 	"160p30",
 	"worst",

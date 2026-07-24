@@ -27,7 +27,7 @@ var (
 	watch       bool
 	start, end  time.Duration
 	showSpinner bool
-	verbose     bool
+	verbose     int
 )
 
 func runTwitchBatchDownload(
@@ -83,11 +83,11 @@ func runTwitchEventSub(
 	// ----- Delete previous subscriptions since we are using wss its session bound ------
 	// currentSubs, err := e.Subscriptions().Get().Run(ctx)
 	// if err != nil {
-	// 	log.Fatal(err)
+	// 	return err
 	// }
 	// for _, sub := range currentSubs.Data {
 	// 	if err := e.Subscriptions().Delete(sub.ID).Run(ctx); err != nil {
-	// 		log.Fatal(err)
+	// 		return err
 	// 	}
 	// }
 
@@ -96,8 +96,9 @@ func runTwitchEventSub(
 		if err != nil {
 			return err
 		}
-		id := user.Data[0].ID
-		ev1 := e.StreamOnlineEvent(id)
+
+		ev1 := e.StreamOnlineEvent(user.Data[0].ID)
+
 		events := []eventsub.Event{ev1}
 		for _, event := range events {
 			resp, err := e.Subscriptions().Create(event).Run(ctx)
@@ -113,16 +114,54 @@ func runTwitchEventSub(
 	if err != nil {
 		return err
 	}
+
 	b, _ := json.MarshalIndent(subs, "", " ")
 	fmt.Println(string(b))
 
 	return e.Wait()
 }
 
+func initSpinner(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	dl *downloader.Downloader,
+	units []*downloader.Unit,
+) *spinner.Model {
+	if verbose > 0 {
+		return nil
+	}
+
+	spin := spinner.New(
+		ctx,
+		spinner.WithCancelFunc(cancel),
+		spinner.WithUnits(units),
+	)
+
+	dl.SetProgressNotifier(func(pm downloader.Progress) {
+		ctxErr := ctx.Err()
+		if ctxErr != nil {
+			if errors.Is(ctxErr, context.Canceled) {
+				return
+			}
+			pm.Error = errors.Join(pm.Error, ctxErr)
+		}
+		spin.Send(spinner.Message{
+			ID:    pm.ID,
+			Label: pm.Label,
+			Bytes: pm.Bytes,
+			Error: pm.Error,
+			Done:  pm.Done,
+			Total: pm.Total,
+		})
+	})
+
+	return spin
+}
+
 func runDownloadCmd(args []string) error {
 	cfg, err := config.Get()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer func() {
 		if err := config.Save(cfg); err != nil {
@@ -130,12 +169,14 @@ func runDownloadCmd(args []string) error {
 		}
 	}()
 
+	if output == "" {
+		output = cfg.Downloader.Output
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	g, ctx := errgroup.WithContext(ctx)
-
-	httpClient := &http.Client{
+	http := &http.Client{
 		Timeout: time.Second * 30,
 		Transport: &http.Transport{
 			// total number of idle connections that can be reused
@@ -143,8 +184,7 @@ func runDownloadCmd(args []string) error {
 			// number of idle conns that are kept for host (optimal for segment downloading)
 			MaxIdleConnsPerHost: 16,
 			// how long an idle conn is allowed to stay idle before being closed
-			IdleConnTimeout: 90 * time.Second,
-			//
+			IdleConnTimeout:   90 * time.Second,
 			ForceAttemptHTTP2: true,
 			// sets the number of max connections per host, meaning it will block until connection becomes idle upon requesting
 			// MaxConnsPerHost: 1,
@@ -153,59 +193,32 @@ func runDownloadCmd(args []string) error {
 		},
 	}
 
-	gql := gql.New(httpClient)
-	dl := downloader.New(gql, httpClient)
+	gql := gql.New(http)
+	dl := downloader.New(gql, http)
 
-	units, err := cli.ParseUnits(
-		args,
-		quality,
-		start,
-		end,
-		output,
-	)
-
+	units, err := cli.ParseUnits(args, quality, start, end, output)
 	if err != nil {
 		return err
 	}
 
-	var spin *spinner.Model
-	if showSpinner {
-		spin = spinner.New(ctx, spinner.WithCancelFunc(cancel), spinner.WithUnits(units))
-		g.Go(func() error {
+	mainGroup, ctx := errgroup.WithContext(ctx)
+
+	spin := initSpinner(ctx, cancel, dl, units)
+	if spin != nil {
+		mainGroup.Go(func() error {
 			spin.Run()
 			cancel()
 			return nil
 		})
 	}
 
-	g.Go(func() error {
+	mainGroup.Go(func() error {
 		downloadGroup, ctx := errgroup.WithContext(ctx)
-
 		if len(units) > 0 {
-			if spin != nil {
-				dl.SetProgressNotifier(func(pm downloader.Progress) {
-					ctxErr := ctx.Err()
-					if ctxErr != nil {
-						if errors.Is(ctxErr, context.Canceled) {
-							return
-						}
-						pm.Error = errors.Join(pm.Error, ctxErr)
-					}
-					spin.Send(spinner.Message{
-						ID:    pm.ID,
-						Label: pm.Label,
-						Bytes: pm.Bytes,
-						Error: pm.Error,
-						Done:  pm.Done,
-						Total: pm.Total,
-					})
-				})
-			}
-
 			downloadGroup.Go(func() error {
 				if watch {
 					helix := helix.New(
-						httpClient,
+						http,
 						helix.WithOAuthCreds(&cfg.OAuthCreds),
 					)
 					return runTwitchEventSub(ctx, helix, dl, units)
@@ -214,20 +227,15 @@ func runDownloadCmd(args []string) error {
 				}
 			})
 		}
-
 		downloadGroup.Wait()
-
-		// cancel()
-
 		return nil
 	})
 
-	g.Wait()
+	mainGroup.Wait()
 
 	return nil
 }
 
-// downloadCmd represents the download command
 var downloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "",
@@ -240,12 +248,12 @@ var downloadCmd = &cobra.Command{
 }
 
 func init() {
-	cobra.OnInitialize()
+	// downloadCmd.PersistentFlags().BoolVar(&showSpinner, "spinner", true, "")
 	downloadCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "")
 	downloadCmd.PersistentFlags().BoolVarP(&watch, "watch", "w", false, "")
-	downloadCmd.PersistentFlags().BoolVar(&showSpinner, "spinner", true, "")
 	downloadCmd.PersistentFlags().StringVarP(&quality, "quality", "q", "best", "")
-	downloadCmd.PersistentFlags().DurationVarP(&start, "start", "s", 0, " attribution")
-	downloadCmd.PersistentFlags().DurationVarP(&end, "end", "e", 0, " attribution")
+	downloadCmd.PersistentFlags().DurationVarP(&start, "start", "s", 0, "")
+	downloadCmd.PersistentFlags().DurationVarP(&end, "end", "e", 0, "")
+	downloadCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "")
 	rootCmd.AddCommand(downloadCmd)
 }

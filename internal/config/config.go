@@ -17,7 +17,6 @@ type CommandLineChat struct {
 
 type Downloader struct {
 	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
-	ShowSpinner     bool   `json:"show_spinner"`
 	Output          string `json:"output"`
 }
 
@@ -68,7 +67,6 @@ func defaultConfig() *Config {
 		},
 		Downloader: Downloader{
 			IsFFmpegEnabled: false,
-			ShowSpinner:     true,
 			Output:          "",
 		},
 		CommandLineChat: CommandLineChat{
