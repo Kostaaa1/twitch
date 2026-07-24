@@ -18,9 +18,9 @@ type TwitchIRC struct {
 
 var (
 	re                    = regexp.MustCompile(`\b(PING|PRIVMSG|ROOMSTATE|USERNOTICE|USERSTATE|NOTICE|GLOBALUSERSTATE|CLEARMSG|CLEARCHAT)\b`)
-	ErrInvalidNick        = errors.New("failed to join iirc: invalid nick")
-	ErrAuthFailed         = errors.New("login authentication failed")
-	ErrAuthImproperFormat = errors.New("improperly formatted auth")
+	ErrInvalidNick        = errors.New("auth: failed to join iirc: invalid nick")
+	ErrAuthFailed         = errors.New("auth: login authentication failed")
+	ErrAuthImproperFormat = errors.New("auth: improperly formatted auth")
 )
 
 func DialIRC(username, accessToken string, channels []string) (*TwitchIRC, error) {
@@ -48,14 +48,14 @@ func (c *TwitchIRC) FormatIRCMsgAndSend(tag, channel, msg string) error {
 	return c.SendMessage([]byte(formatted))
 }
 
-func (c *TwitchIRC) LeaveChannel(channel string) {
+func (c *TwitchIRC) LeaveChannel(channel string) error {
 	part := fmt.Sprintf("PART #%s", channel)
-	c.SendMessage([]byte(part))
+	return c.SendMessage([]byte(part))
 }
 
-func (c *TwitchIRC) ConnectToChannel(channel string) {
+func (c *TwitchIRC) ConnectToChannel(channel string) error {
 	join := fmt.Sprintf("JOIN #%s", channel)
-	c.SendMessage([]byte(join))
+	return c.SendMessage([]byte(join))
 }
 
 func (c *TwitchIRC) writeToChannel(msg interface{}) {
@@ -66,16 +66,25 @@ func (c *TwitchIRC) writeToChannel(msg interface{}) {
 }
 
 func (c *TwitchIRC) Connect(accessToken, username string, channels []string) error {
-	c.SendMessage([]byte("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands"))
+	reqMsg := "CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands"
+	if err := c.SendMessage([]byte(reqMsg)); err != nil {
+		return err
+	}
 
 	pass := fmt.Sprintf("PASS oauth:%s", accessToken)
-	c.SendMessage([]byte(pass))
+	if err := c.SendMessage([]byte(pass)); err != nil {
+		return err
+	}
 
 	nick := fmt.Sprintf("NICK %s", username)
-	c.SendMessage([]byte(nick))
+	if err := c.SendMessage([]byte(nick)); err != nil {
+		return err
+	}
 
 	join := fmt.Sprintf("JOIN #%s", strings.Join(channels, ",#"))
-	c.SendMessage([]byte(join))
+	if err := c.SendMessage([]byte(join)); err != nil {
+		return err
+	}
 
 	return nil
 }

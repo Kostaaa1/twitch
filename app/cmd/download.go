@@ -21,13 +21,12 @@ import (
 )
 
 var (
-	output      string
-	quality     string
-	threads     int
-	watch       bool
-	start, end  time.Duration
-	showSpinner bool
-	verbose     int
+	output     string
+	quality    string
+	threads    int
+	watch      bool
+	start, end time.Duration
+	verbose    int
 )
 
 func runTwitchBatchDownload(
@@ -248,7 +247,6 @@ var downloadCmd = &cobra.Command{
 }
 
 func init() {
-	// downloadCmd.PersistentFlags().BoolVar(&showSpinner, "spinner", true, "")
 	downloadCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "")
 	downloadCmd.PersistentFlags().BoolVarP(&watch, "watch", "w", false, "")
 	downloadCmd.PersistentFlags().StringVarP(&quality, "quality", "q", "best", "")
