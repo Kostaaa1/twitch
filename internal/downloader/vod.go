@@ -35,8 +35,8 @@ func (dl *Downloader) mediaPlaylistVideo(ctx context.Context, unit *Unit) (*m3u8
 		return nil, err
 	}
 
-	if unit.Start > 0 || unit.End > 0 {
-		playlist.Truncate(unit.Start, unit.End)
+	if err := playlist.Truncate(unit.Start, unit.End); err != nil {
+		return nil, err
 	}
 
 	return playlist, nil
@@ -71,8 +71,8 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 	for i := 0; i < dl.transfer.MaxWorkersPerUnit; i++ {
 		g.Go(func() error {
 			for {
-				chunkInx := int(currentChunk.Add(1) - 1)
-				if chunkInx >= len(list.Segments) {
+				chunkIdx := int(currentChunk.Add(1) - 1)
+				if chunkIdx >= len(list.Segments) {
 					return nil
 				}
 
@@ -82,10 +82,12 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 					return ctx.Err()
 				}
 
-				seg := list.Segments[chunkInx]
+				seg := list.Segments[chunkIdx]
+				seg.Alloc()
+
 				segURL := buildSegURL(list.Source, seg.URI)
 
-				body, err := dl.fetchSegment(ctx, u, segURL)
+				body, err := dl.fetchSegment(ctx, segURL)
 				if err != nil {
 					return err
 				}
@@ -109,15 +111,17 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case b := <-list.Segments[i].Data:
-				if err := dl.downloadBytes(u, b); err != nil {
+				if err := dl.downloadBytes(ctx, u, b); err != nil {
 					return err
 				}
 			}
 		}
+
 		return nil
 	})
 

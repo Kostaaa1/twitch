@@ -216,10 +216,10 @@ func runDownloadCmd(args []string) error {
 		if len(units) > 0 {
 			downloadGroup.Go(func() error {
 				if watch {
-					helix := helix.New(
-						http,
-						helix.WithOAuthCreds(&cfg.OAuthCreds),
-					)
+					helix, err := helix.New(&cfg.OAuthCreds)
+					if err != nil {
+						return err
+					}
 					return runTwitchEventSub(ctx, helix, dl, units)
 				} else {
 					return runTwitchBatchDownload(ctx, dl, units)

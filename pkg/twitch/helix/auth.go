@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	ErrMissingClientID     = errors.New("client ID is missing")
-	ErrMissingClientSecret = errors.New("client secret is missing")
-	ErrMissingRedirectURL  = errors.New("redirect url is missing")
+	ErrMissingOAuthCredentials = errors.New("must provide OAuth credentials")
+	ErrMissingClientID         = errors.New("client ID is missing")
+	ErrMissingClientSecret     = errors.New("client secret is missing")
+	ErrMissingRedirectURL      = errors.New("redirect url is missing")
 )
 
 type AppToken struct {
@@ -159,8 +160,8 @@ func (c *OAuthCreds) Validate() error {
 
 func (h *Client) AppAccessToken(ctx context.Context) error {
 	values := url.Values{
-		"client_id":     {h.OAuthCreds.ClientID},
-		"client_secret": {h.OAuthCreds.ClientSecret},
+		"client_id":     {h.oauthCreds.ClientID},
+		"client_secret": {h.oauthCreds.ClientSecret},
 		"grant_type":    {"client_credentials"},
 	}
 
@@ -176,16 +177,16 @@ func (h *Client) AppAccessToken(ctx context.Context) error {
 		url.String(),
 		http.MethodPost,
 		nil,
-		&h.OAuthCreds.AppToken,
+		&h.oauthCreds.AppToken,
 		header,
 	)
 }
 
 func (h *Client) RefreshAccessToken(ctx context.Context) error {
 	values := url.Values{
-		"client_id":     {h.OAuthCreds.ClientID},
-		"client_secret": {h.OAuthCreds.ClientSecret},
-		"refresh_token": {h.OAuthCreds.UserToken.RefreshToken},
+		"client_id":     {h.oauthCreds.ClientID},
+		"client_secret": {h.oauthCreds.ClientSecret},
+		"refresh_token": {h.oauthCreds.UserToken.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
 
@@ -197,7 +198,7 @@ func (h *Client) RefreshAccessToken(ctx context.Context) error {
 		url,
 		http.MethodPost,
 		nil,
-		&h.OAuthCreds.UserToken,
+		&h.oauthCreds.UserToken,
 		nil,
 	)
 }
@@ -225,12 +226,12 @@ func (h *Client) Claims(ctx context.Context) (*UserInfo, error) {
 }
 
 func (h *Client) RevokeAccessToken(ctx context.Context) error {
-	at := h.OAuthCreds.UserToken.AccessToken
+	at := h.oauthCreds.UserToken.AccessToken
 	if at == "" {
 		return errors.New("failed to revoke access token: not provided")
 	}
 
-	values := url.Values{"client_id": {h.OAuthCreds.ClientID}, "token": {at}}
+	values := url.Values{"client_id": {h.oauthCreds.ClientID}, "token": {at}}
 	url := "https://id.twitch.tv/oauth2/revoke?" + values.Encode()
 
 	headers := http.Header{"Content-Type": {"x-www-form-urlencoded"}}
@@ -258,9 +259,9 @@ func (h *Client) ValidateAccessToken(ctx context.Context) (*ValidatedAccessToken
 func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string) error {
 	values := url.Values{
 		"code":          {code},
-		"client_id":     {h.OAuthCreds.ClientID},
-		"client_secret": {h.OAuthCreds.ClientSecret},
-		"redirect_uri":  {h.OAuthCreds.RedirectURL},
+		"client_id":     {h.oauthCreds.ClientID},
+		"client_secret": {h.oauthCreds.ClientSecret},
+		"redirect_uri":  {h.oauthCreds.RedirectURL},
 		"grant_type":    {"authorization_code"},
 	}
 
@@ -273,17 +274,17 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 		fmt.Sprintf("https://id.twitch.tv/oauth2/token?%s", values.Encode()),
 		http.MethodPost,
 		nil,
-		&h.OAuthCreds.UserToken,
+		&h.oauthCreds.UserToken,
 		nil,
 	)
 }
 
 func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
-	if err := h.OAuthCreds.Validate(); err != nil {
+	if err := h.oauthCreds.Validate(); err != nil {
 		return err
 	}
 
-	v, err := h.OAuthCreds.codeExchangeURLValues(opts)
+	v, err := h.oauthCreds.codeExchangeURLValues(opts)
 	if err != nil {
 		return err
 	}
@@ -296,7 +297,7 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 
 	fmt.Printf("Please navigate to this link in browser to authorize: \n%s\n", authURL)
 
-	redirectURL, err := url.Parse(h.OAuthCreds.RedirectURL)
+	redirectURL, err := url.Parse(h.oauthCreds.RedirectURL)
 	if err != nil {
 		return err
 	}

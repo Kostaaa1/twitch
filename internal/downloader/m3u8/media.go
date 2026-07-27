@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,53 +18,69 @@ type Segment struct {
 	Data     chan []byte
 }
 
+func (s *Segment) Alloc() { s.Data = make(chan []byte, 1) }
+
 type Map struct {
 	URI       string
 	ByteRange string
 }
 
 type MediaPlaylist struct {
-	Source          string
-	Version         string
-	Timestamp       string
-	PlaylistType    string
-	TargetDuration  string
-	ElapsedSecs     string
-	TotalSecs       string
-	Map             *Map
-	SegmentDuration time.Duration
-	Segments        []Segment
+	Source         string
+	Version        string
+	Timestamp      string
+	PlaylistType   string
+	TargetDuration string
+	ElapsedSecs    string
+	TotalSecs      time.Duration
+	Map            *Map
+	Segments       []*Segment
 }
 
-func (mp *MediaPlaylist) Truncate(start, end time.Duration) {
-	if start < 0 || end < 0 || start == end || start > end {
-		return
+func (mp *MediaPlaylist) Truncate(start, end time.Duration) error {
+	if start > mp.TotalSecs {
+		return fmt.Errorf("provided start pointer %s exceeds playlist total %s", start, mp.TotalSecs)
+	}
+	if end < 0 {
+		return errors.New("end pointer must not be less then zero")
+	}
+	if end > 0 && start >= end {
+		return errors.New("start pointer must not be equal or larger then end")
 	}
 
-	// figure out the way to skip first portion of segments based on start, maybe use
 	total := time.Duration(0)
-	startIndex := 0
-	endIndex := 0
 
-	for i, seg := range mp.Segments {
-		if total <= start {
+	startIdx := 0
+	if start > 0 {
+		for _, seg := range mp.Segments {
+			if total >= start {
+				break
+			}
 			total += seg.Duration
-			startIndex = i
-			continue
+			startIdx++
 		}
-		if total <= end {
-			total += seg.Duration
-			endIndex = i
-			continue
-		}
-		break
 	}
 
-	mp.Segments = mp.Segments[startIndex : endIndex+1]
+	endIdx := len(mp.Segments)
+
+	if end > 0 {
+		endIdx = startIdx
+		for _, seg := range mp.Segments {
+			if total >= end {
+				break
+			}
+			total += seg.Duration
+			endIdx++
+		}
+	}
+
+	mp.Segments = slices.Clone(mp.Segments[startIdx:endIdx])
+
+	return nil
 }
 
-func parsePlaylistMap(list *MediaPlaylist, value string) error {
-	list.Map = &Map{}
+func (l *MediaPlaylist) parsePlaylistMap(value string) error {
+	l.Map = &Map{}
 	values := strings.Split(value, ",")
 
 	for _, value := range values {
@@ -80,16 +97,16 @@ func parsePlaylistMap(list *MediaPlaylist, value string) error {
 
 		switch parts[0] {
 		case "URI":
-			list.Map.URI = value
+			l.Map.URI = value
 		case "BYTERANGE":
-			list.Map.ByteRange = value
+			l.Map.ByteRange = value
 		}
 	}
 
 	return nil
 }
 
-func parseExtInf(r *bufio.Reader, list *MediaPlaylist, line string) error {
+func (l *MediaPlaylist) parseExtInf(r *bufio.Reader, line string) error {
 	trimmed := line[:len(line)-1]
 
 	seconds, err := strconv.ParseFloat(trimmed, 64)
@@ -99,22 +116,21 @@ func parseExtInf(r *bufio.Reader, list *MediaPlaylist, line string) error {
 
 	duration := time.Duration(seconds * float64(time.Second))
 
-	segmentURL, _, err := r.ReadLine()
+	uri, _, err := r.ReadLine()
 	if err != nil {
 		return fmt.Errorf("failed to read next line: %s", err)
 	}
 
-	list.Segments = append(list.Segments, Segment{
-		URI:      string(segmentURL),
+	l.Segments = append(l.Segments, &Segment{
+		URI:      string(uri),
 		Duration: duration,
-		Data:     make(chan []byte, 1),
 	})
 
 	return nil
 }
 
 func ParseMediaPlaylist(r io.Reader, url string) (*MediaPlaylist, error) {
-	mediaList := &MediaPlaylist{Source: url}
+	l := &MediaPlaylist{Source: url}
 
 	reader := bufio.NewReader(r)
 
@@ -137,23 +153,31 @@ func ParseMediaPlaylist(r io.Reader, url string) (*MediaPlaylist, error) {
 
 		switch key {
 		case "#EXT-X-VERSION":
-			mediaList.Version = value
+			l.Version = value
 		case "#EXT-X-MAP":
-			parsePlaylistMap(mediaList, value)
+			if err := l.parsePlaylistMap(value); err != nil {
+				return nil, err
+			}
 		case "#EXT-X-TARGETDURATION":
-			mediaList.TargetDuration = value
+			l.TargetDuration = value
 		case "#EXT-X-PLAYLIST-TYPE":
-			mediaList.PlaylistType = value
+			l.PlaylistType = value
 		case "#EXT-X-TWITCH-ELAPSED-SECS":
-			mediaList.ElapsedSecs = value
+			l.ElapsedSecs = value
 		case "#EXT-X-TWITCH-TOTAL-SECS":
-			mediaList.TotalSecs = value
+			total, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return nil, err
+			}
+			l.TotalSecs = time.Duration(total * float64(time.Second))
 		case "#ID3-EQUIV-TDTG":
-			mediaList.Timestamp = value
+			l.Timestamp = value
 		case "#EXTINF":
-			parseExtInf(reader, mediaList, value)
+			if err := l.parseExtInf(reader, value); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return mediaList, nil
+	return l, nil
 }

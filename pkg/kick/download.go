@@ -31,10 +31,10 @@ func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.Me
 	}
 
 	parts := strings.Split(masterURL, "master.m3u8")
-	listParts := strings.Split(list.URL, "/")
+	listParts := strings.Split(list.Source, "/")
 
 	basePath := parts[0] + listParts[0]
-	playlistURL := parts[0] + list.URL
+	playlistURL := parts[0] + list.Source
 
 	res, err = c.cycletls.Do(playlistURL, c.defaultCycleTLSOpts(), http.MethodGet)
 	if err != nil {
@@ -45,7 +45,9 @@ func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.Me
 	if err != nil {
 		return "", nil, err
 	}
-	playlist.Truncate(unit.Start, unit.End)
+	if err := playlist.Truncate(unit.Start, unit.End); err != nil {
+		return "", nil, err
+	}
 
 	return basePath, playlist, nil
 }
@@ -88,14 +90,18 @@ func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 					}
 
 					if strings.HasSuffix(seg.URI, ".ts") {
-						segmentURL, _ := url.JoinPath(u, seg.URI)
+						segURL, _ := url.JoinPath(u, seg.URI)
 
-						res, err := c.cycletls.Do(segmentURL, c.defaultCycleTLSOpts(), http.MethodGet)
+						res, err := c.cycletls.Do(
+							segURL,
+							c.defaultCycleTLSOpts(),
+							http.MethodGet,
+						)
 						if err != nil {
 							return err
 						}
 
-						seg.Data <- io.NopCloser(bytes.NewReader(res.BodyBytes))
+						seg.Data <- res.BodyBytes
 						close(seg.Data)
 					}
 					return nil

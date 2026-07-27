@@ -125,9 +125,9 @@ func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 	return nil
 }
 
-func (dl *Downloader) downloadBytes(u *Unit, b []byte) error {
+func (dl *Downloader) downloadBytes(ctx context.Context, u *Unit, b []byte) error {
 	if u.w == nil {
-		if err := dl.openFile(context.Background(), u); err != nil {
+		if err := dl.openFile(ctx, u); err != nil {
 			return err
 		}
 	}
@@ -139,10 +139,10 @@ func (dl *Downloader) downloadBytes(u *Unit, b []byte) error {
 	return nil
 }
 
-func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
+func (dl *Downloader) download(ctx context.Context, u *Unit, r io.ReadCloser) error {
 	defer r.Close()
 	if u.w == nil {
-		if err := dl.openFile(context.Background(), u); err != nil {
+		if err := dl.openFile(ctx, u); err != nil {
 			return err
 		}
 	}
@@ -155,11 +155,11 @@ func (dl *Downloader) download(u *Unit, r io.ReadCloser) error {
 }
 
 func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
-	body, err := dl.fetchSegment(ctx, u, segURL)
+	body, err := dl.fetchSegment(ctx, segURL)
 	if err != nil {
 		return err
 	}
-	return dl.download(u, body)
+	return dl.download(ctx, u, body)
 }
 
 // this is called when 403 occurs (meaning the url failed to download). used when retrying to recover the unmuted segments (if unit VOD audio is recoverable). n-muted.ts should be the output for the last try
@@ -189,7 +189,7 @@ func stripSegmentURLType(url string) string {
 
 // segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
 // Also, we do not want to do this for all (older) videos
-func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, url string) (io.ReadCloser, error) {
+func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadCloser, error) {
 	// if u.recoverAudio.Load() {
 	url = stripSegmentURLType(url)
 	// }

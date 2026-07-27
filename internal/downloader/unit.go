@@ -37,13 +37,12 @@ func (v MediaType) String() string {
 }
 
 type Unit struct {
-	UUID       uuid.UUID
-	ID         string
-	Type       MediaType
-	Quality    QualityType
-	Start, End time.Duration
-	Error      error
-
+	UUID               uuid.UUID
+	ID                 string
+	Type               MediaType
+	Quality            QualityType
+	Start, End         time.Duration
+	Error              error
 	w                  io.Writer
 	dir, filename, ext string
 	total              float64
@@ -77,6 +76,13 @@ func (u *Unit) Validate() error {
 
 type unitOption func(*Unit) error
 
+func WithWriter(w io.Writer) unitOption {
+	return func(u *Unit) error {
+		u.w = w
+		return nil
+	}
+}
+
 func WithPathname(pathname string) unitOption {
 	return func(u *Unit) error {
 		if pathname == "" {
@@ -94,6 +100,7 @@ func WithPathname(pathname string) unitOption {
 		if _, err := os.Stat(dir); err != nil {
 			return err
 		}
+
 		u.dir = dir
 		u.filename = filepath.Base(pathname)
 
@@ -166,10 +173,7 @@ func discoverUnitType(input string) MediaType {
 }
 
 func NewUnit(input string, opts ...unitOption) *Unit {
-	unit := &Unit{
-		UUID: uuid.New(),
-		// recoverAudio: atomic.Bool{},
-	}
+	unit := &Unit{UUID: uuid.New()}
 	// unit.recoverAudio.Store(true)
 
 	if input == "" {
@@ -207,18 +211,15 @@ func (u *Unit) CloseWriter() error {
 	return nil
 }
 
-// implement spinner writer
 func (u *Unit) GetLabel() string {
 	if u.filename != "" {
 		return u.filename
 	}
 	return u.ID
 }
-
 func (u *Unit) GetID() string {
 	return u.UUID.String()
 }
-
 func (u *Unit) GetError() error {
 	return u.Error
 }

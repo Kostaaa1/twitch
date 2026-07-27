@@ -22,11 +22,13 @@ func ensureUserData(ctx context.Context, c *helix.Client, conf *config.Config) e
 			return err
 		}
 	}
+
 	if conf.OAuthCreds.UserToken.Expired() {
 		if err := c.RefreshAccessToken(ctx); err != nil {
 			return err
 		}
 	}
+
 	if conf.User.ID == "" {
 		users, err := c.Users().Run(ctx)
 		if err != nil {
@@ -34,6 +36,7 @@ func ensureUserData(ctx context.Context, c *helix.Client, conf *config.Config) e
 		}
 		conf.User = users.Data[0]
 	}
+
 	return nil
 }
 
@@ -50,10 +53,11 @@ func runChat() error {
 
 	http := http.DefaultClient
 
-	c := helix.New(
-		http,
-		helix.WithOAuthCreds(&conf.OAuthCreds),
-	)
+	c, err := helix.New(&conf.OAuthCreds)
+	if err != nil {
+		return err
+	}
+
 	usher := usher.New(http, gql.New(http))
 
 	ctx := context.Background()

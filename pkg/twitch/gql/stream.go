@@ -5,6 +5,9 @@ import (
 	"fmt"
 )
 
+func (gql *Client) ShelfContentEdge() {
+}
+
 // func (tw *Client) IsChannelLive(ctx context.Context, channelName string) (bool, error) {
 // 	data, err := tw.StreamMetadata(ctx, channelName)
 // 	if err != nil {
