@@ -5,10 +5,19 @@ import (
 	"strings"
 )
 
-type Quality struct {
-	Res string
-	FPS int32
-}
+var (
+	qualities = []string{
+		"best",
+		"1080p60",
+		"720p60",
+		"720p30",
+		"480p30",
+		"audio",
+		"360p30",
+		"160p30",
+		"worst",
+	}
+)
 
 type QualityType int
 
@@ -54,18 +63,6 @@ func (qt QualityType) String() string {
 	default:
 		return ""
 	}
-}
-
-var qualities = []string{
-	"best",
-	"1080p60",
-	"720p60",
-	"720p30",
-	"480p30",
-	"audio",
-	"360p30",
-	"160p30",
-	"worst",
 }
 
 func ParseQuality(q string) (QualityType, error) {

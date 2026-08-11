@@ -13,6 +13,20 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 )
 
+var qualityFormats = map[string]struct {
+	Format string
+	Res    string
+	FPS    string
+}{
+	"chunked":    {Format: "1080p60", Res: "1920x1080", FPS: "60"},
+	"720p60":     {Format: "720p60", Res: "1280x720", FPS: "60"},
+	"720p30":     {Format: "720p30", Res: "1280x720", FPS: "30"},
+	"480p30":     {Format: "480p30", Res: "854x480", FPS: "30"},
+	"360p30":     {Format: "360p30", Res: "640x360", FPS: "30"},
+	"160p30":     {Format: "160p30", Res: "284x160", FPS: "30"},
+	"audio_only": {Format: "audio_only", Res: "audio_only", FPS: ""},
+}
+
 type Client struct {
 	http *http.Client
 	gql  *gql.Client
@@ -47,6 +61,7 @@ func (c *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u
 	if code == http.StatusNotFound {
 		return nil, fmt.Errorf("channel %s is not currently live", channel)
 	}
+
 	if code < http.StatusOK || code >= http.StatusMultipleChoices {
 		return nil, errors.New("master m3u8: got invalid status when fetched")
 	}
@@ -125,29 +140,7 @@ func (c *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.Ma
 		ManifestCluster: "cloudfront_vod",
 	}
 
-	resolutions := map[string]struct {
-		Res string
-		FPS string
-	}{
-		"chunked":    {Res: "1920x1080", FPS: "60"},
-		"720p60":     {Res: "1280x720", FPS: "60"},
-		"720p30":     {Res: "1280x720", FPS: "30"},
-		"480p30":     {Res: "854x480", FPS: "30"},
-		"360p30":     {Res: "640x360", FPS: "30"},
-		"160p30":     {Res: "284x160", FPS: "30"},
-		"audio_only": {Res: "audio_only", FPS: ""},
-	}
-
-	isQualityValid := func(u string) bool {
-		resp, err := c.http.Get(u)
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}
-
-	for key, value := range resolutions {
+	for key, value := range qualityFormats {
 		var listURL string
 
 		switch bt {
@@ -168,14 +161,20 @@ func (c *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.Ma
 			return nil, errors.New("failed to create mock master playlist: missing list url")
 		}
 
-		if isQualityValid(listURL) {
+		resp, err := c.http.Head(listURL)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
 			vp := &m3u8.VariantPlaylist{
 				Source:     listURL,
 				Bandwidth:  "", // ????
 				Codecs:     "avc1.64002A,mp4a.40.2",
+				Video:      value.Format,
 				Resolution: value.Res,
 				FrameRate:  value.FPS,
-				Video:      key,
 			}
 			master.Lists = append(master.Lists, vp)
 		}

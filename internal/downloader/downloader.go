@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -141,16 +142,20 @@ func (dl *Downloader) downloadBytes(ctx context.Context, u *Unit, b []byte) erro
 
 func (dl *Downloader) download(ctx context.Context, u *Unit, r io.ReadCloser) error {
 	defer r.Close()
+
 	if u.w == nil {
 		if err := dl.openFile(ctx, u); err != nil {
 			return err
 		}
 	}
+
 	n, err := io.Copy(u.w, r)
 	if err != nil {
 		return err
 	}
+
 	dl.notifyProgress(u, n)
+
 	return nil
 }
 
@@ -211,6 +216,15 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 				}
 				url = u
 				continue
+			}
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				b, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if err != nil {
+					return nil, fmt.Errorf("failed to read the error response: %v", err)
+				}
+				return io.NopCloser(bytes.NewReader(b)), fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
 			}
 
 			// if success with muted in url, means that segment is not recoverable

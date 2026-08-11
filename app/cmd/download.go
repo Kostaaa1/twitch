@@ -40,7 +40,7 @@ func runTwitchBatchDownload(
 	}
 	for _, unit := range units {
 		g.Go(func() error {
-			dl.Download(ctx, unit)
+			_ = dl.Download(ctx, unit)
 			return nil
 		})
 	}

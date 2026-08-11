@@ -3,7 +3,6 @@ package kick
 import (
 	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -124,7 +123,7 @@ func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 				return ctx.Err()
 
 			case chunk := <-playlist.Segments[i].Data:
-				n, err := io.Copy(unit.W, chunk)
+				n, err := unit.W.Write(chunk)
 				if err != nil {
 					return err
 				}
@@ -135,7 +134,6 @@ func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 					Bytes: int64(n),
 					Done:  false,
 				})
-				chunk.Close()
 			}
 		}
 		return nil

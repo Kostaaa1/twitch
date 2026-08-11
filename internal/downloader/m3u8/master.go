@@ -80,14 +80,14 @@ func (m *MasterPlaylist) parse() {
 	}
 }
 
-func (playlist *MasterPlaylist) VariantPlaylistByQuality(quality string) (*VariantPlaylist, error) {
+func (playlist *MasterPlaylist) VariantPlaylistByQuality(q string) (*VariantPlaylist, error) {
 	for _, list := range playlist.Lists {
-		if strings.HasPrefix(list.Video, quality) {
+		if strings.HasPrefix(list.Video, q) {
 			return list, nil
 		}
 	}
 	if len(playlist.Lists) > 0 {
 		return playlist.Lists[0], nil
 	}
-	return nil, fmt.Errorf("error: quality not found in master.m3u8: %s", quality)
+	return nil, fmt.Errorf("error: quality not found in master.m3u8: %s", q)
 }
