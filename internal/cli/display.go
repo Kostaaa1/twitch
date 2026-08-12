@@ -106,19 +106,17 @@ func printClips(s *strings.Builder, clips *gql.ClipsCardsUser) {
 
 			var inner strings.Builder
 			inner.WriteString(strings.Repeat(" ", len(numerical)+2))
-			inner.WriteString(clip.Game.Name)
-			inner.WriteString(" . ")
-			inner.WriteString(clip.Slug)
-			inner.WriteString(" . ")
-			inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(clip.ViewCount)))
-			inner.WriteString(" . ")
-			inner.WriteString(clip.Curator.DisplayName)
-			inner.WriteString(" . ")
-			seconds := time.Duration(int64(clip.DurationSeconds)) * time.Second
-			inner.WriteString(seconds.String())
-			inner.WriteString(" . ")
-			// since := time.Since(clip.CreatedAt) USE FOR AGO
-			inner.WriteString("7y" + " ago")
+			withdot(&inner, clip.Game.Name)
+			withdot(&inner, clip.Slug)
+			if clip.ViewCount > 0 {
+				withdot(&inner, fmt.Sprintf("%s views", humanIntFormat(clip.ViewCount)))
+			}
+			withdot(&inner, clip.Curator.DisplayName)
+			if clip.DurationSeconds > 0 {
+				seconds := time.Duration(int64(clip.DurationSeconds)) * time.Second
+				withdot(&inner, seconds.String())
+			}
+			inner.WriteString(clip.CreatedAt.Format(time.RFC1123))
 
 			s.WriteString("\n")
 			s.WriteString(mutedStyle.Render(inner.String()))
@@ -127,6 +125,13 @@ func printClips(s *strings.Builder, clips *gql.ClipsCardsUser) {
 	}
 
 	s.WriteString("\n")
+}
+
+func withdot(s *strings.Builder, val string) {
+	if val != "" {
+		s.WriteString(val)
+		s.WriteString(" . ")
+	}
 }
 
 func printSocials(s *strings.Builder, u *gql.ChannelRoot_AboutPanel) {
@@ -219,26 +224,18 @@ func printVideos(s *strings.Builder, videos *gql.FilterableVideoTower_Videos) {
 			}
 
 			var inner strings.Builder
-
 			inner.WriteString(strings.Repeat(" ", len(numerical)+2))
 
-			inner.WriteString(video.Game.DisplayName)
-			inner.WriteString(" . ")
-
-			inner.WriteString(video.ID)
-			inner.WriteString(" . ")
-
-			seconds := time.Duration(int64(video.LengthSeconds)) * time.Second
-			inner.WriteString(seconds.String())
-			inner.WriteString(" . ")
-
-			strconv.Itoa(video.ViewCount)
-			inner.WriteString(fmt.Sprintf("%s views", humanIntFormat(video.ViewCount)))
-			inner.WriteString(" . ")
-
-			since := time.Since(video.PublishedAt)
-			_ = since
-			inner.WriteString("7y" + " ago")
+			withdot(&inner, video.Game.DisplayName)
+			withdot(&inner, video.ID)
+			if video.LengthSeconds > 0 {
+				seconds := time.Duration(video.LengthSeconds) * time.Second
+				withdot(&inner, seconds.String())
+			}
+			if video.ViewCount > 0 {
+				withdot(&inner, fmt.Sprintf("%s views", humanIntFormat(video.ViewCount)))
+			}
+			inner.WriteString(video.PublishedAt.Format(time.RFC1123))
 
 			s.WriteString("\n")
 			s.WriteString(mutedStyle.Render(inner.String()))

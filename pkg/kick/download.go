@@ -3,6 +3,7 @@ package kick
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,11 +12,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.MediaPlaylist, error) {
+func (c *Downloader) mediaPlaylist(ctx context.Context, unit *Unit) (string, *m3u8.MediaPlaylist, error) {
 	masterURL, err := c.MasterPlaylistURL(unit.Channel, unit.UUID.String())
 	if err != nil {
 		return "", nil, err
 	}
+
+	fmt.Println("MASTER:", masterURL)
 
 	res, err := c.cycletls.Do(masterURL, c.defaultCycleTLSOpts(), http.MethodGet)
 	if err != nil {
@@ -51,24 +54,23 @@ func (c *Client) mediaPlaylist(ctx context.Context, unit Unit) (string, *m3u8.Me
 	return basePath, playlist, nil
 }
 
-func (c *Client) Download(ctx context.Context, u Unit) error {
+func (c *Downloader) Download(ctx context.Context, u *Unit) error {
 	err := c.downloadVOD(ctx, u)
-
-	c.notify(Progress{
-		ID:    u.GetLabel(),
-		Bytes: 0,
-		Error: err,
-		Done:  true,
-	})
-
+	c.notify(u, 0)
 	return err
 }
 
-func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
+func (c *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
+	fmt.Println("DOWNLOADING VOD:", &unit)
+
 	u, playlist, err := c.mediaPlaylist(ctx, unit)
 	if err != nil {
+		fmt.Println("FAILED TO GET MEDIAPLALISY", err)
 		return err
 	}
+
+	fmt.Println("DOWNLOADIN VODJjA", u)
+	fmt.Println("DOWNLOADIN VODJjA", &playlist)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(8)
@@ -127,13 +129,7 @@ func (c *Client) downloadVOD(ctx context.Context, unit Unit) error {
 				if err != nil {
 					return err
 				}
-
-				c.notify(Progress{
-					ID:    unit.GetLabel(),
-					Error: unit.GetError(),
-					Bytes: int64(n),
-					Done:  false,
-				})
+				c.notify(unit, int64(n))
 			}
 		}
 		return nil

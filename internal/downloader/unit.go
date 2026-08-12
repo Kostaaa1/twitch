@@ -46,13 +46,14 @@ type Unit struct {
 	w                  io.Writer
 	dir, filename, ext string
 	total              float64
-	// recoverAudio       atomic.Bool
 }
 
 func (u *Unit) setFileExt(url string) error {
 	if u.w != nil {
-		return errors.New("writer already provided - no need for setting up its extension")
+		return nil
 	}
+
+	// ext must be discovered by checking playlist
 	if u.ext != "" {
 		return errors.New("ext already provided")
 	}
@@ -83,6 +84,7 @@ func WithWriter(w io.Writer) unitOption {
 	}
 }
 
+// parses provided pathname, validates dir and sets the dir and filename (if provided) fields. provided extension will be discarded as it needs to be discovered when playlist is fetched (as m3u8 playlist segments can be of multiple formats)
 func WithPathname(pathname string) unitOption {
 	return func(u *Unit) error {
 		if pathname == "" {
@@ -102,20 +104,26 @@ func WithPathname(pathname string) unitOption {
 		}
 
 		u.dir = dir
-		u.filename = filepath.Base(pathname)
+		base := filepath.Base(pathname)
+		u.filename = strings.TrimSuffix(base, filepath.Ext(base))
 
 		return nil
 	}
 }
 
+// sets start/end for VOD units
 func WithTimestamps(start, end time.Duration) unitOption {
 	return func(u *Unit) error {
+		if u.Type != TypeVOD {
+			return nil
+		}
 		u.Start = start
 		u.End = end
 		return nil
 	}
 }
 
+// sets the quality, throws an error if provided quality is not valid
 func WithQuality(q string) unitOption {
 	return func(u *Unit) error {
 		switch {
@@ -174,7 +182,6 @@ func discoverUnitType(input string) MediaType {
 
 func NewUnit(input string, opts ...unitOption) *Unit {
 	unit := &Unit{UUID: uuid.New()}
-	// unit.recoverAudio.Store(true)
 
 	if input == "" {
 		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
@@ -205,21 +212,24 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 }
 
 func (u *Unit) CloseWriter() error {
-	if f, ok := u.w.(*os.File); ok && f != nil {
+	if f, ok := u.w.(io.WriteCloser); ok && f != nil {
 		return f.Close()
 	}
 	return nil
 }
 
+// implement progress spinner interface
 func (u *Unit) GetLabel() string {
 	if u.filename != "" {
 		return u.filename
 	}
 	return u.ID
 }
+
 func (u *Unit) GetID() string {
 	return u.UUID.String()
 }
+
 func (u *Unit) GetError() error {
 	return u.Error
 }

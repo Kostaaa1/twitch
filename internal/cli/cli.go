@@ -3,9 +3,12 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/downloader"
+	"github.com/Kostaaa1/twitch/pkg/kick"
+	"github.com/google/uuid"
 )
 
 type Unit struct {
@@ -48,25 +51,26 @@ func (p *Unit) UnmarshalJSON(b []byte) error {
 }
 
 func ParseUnits(
-	args []string,
+	inputs []string,
 	quality string,
 	start time.Duration,
 	end time.Duration,
 	output string,
-) ([]*downloader.Unit, error) {
-	units := make([]*downloader.Unit, 0)
+) ([]*downloader.Unit, []*kick.Unit, error) {
+	// units := make([]*downloader.Unit, 0)
+	units := make([]interface{}, 0)
 
-	for _, input := range args {
+	for _, input := range inputs {
 		_, err := os.Stat(input)
 		if !os.IsNotExist(err) {
 			b, err := os.ReadFile(input)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			var inputUnits []*Unit
 			if err := json.Unmarshal(b, &inputUnits); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			for _, unit := range inputUnits {
@@ -74,138 +78,78 @@ func ParseUnits(
 					unit.Output = output
 				}
 
-				unit := downloader.NewUnit(unit.Input,
-					downloader.WithQuality(unit.Quality),
-					downloader.WithTimestamps(unit.Start, unit.End),
-					downloader.WithPathname(unit.Output),
+				handleUnitInput(
+					&units,
+					input,
+					quality,
+					start,
+					end,
+					output,
 				)
-				units = append(units, unit)
 			}
 		} else {
-			unit := downloader.NewUnit(
+			handleUnitInput(
+				&units,
 				input,
-				downloader.WithQuality(quality),
-				downloader.WithTimestamps(start, end),
-				downloader.WithPathname(output),
+				quality,
+				start,
+				end,
+				output,
 			)
-			units = append(units, unit)
 		}
 	}
 
-	return units, nil
+	twitch, kick := filterUnits(units)
+
+	return twitch, kick, nil
 }
 
-// func isKickEndpoint(input string) bool {
-// 	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
-// }
+func filterUnits(units []interface{}) ([]*downloader.Unit, []*kick.Unit) {
+	twitchUnits := make([]*downloader.Unit, 0)
+	kickUnits := make([]*kick.Unit, 0)
 
-// func (flag Flag) unitsFromFlagInput(ctx context.Context, c *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) {
-// 	inputs := strings.Split(flag.Input, ",")
+	for _, unit := range units {
+		if unit, ok := unit.(*downloader.Unit); ok {
+			twitchUnits = append(twitchUnits, unit)
+			continue
+		}
+		if unit, ok := unit.(*kick.Unit); ok {
+			kickUnits = append(kickUnits, unit)
+			continue
+		}
+		panic("found unit that is not twitch nor kick unit")
+	}
 
-// 	for _, input := range inputs {
-// 		if isKickEndpoint(input) {
-// 			*units = append(*units, kick.NewUnit(
-// 				input,
-// 				flag.Quality,
-// 				kick.WithTimestamps(flag.Start, flag.End),
-// 			))
-// 		} else {
-// 			// *units = append(*units, downloader.NewUnit(
-// 			// 	input,
-// 			// 	downloader.WithQuality(flag.Quality),
-// 			// 	downloader.WithTimestamps(flag.Start, flag.End),
-// 			// 	downloader.WithFile(ctx, c, flag.Output),
-// 			// ))
+	return twitchUnits, kickUnits
+}
 
-// 			unit := downloader.NewUnit(
-// 				input,
-// 				downloader.WithQuality(flag.Quality),
-// 				downloader.WithTimestamps(flag.Start, flag.End),
-// 				downloader.WithFile(ctx, c, flag.Output),
-// 			)
-// 			msg := spinner.Message{ID: unit.ID}
-// 			ch <- msg
-// 			*units = append(*units, unit)
-// 		}
-// 	}
-// }
+func isKickUnit(input string) bool {
+	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
+}
 
-// func (flag Flag) unitsFromFileInput(ctx context.Context, tw *twitch.Client, units *[]spinner.UnitProvider, ch chan<- spinner.Message) error {
-// 	_, err := os.Stat(flag.Input)
-// 	if os.IsNotExist(err) {
-// 		return err
-// 	}
+func handleUnitInput(
+	units *[]interface{},
+	input string,
+	quality string,
+	start, end time.Duration,
+	output string,
+) {
+	var unit interface{}
+	if isKickUnit(input) {
+		unit = kick.NewUnit(
+			input,
+			quality,
+			kick.WithTimestamps(start, end),
+			kick.WithPathname(output),
+		)
+	} else {
+		unit = downloader.NewUnit(
+			input,
+			downloader.WithQuality(quality),
+			downloader.WithTimestamps(start, end),
+			downloader.WithPathname(output),
+		)
+	}
 
-// 	content, err := os.ReadFile(flag.Input)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	var inputUnits []Flag
-// 	if err := json.Unmarshal(content, &inputUnits); err != nil {
-// 		return err
-// 	}
-
-// 	for _, unit := range inputUnits {
-// 		if unit.Output == "" && flag.Output != "" {
-// 			unit.Output = flag.Output
-// 		}
-// 		if unit.Quality == "" && flag.Quality != "" {
-// 			unit.Quality = flag.Quality
-// 		}
-
-// 		if isKickEndpoint(unit.Input) {
-// 			// *units = append(*units, kick.NewUnit(
-// 			// 	unit.Input,
-// 			// 	unit.Quality,
-// 			// 	kick.WithTimestamps(unit.Start, unit.End),
-// 			// 	kick.WithWriter(unit.Output),
-// 			// ))
-// 		} else {
-// 			unit := downloader.NewUnit(
-// 				unit.Input,
-// 				downloader.WithQuality(unit.Quality),
-// 				downloader.WithTimestamps(unit.Start, unit.End),
-// 				downloader.WithFile(ctx, tw, unit.Output),
-// 			)
-// 			msg := spinner.Message{ID: unit.GetID()}
-// 			ch <- msg
-// 			*units = append(*units, unit)
-// 		}
-// 	}
-
-// 	return nil
-// }
-
-// func (opts Flag) UnitsFromInput(ctx context.Context, tw *twitch.Client, ch chan<- spinner.Message) ([]spinner.UnitProvider, error) {
-// 	if opts.Input == "" {
-// 		return nil, errors.New("missing input")
-// 	}
-
-// 	units := make([]spinner.UnitProvider, 0)
-
-// 	_, err := os.Stat(opts.Input)
-// 	if os.IsNotExist(err) {
-// 		opts.unitsFromFlagInput(ctx, tw, &units, ch)
-// 	} else {
-// 		opts.unitsFromFileInput(ctx, tw, &units, ch)
-// 	}
-
-// 	return units, nil
-// }
-
-// func FilterUnits(units []spinner.UnitProvider) ([]downloader.Unit, []kick.Unit) {
-// 	var twitchUnits []downloader.Unit
-// 	var kickUnits []kick.Unit
-
-// 	for _, unit := range units {
-// 		switch u := unit.(type) {
-// 		case *downloader.Unit:
-// 			twitchUnits = append(twitchUnits, *u)
-// 		case *kick.Unit:
-// 			kickUnits = append(kickUnits, *u)
-// 		}
-// 	}
-
-// 	return twitchUnits, kickUnits
-// }
+	*units = append(*units, unit)
+}

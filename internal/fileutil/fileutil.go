@@ -57,6 +57,7 @@ func ConstructPathname(dir, name, ext string) (string, error) {
 
 	info, err := os.Stat(dir)
 	if err != nil {
+		fmt.Println("failed")
 		return "", err
 	}
 

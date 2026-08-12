@@ -480,7 +480,7 @@ type ClipsCardsUser struct {
 					} `json:"broadcaster"`
 					ThumbnailURL          string      `json:"thumbnailURL"`
 					CreatedAt             time.Time   `json:"createdAt"`
-					DurationSeconds       int         `json:"durationSeconds"`
+					DurationSeconds       int64       `json:"durationSeconds"`
 					ChampBadge            interface{} `json:"champBadge"`
 					IsFeatured            bool        `json:"isFeatured"`
 					IsAutoCurated         bool        `json:"isAutoCurated"`

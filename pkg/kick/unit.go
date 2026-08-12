@@ -5,16 +5,17 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/pkg/spinner"
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/google/uuid"
 )
 
 type Unit struct {
 	UUID    uuid.UUID
-	Channel *string
+	Channel string
 	Quality string
 	Start   time.Duration
 	End     time.Duration
@@ -25,9 +26,36 @@ type Unit struct {
 
 type unitOptions func(*Unit)
 
-func WithWriter(dir string) unitOptions {
+func WithPathname(pathname string) unitOptions {
 	return func(u *Unit) {
-		// u.W, u.Error = fileutil.CreateFile(dir, u.GetID(), "mp4")
+		if pathname == "" {
+			pathname = "./"
+		}
+
+		var dir, filename, ext string
+
+		info, err := os.Stat(pathname)
+		if err == nil && info.IsDir() {
+			dir = pathname
+			filename = ""
+		} else {
+			dir = filepath.Dir(pathname)
+			if _, err := os.Stat(dir); err != nil {
+				u.Error = err
+				return
+			}
+			base := filepath.Base(pathname)
+			filename = strings.TrimSuffix(base, filepath.Ext(base))
+		}
+
+		ext = "mp4"
+		newp, err := fileutil.ConstructPathname(dir, filename, ext)
+		if err != nil {
+			u.Error = err
+			return
+		}
+
+		u.W, u.Error = os.OpenFile(newp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	}
 }
 
@@ -38,8 +66,7 @@ func WithTimestamps(start, end time.Duration) unitOptions {
 	}
 }
 
-// input can be either VOD uuid or URL
-func NewUnit(input, quality string, opts ...unitOptions) *Unit {
+func NewUnit(videoURL, quality string, opts ...unitOptions) *Unit {
 	unit := new(Unit)
 
 	if err := validateQuality(quality); err != nil {
@@ -47,40 +74,31 @@ func NewUnit(input, quality string, opts ...unitOptions) *Unit {
 		return unit
 	}
 
-	raw, err := url.ParseRequestURI(input)
-	if err == nil {
-		parts := strings.Split(raw.Path, "/")
-
-		// id, err := uuid.Parse(parts[3])
-		// if err != nil {
-		// 	unit.Error = err
-		// 	return unit
-		// }
-		// unit.UUID = id
-
-		unit.Channel = &parts[1]
-		// } else if uuid.Validate(input) == nil {
-		// id, _ := uuid.Parse(input)
-		// unit.UUID = id
-	} else {
-		unit.Error = fmt.Errorf("error: invalid input for kick video")
+	parsed, err := url.Parse(videoURL)
+	if err != nil {
+		fmt.Println("FAILED TO PARSE?", parsed, videoURL)
+		unit.Error = err
 		return unit
 	}
+
+	pathParts := strings.Split(parsed.Path, "/")
+	channel := pathParts[1]
+	videoID := pathParts[len(pathParts)-1]
+
+	id, err := uuid.Parse(videoID)
+	if err != nil {
+		unit.Error = err
+		return unit
+	}
+
+	unit.Channel = channel
+	unit.UUID = id
 
 	for _, opt := range opts {
 		opt(unit)
 	}
 
 	return unit
-}
-
-func (unit *Unit) NotifyProgressChannel(msg spinner.Message, ch chan spinner.Message) {
-	if unit.W == nil || ch == nil {
-		return
-	}
-	// msg.ID = unit.GetID()
-	msg.Label = unit.GetLabel()
-	ch <- msg
 }
 
 func (u *Unit) CloseWriter() error {
@@ -103,15 +121,15 @@ func validateQuality(q string) error {
 	return fmt.Errorf("error: invalid quality")
 }
 
-// Satisfies spinner.UnitProvider
-func (u Unit) GetError() error {
-	return u.Error
+// implement progress spinner interface
+func (u *Unit) GetLabel() string {
+	return u.UUID.String()
 }
 
-// func (u Unit) GetID() string {
-// 	return u.UUID.String()
-// }
+func (u *Unit) GetID() string {
+	return u.UUID.String()
+}
 
-func (u Unit) GetLabel() string {
-	return u.Title
+func (u *Unit) GetError() error {
+	return u.Error
 }

@@ -1,6 +1,7 @@
 package kick
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,37 +11,49 @@ import (
 	"time"
 )
 
-func (c *Client) MasterPlaylistURL(channelName *string, uuid string) (string, error) {
-	if channelName == nil && uuid == "" {
+func (c *Downloader) MasterPlaylistURL(channelName string, uuid string) (string, error) {
+	if uuid == "" {
 		return "", errors.New("error: missing channel and uuid")
 	}
 
-	if channelName == nil {
-		data, err := c.V1Video(uuid)
-		if err != nil {
-			return "", err
-		}
-		ch := data.Livestream.Channel.Slug
-		channelName = &ch
-	}
+	// query channel name with vod uuid
+	// if channelName == nil {
+	// 	data, err := c.V1Video(uuid)
+	// 	if err != nil {
+	// 		return "", err
+	// 	}
+	// 	ch := data.Livestream.Channel.Slug
+	// 	channelName = &ch
+	// }
 
-	videos, err := c.V2Videos(*channelName)
+	fmt.Println("UUID", uuid)
+
+	videos, err := c.V2Videos(channelName)
 	if err != nil {
 		return "", err
 	}
 
-	i := slices.IndexFunc(videos, func(v *V2Video) bool {
+	b, err := json.MarshalIndent(videos, "", " ")
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Println("VIDEOS:", string(b))
+
+	panic("YOO")
+
+	id := slices.IndexFunc(videos, func(v *V2Video) bool {
 		return v.Video.UUID == uuid
 	})
 
-	if i < 0 {
+	if id < 0 {
 		return "", fmt.Errorf("error: not found video %s", uuid)
 	}
 
-	return videos[i].Source, nil
+	return videos[id].Source, nil
 }
 
-func (c *Client) buildSourcePlaylist(
+func (c *Downloader) buildSourcePlaylist(
 	vodSig,
 	customerID,
 	contentID string,
@@ -89,62 +102,6 @@ func (c *Client) buildSourcePlaylist(
 	}
 }
 
-type V2Video struct {
-	Categories []struct {
-		Banner struct {
-			Responsive string `json:"responsive"`
-			URL        string `json:"url"`
-		} `json:"banner"`
-		CategoryID  int      `json:"category_id"`
-		DeletedAt   any      `json:"deleted_at"`
-		Description any      `json:"description"`
-		ID          int      `json:"id"`
-		IsFallback  bool     `json:"is_fallback"`
-		IsMature    bool     `json:"is_mature"`
-		IsPromoted  bool     `json:"is_promoted"`
-		Name        string   `json:"name"`
-		Slug        string   `json:"slug"`
-		Tags        []string `json:"tags"`
-		Viewers     int      `json:"viewers"`
-	} `json:"categories"`
-	ChannelID    int      `json:"channel_id"`
-	CreatedAt    string   `json:"created_at"`
-	Duration     int      `json:"duration"`
-	ID           int      `json:"id"`
-	IsLive       bool     `json:"is_live"`
-	IsMature     bool     `json:"is_mature"`
-	Language     string   `json:"language"`
-	RiskLevelID  any      `json:"risk_level_id"`
-	SessionTitle string   `json:"session_title"`
-	Slug         string   `json:"slug"`
-	Source       string   `json:"source"`
-	StartTime    Datetime `json:"start_time"`
-	Tags         []string `json:"tags"`
-	Thumbnail    struct {
-		Src    string `json:"src"`
-		Srcset string `json:"srcset"`
-	} `json:"thumbnail"`
-	TwitchChannel any `json:"twitch_channel"`
-	Video         struct {
-		CreatedAt         time.Time `json:"created_at"`
-		DeletedAt         any       `json:"deleted_at"`
-		ID                int       `json:"id"`
-		IsPrivate         bool      `json:"is_private"`
-		IsPruned          bool      `json:"is_pruned"`
-		LiveStreamID      int       `json:"live_stream_id"`
-		S3                any       `json:"s3"`
-		Slug              any       `json:"slug"`
-		Status            string    `json:"status"`
-		Thumb             any       `json:"thumb"`
-		TradingPlatformID any       `json:"trading_platform_id"`
-		UpdatedAt         time.Time `json:"updated_at"`
-		UUID              string    `json:"uuid"`
-		Views             int       `json:"views"`
-	} `json:"video"`
-	ViewerCount int `json:"viewer_count"`
-	Views       int `json:"views"`
-}
-
 type Datetime struct {
 	time.Time
 }
@@ -159,8 +116,14 @@ func (d *Datetime) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *Client) V2Videos(channel string) ([]*V2Video, error) {
+func (c *Downloader) V2Videos(channel string) ([]*V2Video, error) {
+	fmt.Println("CHANNEL NAME:", channel)
+	if channel == "" {
+		return nil, errors.New("missing channel name for v2videos")
+	}
+
 	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s/videos", channel)
+	fmt.Println("URL:", url)
 
 	var videos []*V2Video
 	if err := c.sendRequestAndDecode(url, http.MethodGet, &videos); err != nil {
@@ -168,6 +131,7 @@ func (c *Client) V2Videos(channel string) ([]*V2Video, error) {
 	}
 
 	var channelData *Channel
+
 	for _, video := range videos {
 		// NOTE: no source = you need to be subscribed - so we are building master.m3u8 from scratch
 		if video.Source == "" {
@@ -178,7 +142,6 @@ func (c *Client) V2Videos(channel string) ([]*V2Video, error) {
 				}
 				channelData = data
 			}
-
 			if channelData != nil && video.Thumbnail.Src != "" {
 				vodSig := getVideoSignature(video.Thumbnail.Src)
 				c.buildSourcePlaylist(
@@ -292,7 +255,7 @@ type Channel struct {
 	ContentID  string
 }
 
-func (c *Client) Channel(channel string) (*Channel, error) {
+func (c *Downloader) Channel(channel string) (*Channel, error) {
 	u := fmt.Sprintf("https://kick.com/api/v2/channels/%s", channel)
 	var data Channel
 	if err := c.sendRequestAndDecode(u, http.MethodGet, &data); err != nil {
@@ -315,94 +278,157 @@ func getChannelPlaybackSignatures(playbackURL string) (string, string) {
 	return "", ""
 }
 
-type V1Video struct {
-	CreatedAt         time.Time   `json:"created_at"`
-	DeletedAt         interface{} `json:"deleted_at"`
-	ID                int         `json:"id"`
-	IsPrivate         bool        `json:"is_private"`
-	IsPruned          bool        `json:"is_pruned"`
-	LiveStreamID      int         `json:"live_stream_id"`
-	S3                interface{} `json:"s3"`
-	Slug              interface{} `json:"slug"`
-	Status            string      `json:"status"`
-	Thumb             interface{} `json:"thumb"`
-	TradingPlatformID interface{} `json:"trading_platform_id"`
-	UpdatedAt         time.Time   `json:"updated_at"`
-	UUID              string      `json:"uuid"`
-	Views             int         `json:"views"`
-	Livestream        struct {
-		ID            int         `json:"id"`
-		Slug          string      `json:"slug"`
-		ChannelID     int         `json:"channel_id"`
-		CreatedAt     string      `json:"created_at"`
-		SessionTitle  string      `json:"session_title"`
-		IsLive        bool        `json:"is_live"`
-		RiskLevelID   interface{} `json:"risk_level_id"`
-		StartTime     time.Time   `json:"start_time"`
-		Source        interface{} `json:"source"`
-		TwitchChannel interface{} `json:"twitch_channel"`
-		Duration      int         `json:"duration"`
-		Language      string      `json:"language"`
-		IsMature      bool        `json:"is_mature"`
-		ViewerCount   int         `json:"viewer_count"`
-		Tags          []string    `json:"tags"`
-		Thumbnail     string      `json:"thumbnail"`
-		Channel       struct {
-			ID                  int         `json:"id"`
-			UserID              int         `json:"user_id"`
-			Slug                string      `json:"slug"`
-			IsBanned            bool        `json:"is_banned"`
-			PlaybackURL         string      `json:"playback_url"`
-			NameUpdatedAt       interface{} `json:"name_updated_at"`
-			VodEnabled          bool        `json:"vod_enabled"`
-			SubscriptionEnabled bool        `json:"subscription_enabled"`
-			IsAffiliate         bool        `json:"is_affiliate"`
-			FollowersCount      int         `json:"followersCount"`
-			User                struct {
-				Profilepic string `json:"profilepic"`
-				Bio        string `json:"bio"`
-				Twitter    string `json:"twitter"`
-				Facebook   string `json:"facebook"`
-				Instagram  string `json:"instagram"`
-				Youtube    string `json:"youtube"`
-				Discord    string `json:"discord"`
-				Tiktok     string `json:"tiktok"`
-				Username   string `json:"username"`
-			} `json:"user"`
-			CanHost  bool `json:"can_host"`
-			Verified struct {
-				ID        int       `json:"id"`
-				ChannelID int       `json:"channel_id"`
-				CreatedAt time.Time `json:"created_at"`
-				UpdatedAt time.Time `json:"updated_at"`
-			} `json:"verified"`
-		} `json:"channel"`
-		Categories []struct {
-			ID          int         `json:"id"`
-			CategoryID  int         `json:"category_id"`
-			Name        string      `json:"name"`
-			Slug        string      `json:"slug"`
-			Tags        []string    `json:"tags"`
-			Description interface{} `json:"description"`
-			DeletedAt   interface{} `json:"deleted_at"`
-			IsMature    bool        `json:"is_mature"`
-			IsPromoted  bool        `json:"is_promoted"`
-			Viewers     int         `json:"viewers"`
-			Category    struct {
-				ID   int    `json:"id"`
-				Name string `json:"name"`
-				Slug string `json:"slug"`
-				Icon string `json:"icon"`
-			} `json:"category"`
-		} `json:"categories"`
-	} `json:"livestream"`
-}
+// type V1Video struct {
+// 	CreatedAt         time.Time   `json:"created_at"`
+// 	DeletedAt         interface{} `json:"deleted_at"`
+// 	ID                int         `json:"id"`
+// 	IsPrivate         bool        `json:"is_private"`
+// 	IsPruned          bool        `json:"is_pruned"`
+// 	LiveStreamID      int         `json:"live_stream_id"`
+// 	S3                interface{} `json:"s3"`
+// 	Slug              interface{} `json:"slug"`
+// 	Status            string      `json:"status"`
+// 	Thumb             interface{} `json:"thumb"`
+// 	TradingPlatformID interface{} `json:"trading_platform_id"`
+// 	UpdatedAt         time.Time   `json:"updated_at"`
+// 	UUID              string      `json:"uuid"`
+// 	Views             int         `json:"views"`
+// 	Livestream        struct {
+// 		ID            int         `json:"id"`
+// 		Slug          string      `json:"slug"`
+// 		ChannelID     int         `json:"channel_id"`
+// 		CreatedAt     string      `json:"created_at"`
+// 		SessionTitle  string      `json:"session_title"`
+// 		IsLive        bool        `json:"is_live"`
+// 		RiskLevelID   interface{} `json:"risk_level_id"`
+// 		StartTime     time.Time   `json:"start_time"`
+// 		Source        interface{} `json:"source"`
+// 		TwitchChannel interface{} `json:"twitch_channel"`
+// 		Duration      int         `json:"duration"`
+// 		Language      string      `json:"language"`
+// 		IsMature      bool        `json:"is_mature"`
+// 		ViewerCount   int         `json:"viewer_count"`
+// 		Tags          []string    `json:"tags"`
+// 		Thumbnail     string      `json:"thumbnail"`
+// 		Channel       struct {
+// 			ID                  int         `json:"id"`
+// 			UserID              int         `json:"user_id"`
+// 			Slug                string      `json:"slug"`
+// 			IsBanned            bool        `json:"is_banned"`
+// 			PlaybackURL         string      `json:"playback_url"`
+// 			NameUpdatedAt       interface{} `json:"name_updated_at"`
+// 			VodEnabled          bool        `json:"vod_enabled"`
+// 			SubscriptionEnabled bool        `json:"subscription_enabled"`
+// 			IsAffiliate         bool        `json:"is_affiliate"`
+// 			FollowersCount      int         `json:"followersCount"`
+// 			User                struct {
+// 				Profilepic string `json:"profilepic"`
+// 				Bio        string `json:"bio"`
+// 				Twitter    string `json:"twitter"`
+// 				Facebook   string `json:"facebook"`
+// 				Instagram  string `json:"instagram"`
+// 				Youtube    string `json:"youtube"`
+// 				Discord    string `json:"discord"`
+// 				Tiktok     string `json:"tiktok"`
+// 				Username   string `json:"username"`
+// 			} `json:"user"`
+// 			CanHost  bool `json:"can_host"`
+// 			Verified struct {
+// 				ID        int       `json:"id"`
+// 				ChannelID int       `json:"channel_id"`
+// 				CreatedAt time.Time `json:"created_at"`
+// 				UpdatedAt time.Time `json:"updated_at"`
+// 			} `json:"verified"`
+// 		} `json:"channel"`
+// 		Categories []struct {
+// 			ID          int         `json:"id"`
+// 			CategoryID  int         `json:"category_id"`
+// 			Name        string      `json:"name"`
+// 			Slug        string      `json:"slug"`
+// 			Tags        []string    `json:"tags"`
+// 			Description interface{} `json:"description"`
+// 			DeletedAt   interface{} `json:"deleted_at"`
+// 			IsMature    bool        `json:"is_mature"`
+// 			IsPromoted  bool        `json:"is_promoted"`
+// 			Viewers     int         `json:"viewers"`
+// 			Category    struct {
+// 				ID   int    `json:"id"`
+// 				Name string `json:"name"`
+// 				Slug string `json:"slug"`
+// 				Icon string `json:"icon"`
+// 			} `json:"category"`
+// 		} `json:"categories"`
+// 	} `json:"livestream"`
+// }
 
-func (c *Client) V1Video(vodUUID string) (*V1Video, error) {
-	u := fmt.Sprintf("https://kick.com/api/v1/video/%s", vodUUID)
-	var data V1Video
-	if err := c.sendRequestAndDecode(u, http.MethodGet, &data); err != nil {
-		return nil, err
-	}
-	return &data, nil
+// func (c *Downloader) V1Video(vodUUID string) (*V1Video, error) {
+// 	u := fmt.Sprintf("https://kick.com/api/v1/video/views/%s", vodUUID)
+// 	fmt.Println("URL:", string(u))
+// 	var data V1Video
+// 	var t interface{}
+// 	if err := c.sendRequestAndDecode(u, http.MethodGet, &t); err != nil {
+// 		return nil, err
+// 	}
+// 	b, err := json.MarshalIndent(t, "", " ")
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	fmt.Println("DATA:", string(b))
+// 	return &data, nil
+// }
+
+type V2Video struct {
+	Categories []struct {
+		Banner struct {
+			Responsive string `json:"responsive"`
+			URL        string `json:"url"`
+		} `json:"banner"`
+		CategoryID  int         `json:"category_id"`
+		DeletedAt   interface{} `json:"deleted_at"`
+		Description interface{} `json:"description"`
+		ID          int         `json:"id"`
+		IsFallback  bool        `json:"is_fallback"`
+		IsMature    bool        `json:"is_mature"`
+		IsPromoted  bool        `json:"is_promoted"`
+		Name        string      `json:"name"`
+		Slug        string      `json:"slug"`
+		Tags        []string    `json:"tags"`
+		Viewers     int         `json:"viewers"`
+	} `json:"categories"`
+	ChannelID    int           `json:"channel_id"`
+	CreatedAt    string        `json:"created_at"`
+	Duration     int           `json:"duration"`
+	ID           int           `json:"id"`
+	IsLive       bool          `json:"is_live"`
+	IsMature     bool          `json:"is_mature"`
+	Language     string        `json:"language"`
+	RiskLevelID  interface{}   `json:"risk_level_id"`
+	SessionTitle string        `json:"session_title"`
+	Slug         string        `json:"slug"`
+	Source       string        `json:"source"`
+	StartTime    Datetime      `json:"start_time"`
+	Tags         []interface{} `json:"tags"`
+	Thumbnail    struct {
+		Src    string `json:"src"`
+		Srcset string `json:"srcset"`
+	} `json:"thumbnail"`
+	TwitchChannel interface{} `json:"twitch_channel"`
+	Video         struct {
+		CreatedAt         time.Time   `json:"created_at"`
+		DeletedAt         interface{} `json:"deleted_at"`
+		ID                int         `json:"id"`
+		IsPrivate         bool        `json:"is_private"`
+		IsPruned          bool        `json:"is_pruned"`
+		LiveStreamID      int         `json:"live_stream_id"`
+		S3                interface{} `json:"s3"`
+		Slug              interface{} `json:"slug"`
+		Status            string      `json:"status"`
+		Thumb             interface{} `json:"thumb"`
+		TradingPlatformID interface{} `json:"trading_platform_id"`
+		UpdatedAt         time.Time   `json:"updated_at"`
+		UUID              string      `json:"uuid"`
+		Views             int         `json:"views"`
+	} `json:"video"`
+	ViewerCount int `json:"viewer_count"`
+	Views       int `json:"views"`
 }

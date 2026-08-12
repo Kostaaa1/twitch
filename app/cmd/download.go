@@ -12,6 +12,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/downloader"
+	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
@@ -50,10 +51,15 @@ func runTwitchBatchDownload(
 
 func runTwitchEventSub(
 	ctx context.Context,
-	helix *helix.Client,
+	creds *helix.OAuthCreds,
 	dl *downloader.Downloader,
 	units []*downloader.Unit,
 ) error {
+	helix, err := helix.New(creds)
+	if err != nil {
+		return err
+	}
+
 	e, err := eventsub.WithWebsocket(
 		ctx,
 		helix,
@@ -123,8 +129,10 @@ func runTwitchEventSub(
 func initSpinner(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	dl *downloader.Downloader,
-	units []*downloader.Unit,
+	twitchDl *downloader.Downloader,
+	kickDl *kick.Downloader,
+	twitchUnits []*downloader.Unit,
+	kickUnits []*kick.Unit,
 ) *spinner.Model {
 	if verbose > 0 {
 		return nil
@@ -133,10 +141,30 @@ func initSpinner(
 	spin := spinner.New(
 		ctx,
 		spinner.WithCancelFunc(cancel),
-		spinner.WithUnits(units),
+		spinner.WithUnits(twitchUnits),
+		spinner.WithUnits(kickUnits),
 	)
 
-	dl.SetProgressNotifier(func(pm downloader.Progress) {
+	kickDl.SetProgressNotifier(func(pm kick.Progress) {
+		fmt.Println("kick unit spinner message", pm)
+		ctxErr := ctx.Err()
+		if ctxErr != nil {
+			if errors.Is(ctxErr, context.Canceled) {
+				return
+			}
+			pm.Error = errors.Join(pm.Error, ctxErr)
+		}
+		spin.Send(spinner.Message{
+			ID:    pm.ID,
+			Label: pm.Label,
+			Bytes: pm.Bytes,
+			Error: pm.Error,
+			Done:  pm.Done,
+			Total: pm.Total,
+		})
+	})
+
+	twitchDl.SetProgressNotifier(func(pm downloader.Progress) {
 		ctxErr := ctx.Err()
 		if ctxErr != nil {
 			if errors.Is(ctxErr, context.Canceled) {
@@ -193,16 +221,18 @@ func runDownloadCmd(args []string) error {
 	}
 
 	gql := gql.New(http)
-	dl := downloader.New(gql, http)
 
-	units, err := cli.ParseUnits(args, quality, start, end, output)
+	dl := downloader.New(gql, http)
+	kickDl := kick.New()
+
+	twitchUnits, kickUnits, err := cli.ParseUnits(args, quality, start, end, output)
 	if err != nil {
 		return err
 	}
 
 	mainGroup, ctx := errgroup.WithContext(ctx)
 
-	spin := initSpinner(ctx, cancel, dl, units)
+	spin := initSpinner(ctx, cancel, dl, kickDl, twitchUnits, kickUnits)
 	if spin != nil {
 		mainGroup.Go(func() error {
 			spin.Run()
@@ -211,24 +241,36 @@ func runDownloadCmd(args []string) error {
 		})
 	}
 
-	mainGroup.Go(func() error {
-		downloadGroup, ctx := errgroup.WithContext(ctx)
-		if len(units) > 0 {
+	if len(kickUnits) > 0 {
+		mainGroup.Go(func() error {
+			g, ctx := errgroup.WithContext(ctx)
+			if threads > 0 {
+				g.SetLimit(threads)
+			}
+			for _, unit := range kickUnits {
+				g.Go(func() error {
+					_ = kickDl.Download(ctx, unit)
+					return nil
+				})
+			}
+			g.Wait()
+			return nil
+		})
+	}
+
+	if len(twitchUnits) > 0 {
+		mainGroup.Go(func() error {
+			downloadGroup, ctx := errgroup.WithContext(ctx)
 			downloadGroup.Go(func() error {
 				if watch {
-					helix, err := helix.New(&cfg.OAuthCreds)
-					if err != nil {
-						return err
-					}
-					return runTwitchEventSub(ctx, helix, dl, units)
-				} else {
-					return runTwitchBatchDownload(ctx, dl, units)
+					return runTwitchEventSub(ctx, &cfg.OAuthCreds, dl, twitchUnits)
 				}
+				return runTwitchBatchDownload(ctx, dl, twitchUnits)
 			})
-		}
-		downloadGroup.Wait()
-		return nil
-	})
+			downloadGroup.Wait()
+			return nil
+		})
+	}
 
 	mainGroup.Wait()
 
@@ -237,7 +279,7 @@ func runDownloadCmd(args []string) error {
 
 var downloadCmd = &cobra.Command{
 	Use:   "download",
-	Short: "",
+	Short: "download twitch media [livestreams, videos, clips]",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runDownloadCmd(args); err != nil {
@@ -247,11 +289,11 @@ var downloadCmd = &cobra.Command{
 }
 
 func init() {
-	downloadCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "")
-	downloadCmd.PersistentFlags().BoolVarP(&watch, "watch", "w", false, "")
-	downloadCmd.PersistentFlags().StringVarP(&quality, "quality", "q", "best", "")
-	downloadCmd.PersistentFlags().DurationVarP(&start, "start", "s", 0, "")
-	downloadCmd.PersistentFlags().DurationVarP(&end, "end", "e", 0, "")
+	downloadCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "download destination")
+	downloadCmd.PersistentFlags().StringVarP(&quality, "quality", "q", "best", "quality for units")
+	downloadCmd.PersistentFlags().DurationVarP(&start, "start", "s", 0, "start timestamp for VOD units")
+	downloadCmd.PersistentFlags().DurationVarP(&end, "end", "e", 0, "end timestamp for VOD units")
+	downloadCmd.PersistentFlags().BoolVarP(&watch, "watch", "w", false, "watch Twitch channels and automatically start recording when livestreams go online; can be used as a background process")
 	downloadCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "")
 	rootCmd.AddCommand(downloadCmd)
 }

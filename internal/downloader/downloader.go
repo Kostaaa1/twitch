@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -25,6 +24,9 @@ type Transfer struct {
 	MaxReadAheadPerUnit int
 	// each unit spawns N amount of workers that fetches the segments
 	MaxWorkersPerUnit int
+	// if twitch rate limits us
+	MaxRetries       int
+	ExpBackoffPeriod int
 }
 
 func defaultTransfer() *Transfer {
@@ -95,7 +97,6 @@ func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (title string, er
 	return
 }
 
-// TODO: should not depend on fileutil
 func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 	if u.dir == "" {
 		return errors.New("missing dir")
@@ -195,9 +196,7 @@ func stripSegmentURLType(url string) string {
 // segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
 // Also, we do not want to do this for all (older) videos
 func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadCloser, error) {
-	// if u.recoverAudio.Load() {
 	url = stripSegmentURLType(url)
-	// }
 
 	for {
 		select {
@@ -221,16 +220,15 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				b, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
+
 				if err != nil {
 					return nil, fmt.Errorf("failed to read the error response: %v", err)
 				}
-				return io.NopCloser(bytes.NewReader(b)), fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(b))
-			}
 
-			// if success with muted in url, means that segment is not recoverable
-			// if u.recoverAudio.Load() && strings.Contains(url, "-muted") {
-			// 	u.recoverAudio.Store(false)
-			// }
+				return nil, fmt.Errorf(
+					"failed to fetch segment - invalid status code %d: response: %s", resp.StatusCode, string(b),
+				)
+			}
 
 			return resp.Body, nil
 		}
