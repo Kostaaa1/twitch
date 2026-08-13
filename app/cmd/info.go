@@ -59,7 +59,7 @@ var infoCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(infoCmd)
-	infoCmd.PersistentFlags().IntVar(&infoArgs.videosLimit, "clips_limit", 20, "")
-	infoCmd.PersistentFlags().IntVar(&infoArgs.clipsLimit, "vods_limit", 20, "")
-	infoCmd.PersistentFlags().StringVarP(&infoArgs.criteria, "filter", "f", "LAST_WEEK", "")
+	infoCmd.PersistentFlags().IntVar(&infoArgs.videosLimit, "clips_limit", 20, "max amount of clips when displaying info")
+	infoCmd.PersistentFlags().IntVar(&infoArgs.clipsLimit, "vods_limit", 20, "max amount of videos when displaying info")
+	infoCmd.PersistentFlags().StringVarP(&infoArgs.criteria, "filter", "f", "LAST_WEEK", "filter for clips [LAST_DAY, LAST_WEEK, LAST_MONTH]")
 }
