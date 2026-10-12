@@ -2,7 +2,13 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
+)
+
+var (
+	ErrRefreshTokenRequired = errors.New("oauth: access token is required")
+	ErrUserTokenExpired     = errors.New("oauth: user token expired")
 )
 
 type UserToken struct {
@@ -39,4 +45,17 @@ func (t *UserToken) UnmarshalJSON(b []byte) error {
 
 func (t *UserToken) Expired() bool {
 	return t.ExpiresAt.IsZero() || time.Since(t.ExpiresAt) > 0
+}
+
+func (t *UserToken) Validete() error {
+	if t.AccessToken == "" {
+		return ErrAccessTokenRequired
+	}
+	if t.RefreshToken == "" {
+		return ErrRefreshTokenRequired
+	}
+	if t.Expired() {
+		return ErrTokenExpired
+	}
+	return nil
 }

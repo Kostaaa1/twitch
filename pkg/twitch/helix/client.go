@@ -17,7 +17,7 @@ type Client struct {
 
 func New(creds *auth.OAuthCreds, opts ...clientOpts) (*Client, error) {
 	if creds == nil {
-		return nil, auth.ErrMissingOAuthCredentials
+		return nil, auth.ErrOAuthCredentialsRequired
 	}
 	c := &Client{oauthCreds: creds}
 	for _, opt := range opts {
@@ -74,10 +74,10 @@ func (c *Client) RequestWithAppToken(
 	dst interface{},
 ) error {
 	if c.oauthCreds.ClientID == "" {
-		return auth.ErrMissingClientID
+		return auth.ErrClientIDRequired
 	}
 
-	if c.oauthCreds.AppToken.AccessToken == "" || c.oauthCreds.AppToken.Expired() {
+	if c.oauthCreds.AppToken.Validate() != nil {
 		if err := c.AppAccessToken(ctx); err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ func (c *Client) RequestWithAccessToken(
 	dst interface{},
 ) error {
 	if c.oauthCreds.ClientID == "" {
-		return auth.ErrMissingClientID
+		return auth.ErrClientIDRequired
 	}
 
 	if c.oauthCreds.UserToken.Expired() {

@@ -10,6 +10,14 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 )
 
+type Config struct {
+	ForceSecuredCreds bool            `json:"force_secure_credentials"`
+	User              helix.User      `json:"user"`
+	Downloader        Downloader      `json:"downloader"`
+	CommandLineChat   CommandLineChat `json:"chat"`
+	OAuthCreds        auth.OAuthCreds `json:"oauth_credentials"`
+}
+
 type CommandLineChat struct {
 	OpenedChats    []string `json:"opened_chats"`
 	ShowTimestamps bool     `json:"show_timestamps"`
@@ -19,13 +27,6 @@ type CommandLineChat struct {
 type Downloader struct {
 	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
 	Output          string `json:"output"`
-}
-
-type Config struct {
-	User            helix.User      `json:"user"`
-	Downloader      Downloader      `json:"downloader"`
-	CommandLineChat CommandLineChat `json:"chat"`
-	OAuthCreds      auth.OAuthCreds `json:"oauth_credentials"`
 }
 
 type Messages struct {
@@ -53,8 +54,9 @@ type Colors struct {
 	Timestamp string   `json:"timestamp"`
 }
 
-func defaultConfig() *Config {
+func Default() *Config {
 	return &Config{
+		ForceSecuredCreds: true,
 		OAuthCreds: auth.OAuthCreds{
 			ClientID:     "",
 			ClientSecret: "",
@@ -109,7 +111,7 @@ var (
 	outputFileName = "twitch_config.json"
 )
 
-func DirPath() (string, error) {
+func DefaultDirPath() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -120,8 +122,8 @@ func DirPath() (string, error) {
 	return "", errors.New("couldn't find the path for .config")
 }
 
-func Path() (string, error) {
-	dir, err := DirPath()
+func getFullPath() (string, error) {
+	dir, err := DefaultDirPath()
 	if err != nil {
 		return "", err
 	}
@@ -129,20 +131,20 @@ func Path() (string, error) {
 }
 
 func Get() (*Config, error) {
-	path, err := Path()
+	path, err := getFullPath()
 	if err != nil {
 		return nil, err
 	}
 
 	b, err := os.ReadFile(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			cfg := defaultConfig()
-			if err := Save(cfg); err != nil {
-				return nil, err
-			}
-			return cfg, nil
-		}
+		// if errors.Is(err, os.ErrNotExist) {
+		// 	cfg := defaultConfig()
+		// 	if err := Save(cfg); err != nil {
+		// 		return nil, err
+		// 	}
+		// 	return cfg, nil
+		// }
 		return nil, err
 	}
 
@@ -151,20 +153,24 @@ func Get() (*Config, error) {
 		return nil, err
 	}
 
+	if cfg.ForceSecuredCreds == true {
+		cfg.OAuthCreds.Read()
+	}
+
 	return &cfg, nil
 }
 
 func Save(c *Config) error {
-	path, err := Path()
+	p, err := getFullPath()
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(p, b, 0644)
 }

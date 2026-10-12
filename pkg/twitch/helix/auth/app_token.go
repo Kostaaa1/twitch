@@ -2,13 +2,19 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
+)
+
+var (
+	ErrAccessTokenRequired = errors.New("oauth: access token is required")
+	ErrTokenExpired        = errors.New("oauth: app token expired")
 )
 
 type AppToken struct {
 	AccessToken string    `json:"access_token"`
-	ExpiresIn   int       `json:"expires_in"`
 	TokenType   string    `json:"token_type"`
+	ExpiresIn   int       `json:"expires_in"`
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 
@@ -35,6 +41,16 @@ func (t *AppToken) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (t *AppToken) Expired() bool {
+func (t *AppToken) expired() bool {
 	return t.ExpiresAt.IsZero() || time.Since(t.ExpiresAt) > 0
+}
+
+func (t *AppToken) Validate() error {
+	if t.AccessToken == "" {
+		return ErrAccessTokenRequired
+	}
+	if t.expired() {
+		return ErrTokenExpired
+	}
+	return nil
 }
