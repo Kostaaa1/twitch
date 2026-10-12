@@ -2,161 +2,16 @@ package helix
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/httputil"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 )
-
-var (
-	ErrMissingOAuthCredentials = errors.New("must provide OAuth credentials")
-	ErrMissingClientID         = errors.New("client ID is missing")
-	ErrMissingClientSecret     = errors.New("client secret is missing")
-	ErrMissingRedirectURL      = errors.New("redirect url is missing")
-)
-
-type AppToken struct {
-	AccessToken string    `json:"access_token"`
-	ExpiresIn   int       `json:"expires_in"`
-	TokenType   string    `json:"token_type"`
-	ExpiresDate time.Time `json:"expires_date"`
-}
-
-func (t *AppToken) UnmarshalJSON(b []byte) error {
-	type Alias AppToken
-	aux := &struct {
-		*Alias
-		ExpiresDate string `json:"expires_date"`
-	}{
-		Alias: (*Alias)(t),
-	}
-	if err := json.Unmarshal(b, &aux); err != nil {
-		return err
-	}
-	if aux.ExpiresDate != "" {
-		parsed, err := time.Parse(time.RFC3339, aux.ExpiresDate)
-		if err != nil {
-			return err
-		}
-		t.ExpiresDate = parsed
-	} else if t.ExpiresIn > 0 {
-		t.ExpiresDate = time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)
-	}
-	return nil
-}
-
-func (t *AppToken) Expired() bool {
-	return t.ExpiresDate.IsZero() || time.Since(t.ExpiresDate) > 0
-}
-
-type UserToken struct {
-	RefreshToken string    `json:"refresh_token"`
-	AccessToken  string    `json:"access_token"`
-	Scope        []string  `json:"scope"`
-	ExpiresIn    int       `json:"expires_in"`
-	TokenType    string    `json:"token_type"`
-	ExpiresDate  time.Time `json:"expires_date"`
-}
-
-func (t *UserToken) UnmarshalJSON(b []byte) error {
-	type Alias UserToken
-	aux := &struct {
-		*Alias
-		ExpiresDate string `json:"expires_date"`
-	}{
-		Alias: (*Alias)(t),
-	}
-	if err := json.Unmarshal(b, &aux); err != nil {
-		return err
-	}
-	if aux.ExpiresDate != "" {
-		parsed, err := time.Parse(time.RFC3339, aux.ExpiresDate)
-		if err != nil {
-			return err
-		}
-		t.ExpiresDate = parsed
-	} else if t.ExpiresIn > 0 {
-		t.ExpiresDate = time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)
-	}
-	return nil
-}
-
-func (t *UserToken) Expired() bool {
-	return t.ExpiresDate.IsZero() || time.Since(t.ExpiresDate) > 0
-}
-
-type OAuthCreds struct {
-	ClientID     string     `json:"client_id"`
-	ClientSecret string     `json:"client_secret"`
-	RedirectURL  string     `json:"redirect_url"`
-	AppToken     *AppToken  `json:"app_token"`
-	UserToken    *UserToken `json:"user_token"`
-}
-
-type AuthOpts struct {
-	ForceVerify bool
-	Scopes      []Scope
-}
-
-func (creds *OAuthCreds) generateState() (string, error) {
-	b := make([]byte, 32)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func (creds *OAuthCreds) codeExchangeURLValues(opts AuthOpts) (url.Values, error) {
-	var scopes []string
-
-	if len(opts.Scopes) > 0 {
-		scopes = make([]string, len(opts.Scopes))
-		for i, scope := range opts.Scopes {
-			scopes[i] = string(scope)
-		}
-	}
-
-	state, err := creds.generateState()
-	if err != nil {
-		return nil, err
-	}
-
-	values := url.Values{
-		"response_type": {"code"},
-		"client_id":     {creds.ClientID},
-		"redirect_uri":  {creds.RedirectURL},
-		"scope":         {strings.Join(scopes, " ")},
-		"state":         {state},
-	}
-
-	if opts.ForceVerify {
-		values.Add("force_verify", "true")
-	}
-
-	return values, nil
-}
-
-func (c *OAuthCreds) Validate() error {
-	if c.ClientID == "" {
-		return ErrMissingClientID
-	}
-	if c.ClientSecret == "" {
-		return ErrMissingClientSecret
-	}
-	if c.RedirectURL == "" {
-		return ErrMissingRedirectURL
-	}
-	return nil
-}
 
 func (h *Client) AppAccessToken(ctx context.Context) error {
 	values := url.Values{
@@ -264,10 +119,8 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 		"redirect_uri":  {h.oauthCreds.RedirectURL},
 		"grant_type":    {"authorization_code"},
 	}
-
 	headers := http.Header{}
 	headers.Set("Content-Type", "x-www-form-urlencoded")
-
 	return httputil.DoJSON(
 		ctx,
 		h.http,
@@ -279,12 +132,12 @@ func (h *Client) UserTokenWithAuthorizationCode(ctx context.Context, code string
 	)
 }
 
-func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
+func (h *Client) Authorize(ctx context.Context, opts auth.AuthOpts) error {
 	if err := h.oauthCreds.Validate(); err != nil {
 		return err
 	}
 
-	v, err := h.oauthCreds.codeExchangeURLValues(opts)
+	codeVals, err := h.oauthCreds.CodeExchangeURLValues(opts)
 	if err != nil {
 		return err
 	}
@@ -293,7 +146,7 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 	if err != nil {
 		return err
 	}
-	authURL.RawQuery = v.Encode()
+	authURL.RawQuery = codeVals.Encode()
 
 	fmt.Printf("Please navigate to this link in browser to authorize: \n%s\n", authURL)
 
@@ -320,22 +173,22 @@ func (h *Client) Authorize(ctx context.Context, opts AuthOpts) error {
 			}
 		}()
 
-		q := r.URL.Query()
-		vstate, qstate, code, err := v.Get("state"), q.Get("state"), q.Get("code"), q.Get("error")
+		queryVals := r.URL.Query()
+		vstate := codeVals.Get("state")
+		qstate := queryVals.Get("state")
+		code := queryVals.Get("code")
+		err := queryVals.Get("error")
 
 		if vstate != qstate {
 			panic(fmt.Errorf("oauth states do not match - (%s - %s) CSRF attempt\n", vstate, qstate))
 		}
-
 		if err != "" {
-			errDesc := q.Get("error_description")
+			errDesc := queryVals.Get("error_description")
 			panic(errors.Join(errors.New(errDesc), errors.New(err)))
 		}
-
 		if code == "" {
 			panic("code is empty")
 		}
-
 		if err := h.UserTokenWithAuthorizationCode(ctx, code); err != nil {
 			panic(err)
 		}

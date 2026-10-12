@@ -9,16 +9,18 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 	"github.com/Kostaaa1/twitch/pkg/twitch/usher"
 	"github.com/spf13/cobra"
 )
 
 func ensureUserData(ctx context.Context, c *helix.Client, conf *config.Config) error {
 	if conf.OAuthCreds.UserToken == nil {
-		if err := c.Authorize(ctx, helix.AuthOpts{
+		opts := auth.AuthOpts{
 			ForceVerify: true,
 			Scopes:      chat.DefaultScopes(),
-		}); err != nil {
+		}
+		if err := c.Authorize(ctx, opts); err != nil {
 			return err
 		}
 	}

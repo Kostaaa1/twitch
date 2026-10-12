@@ -10,7 +10,7 @@ import (
 	"github.com/Kostaaa1/twitch/internal/cli/view/components"
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/pkg/twitch/chat"
-	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 	"github.com/Kostaaa1/twitch/pkg/twitch/usher"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -46,8 +46,8 @@ type model struct {
 	errMsg          errMsg
 }
 
-func DefaultScopes() []helix.Scope {
-	return []helix.Scope{helix.ChatEdit, helix.ChatRead}
+func DefaultScopes() []auth.Scope {
+	return []auth.Scope{auth.ChatEdit, auth.ChatRead}
 }
 
 // TODO:

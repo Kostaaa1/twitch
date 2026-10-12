@@ -7,27 +7,25 @@ import (
 	"net/http"
 
 	"github.com/Kostaaa1/twitch/internal/httputil"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 )
 
 type Client struct {
 	http       *http.Client
-	oauthCreds *OAuthCreds
+	oauthCreds *auth.OAuthCreds
 }
 
-func New(creds *OAuthCreds, opts ...clientOpts) (*Client, error) {
+func New(creds *auth.OAuthCreds, opts ...clientOpts) (*Client, error) {
 	if creds == nil {
-		return nil, ErrMissingOAuthCredentials
+		return nil, auth.ErrMissingOAuthCredentials
 	}
-
 	c := &Client{oauthCreds: creds}
 	for _, opt := range opts {
 		opt(c)
 	}
-
 	if c.http == nil {
 		c.http = http.DefaultClient
 	}
-
 	return c, nil
 }
 
@@ -76,7 +74,7 @@ func (c *Client) RequestWithAppToken(
 	dst interface{},
 ) error {
 	if c.oauthCreds.ClientID == "" {
-		return ErrMissingClientID
+		return auth.ErrMissingClientID
 	}
 
 	if c.oauthCreds.AppToken.AccessToken == "" || c.oauthCreds.AppToken.Expired() {
@@ -109,7 +107,7 @@ func (c *Client) RequestWithAccessToken(
 	dst interface{},
 ) error {
 	if c.oauthCreds.ClientID == "" {
-		return ErrMissingClientID
+		return auth.ErrMissingClientID
 	}
 
 	if c.oauthCreds.UserToken.Expired() {

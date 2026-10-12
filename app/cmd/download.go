@@ -16,6 +16,7 @@ import (
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix/eventsub"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -51,7 +52,7 @@ func runTwitchBatchDownload(
 
 func runTwitchEventSub(
 	ctx context.Context,
-	creds *helix.OAuthCreds,
+	creds *auth.OAuthCreds,
 	dl *downloader.Downloader,
 	units []*downloader.Unit,
 ) error {
@@ -102,9 +103,9 @@ func runTwitchEventSub(
 			return err
 		}
 
-		ev1 := e.StreamOnlineEvent(user.Data[0].ID)
+		ev := e.StreamOnlineEvent(user.Data[0].ID)
 
-		events := []eventsub.Event{ev1}
+		events := []eventsub.Event{ev}
 		for _, event := range events {
 			resp, err := e.Subscriptions().Create(event).Run(ctx)
 			if err != nil {
@@ -203,29 +204,20 @@ func runDownloadCmd(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	http := &http.Client{
-		Timeout: time.Second * 30,
-		Transport: &http.Transport{
-			// total number of idle connections that can be reused
-			MaxIdleConns: 32,
-			// number of idle conns that are kept for host (optimal for segment downloading)
-			MaxIdleConnsPerHost: 16,
-			// how long an idle conn is allowed to stay idle before being closed
-			IdleConnTimeout:   90 * time.Second,
-			ForceAttemptHTTP2: true,
-			// sets the number of max connections per host, meaning it will block until connection becomes idle upon requesting
-			// MaxConnsPerHost: 1,
-			// timeout limit for TLS handshake to establish
-			// TLSHandshakeTimeout: time.Second * 10,
-		},
-	}
-
+	http := http.DefaultClient
 	gql := gql.New(http)
-
 	dl := downloader.New(gql, http)
 	kickDl := kick.New()
 
-	twitchUnits, kickUnits, err := cli.ParseUnits(args, quality, start, end, output)
+	pu := cli.ParseUnit{
+		Inputs:     args,
+		Quality:    quality,
+		Start:      start,
+		End:        end,
+		OutputPath: output,
+	}
+
+	twitchUnits, kickUnits, err := cli.ParseUnits(pu)
 	if err != nil {
 		return err
 	}

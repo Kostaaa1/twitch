@@ -154,7 +154,6 @@ func (dl *Downloader) download(ctx context.Context, u *Unit, r io.ReadCloser) er
 	if err != nil {
 		return err
 	}
-
 	dl.notifyProgress(u, n)
 
 	return nil
@@ -178,12 +177,10 @@ func transformSegmentURL(url string) (string, bool) {
 		ext := filepath.Ext(url)
 		return strings.TrimSuffix(url, ext) + "-unmuted" + ext, false
 	}
-
 	replaced := strings.Replace(url, "-unmuted", "-muted", 1)
 	if replaced != url {
 		return replaced, false
 	}
-
 	return url, true
 }
 
@@ -220,7 +217,6 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				b, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
-
 				if err != nil {
 					return nil, fmt.Errorf("failed to read the error response: %v", err)
 				}

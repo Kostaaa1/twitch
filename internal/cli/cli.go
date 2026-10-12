@@ -50,17 +50,25 @@ func (p *Unit) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type ParseUnit struct {
+	Inputs     []string
+	Quality    string
+	Start, End time.Duration
+	OutputPath string
+}
+
 func ParseUnits(
-	inputs []string,
-	quality string,
-	start time.Duration,
-	end time.Duration,
-	output string,
+	pu ParseUnit,
+	// inputs []string,
+	// quality string,
+	// start time.Duration,
+	// end time.Duration,
+	// output string,
 ) ([]*downloader.Unit, []*kick.Unit, error) {
 	// units := make([]*downloader.Unit, 0)
 	units := make([]interface{}, 0)
 
-	for _, input := range inputs {
+	for _, input := range pu.Inputs {
 		_, err := os.Stat(input)
 		if !os.IsNotExist(err) {
 			b, err := os.ReadFile(input)
@@ -75,26 +83,25 @@ func ParseUnits(
 
 			for _, unit := range inputUnits {
 				if unit.Output == "" {
-					unit.Output = output
+					unit.Output = pu.OutputPath
 				}
-
 				handleUnitInput(
 					&units,
 					input,
-					quality,
-					start,
-					end,
-					output,
+					pu.Quality,
+					pu.Start,
+					pu.End,
+					pu.OutputPath,
 				)
 			}
 		} else {
 			handleUnitInput(
 				&units,
 				input,
-				quality,
-				start,
-				end,
-				output,
+				pu.Quality,
+				pu.Start,
+				pu.End,
+				pu.OutputPath,
 			)
 		}
 	}
@@ -150,6 +157,5 @@ func handleUnitInput(
 			downloader.WithPathname(output),
 		)
 	}
-
 	*units = append(*units, unit)
 }

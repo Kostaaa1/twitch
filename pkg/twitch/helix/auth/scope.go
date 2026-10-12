@@ -1,4 +1,4 @@
-package helix
+package auth
 
 type Scope string
 

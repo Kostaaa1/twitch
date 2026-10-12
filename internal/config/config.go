@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix/auth"
 )
 
 type CommandLineChat struct {
@@ -21,10 +22,10 @@ type Downloader struct {
 }
 
 type Config struct {
-	User            helix.User       `json:"user"`
-	Downloader      Downloader       `json:"downloader"`
-	CommandLineChat CommandLineChat  `json:"chat"`
-	OAuthCreds      helix.OAuthCreds `json:"creds"`
+	User            helix.User      `json:"user"`
+	Downloader      Downloader      `json:"downloader"`
+	CommandLineChat CommandLineChat `json:"chat"`
+	OAuthCreds      auth.OAuthCreds `json:"oauth_credentials"`
 }
 
 type Messages struct {
@@ -54,6 +55,13 @@ type Colors struct {
 
 func defaultConfig() *Config {
 	return &Config{
+		OAuthCreds: auth.OAuthCreds{
+			ClientID:     "",
+			ClientSecret: "",
+			RedirectURL:  "",
+			AppToken:     nil,
+			UserToken:    nil,
+		},
 		User: helix.User{
 			BroadcasterType: "",
 			CreatedAt:       "",
@@ -96,23 +104,28 @@ func defaultConfig() *Config {
 	}
 }
 
-func Dir() (string, error) {
+var (
+	outputDirName  = "twitch"
+	outputFileName = "twitch_config.json"
+)
+
+func DirPath() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
 	if dir != "" {
-		return filepath.Join(dir, "twitch"), nil
+		return filepath.Join(dir, outputDirName), nil
 	}
 	return "", errors.New("couldn't find the path for .config")
 }
 
 func Path() (string, error) {
-	dir, err := Dir()
+	dir, err := DirPath()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "twitch_config.json"), nil
+	return filepath.Join(dir, outputFileName), nil
 }
 
 func Get() (*Config, error) {
@@ -146,15 +159,12 @@ func Save(c *Config) error {
 	if err != nil {
 		return err
 	}
-
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
-
 	return os.WriteFile(path, b, 0o644)
 }

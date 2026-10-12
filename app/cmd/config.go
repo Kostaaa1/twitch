@@ -19,7 +19,6 @@ type optsType struct {
 var opts optsType
 
 // flag > env vars > config > default
-
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "",
@@ -33,20 +32,18 @@ var configCmd = &cobra.Command{
 			if err != nil {
 				log.Fatal(err)
 			}
-
 			b, err := json.MarshalIndent(cfg, "", " ")
 			if err != nil {
 				log.Fatal(err)
 			}
 			fmt.Println(string(b))
-
 		case "init":
 			// accept paths
 			config.Get()
 		case "set":
 
 		case "path":
-			dir, err := config.Dir()
+			dir, err := config.DirPath()
 			if err != nil {
 				log.Fatal(err)
 			}
