@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +30,13 @@ func runInfoCommand(args []string) error {
 		if err != nil {
 			return err
 		}
-		videos, err := c.FilterableVideoTower_Videos(ctx, channel, infoArgs.videosLimit)
+		args := gql.FilterableVideoTowerArgs{
+			Limit:           infoArgs.videosLimit,
+			Channel:         channel,
+			BroadcasterType: helix.VideoTypeAll,
+			VideoSort:       helix.SortTime,
+		}
+		videos, err := c.FilterableVideoTower_Videos(ctx, args)
 		if err != nil {
 			return err
 		}
@@ -59,7 +66,7 @@ var infoCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(infoCmd)
-	infoCmd.PersistentFlags().IntVar(&infoArgs.videosLimit, "clips_limit", 20, "max amount of clips when displaying info")
-	infoCmd.PersistentFlags().IntVar(&infoArgs.clipsLimit, "vods_limit", 20, "max amount of videos when displaying info")
-	infoCmd.PersistentFlags().StringVarP(&infoArgs.criteria, "filter", "f", "LAST_WEEK", "filter for clips [LAST_DAY, LAST_WEEK, LAST_MONTH]")
+	infoCmd.PersistentFlags().IntVar(&infoArgs.videosLimit, "limit_clips", 20, "max amount of clips when displaying info")
+	infoCmd.PersistentFlags().IntVar(&infoArgs.clipsLimit, "limit_videos", 20, "max amount of videos when displaying info")
+	infoCmd.PersistentFlags().StringVarP(&infoArgs.criteria, "clip_filter", "f", "LAST_WEEK", "filter for clips [LAST_DAY, LAST_WEEK, LAST_MONTH, ALL]")
 }

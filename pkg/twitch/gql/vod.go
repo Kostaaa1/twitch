@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 )
 
 func (tw *Client) VideoPlaybackAccessToken(ctx context.Context, id string) (*PlaybackAccessToken, error) {
@@ -95,26 +98,54 @@ func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (*VideoMetada
 	return &vod, nil
 }
 
+type FilterableVideoTowerArgs struct {
+	Limit           int
+	Channel         string
+	BroadcasterType helix.VideoBroadcastType
+	VideoSort       helix.VideoSort
+}
+
+func (args *FilterableVideoTowerArgs) Validate() error {
+	if args.Limit < 1 || args.Limit > 100 {
+		return fmt.Errorf("invalid limit %d: must be between 1 and 100", args.Limit)
+	}
+
+	args.Channel = strings.ToLower(strings.TrimSpace(args.Channel))
+	if args.Channel == "" {
+		return errors.New("channel login must not be empty")
+	}
+
+	switch args.BroadcasterType {
+	case "":
+		args.BroadcasterType = helix.VideoTypeArchive
+	case helix.VideoTypeArchive, helix.VideoTypeHighlight, helix.VideoTypeUpload:
+	default:
+		return fmt.Errorf("invalid broadcast type %q: must be one of archive, highlight, upload", args.BroadcasterType)
+	}
+
+	switch args.VideoSort {
+	case "":
+		args.VideoSort = helix.SortTime
+	case helix.SortTime, helix.SortViews:
+	default:
+		return fmt.Errorf("invalid video sort %q: must be one of time, views", args.VideoSort)
+	}
+
+	return nil
+}
+
 // type broadcastType int // ARCHIVE | HIGHLIGHT | CLIP | LIVE
 // type videoSort int // TIME | VIEWS
 // cursor example: 2732435300|877053|2026-03-26T20:03:29Z|24387
-func (tw *Client) FilterableVideoTower_Videos(
-	ctx context.Context,
-	channel string,
-	limit int,
-) (*FilterableVideoTower_Videos, error) {
-	if limit > 100 {
-		return nil, errors.New("limit value must be between 1 and 100")
-	}
-
+func (tw *Client) FilterableVideoTower_Videos(ctx context.Context, args FilterableVideoTowerArgs) (*FilterableVideoTower_Videos, error) {
 	gqlPl := `{
         "operationName": "FilterableVideoTower_Videos",
         "variables": {
             "includePreviewBlur": false,
             "limit": %d,
             "channelOwnerLogin": "%s",
-            "broadcastType": "ARCHIVE",
-            "videoSort": "TIME"
+            "broadcastType": "%s",
+            "videoSort": "%s"
         },
         "extensions": {
             "persistedQuery": {
@@ -125,7 +156,16 @@ func (tw *Client) FilterableVideoTower_Videos(
     }`
 
 	var videos FilterableVideoTower_Videos
-	if err := sendGqlLoadAndDecode(ctx, tw.http, &videos, gqlPl, limit, channel); err != nil {
+	if err := sendGqlLoadAndDecode(
+		ctx,
+		tw.http,
+		&videos,
+		gqlPl,
+		args.Limit,
+		args.Channel,
+		strings.ToUpper(string(args.BroadcasterType)),
+		strings.ToUpper(string(args.VideoSort)),
+	); err != nil {
 		return nil, err
 	}
 

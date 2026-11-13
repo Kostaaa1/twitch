@@ -24,6 +24,10 @@ type CommandLineChat struct {
 	Colors         Colors   `json:"colors"`
 }
 
+// TODO:
+// 1. Add templating possibilities: channel name - title - quality
+// 2. Use ffmpeg to enforce formats: for example, if .ts segments are being downloaded, convert to mp4 - rely on ffmpeg for this
+// 3. Determine what to show in spinner label view - display full path or just title
 type Downloader struct {
 	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
 	Output          string `json:"output"`
@@ -130,6 +134,20 @@ func getFullPath() (string, error) {
 	return filepath.Join(dir, outputFileName), nil
 }
 
+func OpenFileLogger() (*os.File, error) {
+	dir, err := DefaultDirPath()
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(filepath.Join(dir, "downloder.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
 func Get() (*Config, error) {
 	path, err := getFullPath()
 	if err != nil {
@@ -138,13 +156,6 @@ func Get() (*Config, error) {
 
 	b, err := os.ReadFile(path)
 	if err != nil {
-		// if errors.Is(err, os.ErrNotExist) {
-		// 	cfg := defaultConfig()
-		// 	if err := Save(cfg); err != nil {
-		// 		return nil, err
-		// 	}
-		// 	return cfg, nil
-		// }
 		return nil, err
 	}
 

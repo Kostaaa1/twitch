@@ -41,8 +41,8 @@ type Video struct {
 }
 
 type videoPeriod string
-type videoSort string
-type videoType string
+type VideoSort string
+type VideoBroadcastType string
 
 const (
 	PeriodAll   videoPeriod = "all"
@@ -50,14 +50,14 @@ const (
 	PeriodMonth videoPeriod = "month"
 	PeriodYear  videoPeriod = "year"
 
-	SortTime     videoSort = "time"
-	SortTrending videoSort = "trending"
-	SortViews    videoSort = "views"
+	SortTime     VideoSort = "time"
+	SortTrending VideoSort = "trending"
+	SortViews    VideoSort = "views"
 
-	VideoTypeAll       videoType = "all"
-	VideoTypeArchive   videoType = "archive"
-	VideoTypeHighlight videoType = "highlight"
-	VideoTypeUpload    videoType = "upload"
+	VideoTypeAll       VideoBroadcastType = "all"
+	VideoTypeArchive   VideoBroadcastType = "archive"
+	VideoTypeHighlight VideoBroadcastType = "highlight"
+	VideoTypeUpload    VideoBroadcastType = "upload"
 )
 
 type video struct {
@@ -74,11 +74,11 @@ func (s *video) Period(p videoPeriod) *video {
 	s.values.Add("period", string(p))
 	return s
 }
-func (s *video) Sort(p videoSort) *video {
+func (s *video) Sort(p VideoSort) *video {
 	s.values.Add("sort", string(p))
 	return s
 }
-func (s *video) Type(p videoType) *video {
+func (s *video) Type(p VideoBroadcastType) *video {
 	s.values.Add("type", string(p))
 	return s
 }

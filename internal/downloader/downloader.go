@@ -85,16 +85,16 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	return u.Error
 }
 
-func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (title string, err error) {
+func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (string, error) {
 	switch u.Type {
 	case TypeClip:
-		title, err = dl.gql.ClipTitle(ctx, u.ID)
+		return dl.gql.ClipTitle(ctx, u.ID)
 	case TypeVOD:
-		title, err = dl.gql.VideoTitle(ctx, u.ID)
+		return dl.gql.VideoTitle(ctx, u.ID)
 	case TypeLivestream:
-		title, err = dl.gql.StreamTitle(ctx, u.ID)
+		return dl.gql.StreamTitle(ctx, u.ID)
 	}
-	return
+	return "", fmt.Errorf("failed to fetch title for unit: %s", u.UUID.String())
 }
 
 func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {

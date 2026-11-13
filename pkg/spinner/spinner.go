@@ -11,6 +11,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	colorMuted = lipgloss.Color("#8B8B8B")
+	mutedStyle = lipgloss.NewStyle().Foreground(colorMuted)
+)
+
 type Message struct {
 	ID    string
 	Label string
@@ -54,11 +59,6 @@ func (m *Model) Send(msg Message) {
 	m.channel <- msg
 }
 
-var (
-	colorMuted = lipgloss.Color("#8B8B8B")
-	mutedStyle = lipgloss.NewStyle().Foreground(colorMuted)
-)
-
 type spinnerOpts func(m *Model)
 
 func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
@@ -67,15 +67,29 @@ func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
 	}
 }
 
+func (m *Model) newunit(u UnitProvider) *unit {
+	newunit := &unit{
+		id:        u.GetID(),
+		label:     u.GetLabel(),
+		err:       u.GetError(),
+		byteCount: 0,
+		total:     0,
+		done:      false,
+		elapsed:   0,
+		startTime: time.Time{},
+		estimated: time.Time{},
+	}
+	if newunit.err != nil {
+		m.doneCount++
+		newunit.done = true
+	}
+	return newunit
+}
+
 func WithUnits[T UnitProvider](units []T) spinnerOpts {
 	return func(m *Model) {
-		m.units = make([]*unit, len(units))
-		for i, u := range units {
-			m.units[i] = &unit{
-				id:    u.GetID(),
-				label: u.GetLabel(),
-				err:   u.GetError(),
-			}
+		for _, u := range units {
+			m.units = append(m.units, m.newunit(u))
 		}
 	}
 }
@@ -90,15 +104,11 @@ func New(ctx context.Context, opts ...spinnerOpts) *Model {
 		spinner:   s,
 		doneCount: 0,
 		channel:   make(chan Message),
-		// units:     make([]*unit, 0),
+		units:     make([]*unit, 0),
 	}
 
 	for _, opt := range opts {
 		opt(m)
-	}
-
-	if len(m.units) == 0 {
-		m.units = make([]*unit, 0)
 	}
 
 	return m
@@ -184,23 +194,27 @@ func (m *Model) updateModelUnit(msg Message) {
 	}
 
 	if !found {
-		newunit := &unit{
-			id:        msg.ID,
-			label:     msg.Label,
-			err:       msg.Error,
-			byteCount: float64(msg.Bytes),
-			total:     msg.Total,
-			done:      msg.Done,
-			elapsed:   0,
-			startTime: time.Time{},
-			estimated: time.Time{},
-		}
-		if msg.Error != nil {
-			m.doneCount++
-			newunit.done = true
-		}
-		m.units = append(m.units, newunit)
+		panic("assert: should have all units initialized")
 	}
+
+	// if !found {
+	// 	newunit := &unit{
+	// 		id:        msg.ID,
+	// 		label:     msg.Label,
+	// 		err:       msg.Error,
+	// 		byteCount: float64(msg.Bytes),
+	// 		total:     msg.Total,
+	// 		done:      msg.Done,
+	// 		elapsed:   0,
+	// 		startTime: time.Time{},
+	// 		estimated: time.Time{},
+	// 	}
+	// 	if msg.Error != nil {
+	// 		m.doneCount++
+	// 		newunit.done = true
+	// 	}
+	// 	m.units = append(m.units, newunit)
+	// }
 }
 
 func (m Model) View() string {

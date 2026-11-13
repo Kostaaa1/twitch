@@ -1,0 +1,22 @@
+[
+	{
+		"input": "https://www.twitch.tv/xqc",
+		"quality": "best,worst,1080p,720p,480p,360p,160p"
+	},
+	{
+		"input": "DeliciousDelightfulPicklesWOOP",
+		"quality": "best,worst,1080p,720p,480p,360p,160p"
+	},
+	{
+		"input": "xqc",
+		"quality": "best,worst,1080p,720p,480p,360p,160p",
+		"output": "output_dir_path"
+	},
+	{
+		"input": "2926188923",
+		"quality": "best,worst,1080p,720p,480p,360p,160p",
+		"output": "output_dir_path",
+		"start": "1h5m20s",
+		"end": "2h5m30s"
+	}
+]

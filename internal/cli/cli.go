@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -50,68 +51,51 @@ func (p *Unit) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type ParseUnit struct {
-	Inputs     []string
-	Quality    string
-	Start, End time.Duration
-	OutputPath string
+func isKickUnit(input string) bool {
+	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
 }
 
-func ParseUnits(
-	pu ParseUnit,
-	// inputs []string,
-	// quality string,
-	// start time.Duration,
-	// end time.Duration,
-	// output string,
-) ([]*downloader.Unit, []*kick.Unit, error) {
-	// units := make([]*downloader.Unit, 0)
-	units := make([]interface{}, 0)
+func handleUnitInput(
+	units *[]interface{},
+	in string,
+	quality string,
+	start, end time.Duration,
+	output string,
+) {
+	var unit interface{}
+	if isKickUnit(in) {
+		unit = kick.NewUnit(
+			in,
+			quality,
+			kick.WithTimestamps(start, end),
+			kick.WithPathname(output),
+		)
+	} else {
+		unit = downloader.NewUnit(
+			in,
+			downloader.WithQuality(quality),
+			downloader.WithTimestamps(start, end),
+			downloader.WithPathname(output),
+		)
+	}
+	*units = append(*units, unit)
+}
 
-	for _, input := range pu.Inputs {
-		_, err := os.Stat(input)
-		if !os.IsNotExist(err) {
-			b, err := os.ReadFile(input)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			var inputUnits []*Unit
-			if err := json.Unmarshal(b, &inputUnits); err != nil {
-				return nil, nil, err
-			}
-
-			for _, unit := range inputUnits {
-				if unit.Output == "" {
-					unit.Output = pu.OutputPath
-				}
-				handleUnitInput(
-					&units,
-					input,
-					pu.Quality,
-					pu.Start,
-					pu.End,
-					pu.OutputPath,
-				)
-			}
-		} else {
-			handleUnitInput(
-				&units,
-				input,
-				pu.Quality,
-				pu.Start,
-				pu.End,
-				pu.OutputPath,
-			)
-		}
+func parseUnitsFile(path string) ([]*Unit, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
-	twitch, kick := filterUnits(units)
+	var units []*Unit
+	if err := json.Unmarshal(b, &units); err != nil {
+		return nil, err
+	}
 
-	return twitch, kick, nil
+	return units, nil
 }
 
-func filterUnits(units []interface{}) ([]*downloader.Unit, []*kick.Unit) {
+func sort(units []interface{}) ([]*downloader.Unit, []*kick.Unit) {
 	twitchUnits := make([]*downloader.Unit, 0)
 	kickUnits := make([]*kick.Unit, 0)
 
@@ -130,32 +114,35 @@ func filterUnits(units []interface{}) ([]*downloader.Unit, []*kick.Unit) {
 	return twitchUnits, kickUnits
 }
 
-func isKickUnit(input string) bool {
-	return strings.Contains(input, "kick.com") || uuid.Validate(input) == nil
+type ParseUnit struct {
+	Inputs     []string
+	Quality    string
+	Start, End time.Duration
+	OutputPath string
 }
 
-func handleUnitInput(
-	units *[]interface{},
-	input string,
-	quality string,
-	start, end time.Duration,
-	output string,
-) {
-	var unit interface{}
-	if isKickUnit(input) {
-		unit = kick.NewUnit(
-			input,
-			quality,
-			kick.WithTimestamps(start, end),
-			kick.WithPathname(output),
-		)
-	} else {
-		unit = downloader.NewUnit(
-			input,
-			downloader.WithQuality(quality),
-			downloader.WithTimestamps(start, end),
-			downloader.WithPathname(output),
-		)
+func ParseUnits(pu ParseUnit) ([]*downloader.Unit, []*kick.Unit, error) {
+	units := make([]interface{}, 0)
+
+	for _, input := range pu.Inputs {
+		if filepath.Ext(input) != "" {
+			inputUnits, err := parseUnitsFile(input)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			for _, unit := range inputUnits {
+				if unit.Output == "" {
+					unit.Output = pu.OutputPath
+				}
+				handleUnitInput(&units, unit.Input, unit.Quality, unit.Start, unit.End, unit.Output)
+			}
+		} else {
+			handleUnitInput(&units, input, pu.Quality, pu.Start, pu.End, pu.OutputPath)
+		}
 	}
-	*units = append(*units, unit)
+
+	twitch, kick := sort(units)
+
+	return twitch, kick, nil
 }

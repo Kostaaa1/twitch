@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/google/uuid"
 )
 
@@ -84,28 +86,36 @@ func WithWriter(w io.Writer) unitOption {
 	}
 }
 
-// parses provided pathname, validates dir and sets the dir and filename (if provided) fields. provided extension will be discarded as it needs to be discovered when playlist is fetched (as m3u8 playlist segments can be of multiple formats)
 func WithPathname(pathname string) unitOption {
 	return func(u *Unit) error {
 		if pathname == "" {
-			pathname = "./"
+			return errors.New("failed to parse provided pathname: pathanme is not provided")
 		}
 
-		info, err := os.Stat(pathname)
-		if err == nil && info.IsDir() {
-			u.dir = pathname
-			u.filename = ""
+		stat, err := os.Stat(pathname)
+		if os.IsNotExist(err) {
+			dir, file := filepath.Split(pathname)
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				return fmt.Errorf("failed to parse provided pathname: provided pathname is not valid: %s", pathname)
+			}
+			u.dir = dir
+			u.filename = file
 			return nil
 		}
 
-		dir := filepath.Dir(pathname)
-		if _, err := os.Stat(dir); err != nil {
+		if err != nil {
 			return err
 		}
 
+		if stat.IsDir() {
+			u.filename = ""
+			u.dir = pathname
+			return nil
+		}
+
+		dir, file := filepath.Split(pathname)
 		u.dir = dir
-		base := filepath.Base(pathname)
-		u.filename = strings.TrimSuffix(base, filepath.Ext(base))
+		u.filename = file
 
 		return nil
 	}
@@ -209,6 +219,40 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	}
 
 	return unit
+}
+
+func (u *Unit) Open(ctx context.Context, dl *Downloader) error {
+	if u.w != nil {
+		return nil
+	}
+
+	if u.dir == "" {
+		return errors.New("missing dir")
+	}
+	if u.ext == "" {
+		return errors.New("missing file extension")
+	}
+
+	if u.filename == "" {
+		title, err := dl.fetchTitle(ctx, u)
+		if err != nil {
+			return err
+		}
+		u.filename = title
+	}
+
+	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	u.w = f
+
+	return nil
 }
 
 func (u *Unit) CloseWriter() error {

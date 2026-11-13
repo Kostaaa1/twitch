@@ -13,7 +13,6 @@ func (dl *Downloader) notifyProgress(u *Unit, n int64) {
 	if dl.notifyFn == nil {
 		return
 	}
-
 	dl.notifyFn(Progress{
 		ID:    u.GetID(),
 		Label: u.GetLabel(),
@@ -28,7 +27,6 @@ func (dl *Downloader) notifyDone(u *Unit) {
 	if dl.notifyFn == nil {
 		return
 	}
-
 	dl.notifyFn(Progress{
 		ID:    u.GetID(),
 		Label: u.GetLabel(),

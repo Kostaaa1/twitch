@@ -23,12 +23,17 @@ import (
 )
 
 var (
+	threads    int
 	output     string
 	quality    string
-	threads    int
 	watch      bool
 	start, end time.Duration
 	verbose    int
+
+	channels                     []string
+	limitVideos, limitClips      int
+	sortVideosBy, filterVideosBy string
+	filterClipsBy                string
 )
 
 func runTwitchBatchDownload(
@@ -135,10 +140,6 @@ func initSpinner(
 	twitchUnits []*downloader.Unit,
 	kickUnits []*kick.Unit,
 ) *spinner.Model {
-	if verbose > 0 {
-		return nil
-	}
-
 	spin := spinner.New(
 		ctx,
 		spinner.WithCancelFunc(cancel),
@@ -146,8 +147,7 @@ func initSpinner(
 		spinner.WithUnits(kickUnits),
 	)
 
-	kickDl.SetProgressNotifier(func(pm kick.Progress) {
-		fmt.Println("kick unit spinner message", pm)
+	kickNotifyFn := func(pm kick.Progress) {
 		ctxErr := ctx.Err()
 		if ctxErr != nil {
 			if errors.Is(ctxErr, context.Canceled) {
@@ -163,9 +163,10 @@ func initSpinner(
 			Done:  pm.Done,
 			Total: pm.Total,
 		})
-	})
+	}
+	kickDl.SetProgressNotifier(kickNotifyFn)
 
-	twitchDl.SetProgressNotifier(func(pm downloader.Progress) {
+	twitchNotifyFn := func(pm downloader.Progress) {
 		ctxErr := ctx.Err()
 		if ctxErr != nil {
 			if errors.Is(ctxErr, context.Canceled) {
@@ -181,12 +182,15 @@ func initSpinner(
 			Done:  pm.Done,
 			Total: pm.Total,
 		})
-	})
+	}
+	twitchDl.SetProgressNotifier(twitchNotifyFn)
 
 	return spin
 }
 
 func runDownloadCmd(args []string) error {
+	fmt.Println(channels, limitClips, limitVideos, sortVideosBy)
+
 	cfg, err := config.Get()
 	if err != nil {
 		return err
@@ -197,17 +201,24 @@ func runDownloadCmd(args []string) error {
 		}
 	}()
 
-	if output == "" {
-		output = cfg.Downloader.Output
-	}
+	// f, err := config.OpenFileLogger()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer f.Close()
+
+	// l := logger.New(f, verbose)
+	// http := &http.Client{
+	// 	Transport: logger.NewLoggingTransport(http.DefaultTransport, l),
+	// 	Timeout:   10 * time.Second,
+	// }
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	http := http.DefaultClient
-	gql := gql.New(http)
-	dl := downloader.New(gql, http)
-	kickDl := kick.New()
+	if output == "" {
+		output = cfg.Downloader.Output
+	}
 
 	pu := cli.ParseUnit{
 		Inputs:     args,
@@ -223,6 +234,10 @@ func runDownloadCmd(args []string) error {
 	}
 
 	mainGroup, ctx := errgroup.WithContext(ctx)
+
+	http := http.DefaultClient
+	dl := downloader.New(gql.New(http), http)
+	kickDl := kick.New()
 
 	spin := initSpinner(ctx, cancel, dl, kickDl, twitchUnits, kickUnits)
 	if spin != nil {
@@ -269,7 +284,7 @@ func runDownloadCmd(args []string) error {
 	return nil
 }
 
-var downloadCmd = &cobra.Command{
+var cmd = &cobra.Command{
 	Use:   "download",
 	Short: "download twitch media [livestreams, videos, clips]",
 	Long:  ``,
@@ -280,12 +295,36 @@ var downloadCmd = &cobra.Command{
 	},
 }
 
+func testwht() {
+	gql := gql.New(http.DefaultClient)
+	ctx := context.Background()
+	for _, channel := range channels {
+		fmt.Println("CHANNEL:", channel)
+		gql.FilterableVideoTower_Videos(ctx, channel, limitVideos)
+	}
+}
+
 func init() {
-	downloadCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "download destination")
-	downloadCmd.PersistentFlags().StringVarP(&quality, "quality", "q", "best", "quality for units")
-	downloadCmd.PersistentFlags().DurationVarP(&start, "start", "s", 0, "start timestamp for VOD units")
-	downloadCmd.PersistentFlags().DurationVarP(&end, "end", "e", 0, "end timestamp for VOD units")
-	downloadCmd.PersistentFlags().BoolVarP(&watch, "watch", "w", false, "watch Twitch channels and automatically start recording when livestreams go online; can be used as a background process")
-	downloadCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "")
-	rootCmd.AddCommand(downloadCmd)
+	flagset := cmd.PersistentFlags()
+	flagset.CountVar(&verbose, "v", "")
+	flagset.IntVarP(&threads, "threads", "t", 0, "")
+
+	flagset.StringVarP(&output, "output", "o", "", "download destination")
+	flagset.StringVarP(&quality, "quality", "q", "best", "quality for units")
+	flagset.DurationVarP(&start, "start", "s", 0, "start timestamp for VOD units")
+	flagset.DurationVarP(&end, "end", "e", 0, "end timestamp for VOD units")
+	flagset.BoolVarP(&watch, "watch", "w", false, "watch Twitch channels and automatically start recording when livestreams go online; can be used as a background process")
+
+	// new flags: per channel download
+	// ./twitch download --channels=channelname_1.channelnme_2 --limit-clips=20 --filter-clips-by=all --limit-videos --list
+	flagset.StringSliceVar(&channels, "channels", []string{}, "channels")
+	flagset.IntVar(&limitClips, "limit-clips", 5, "limit number of clips for specified channel: default 5")
+	flagset.IntVar(&limitVideos, "limit-videos", 1, "limit number of videos for specified channel: default 1")
+	flagset.StringVar(&filterClipsBy, "filter-clips-by", "all", "filter clips by: 24h, 7d, 30d, all")
+	// TIME | VIEWS
+	flagset.StringVar(&sortVideosBy, "sort-videos-by", "date", "sort videos by: date, popular")
+	// ARCHIVE | HIGHLIGHT | CLIP | LIVE | UPLOAD
+	flagset.StringVar(&filterVideosBy, "filter-videos-by", "default", "filter videos by: default, past_broadcasts, highlights, uploads, collections")
+
+	rootCmd.AddCommand(cmd)
 }
