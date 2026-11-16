@@ -7,17 +7,16 @@ import (
 
 	"github.com/Kostaaa1/twitch/internal/cli"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
-	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
 	"github.com/spf13/cobra"
 )
 
-type args struct {
+type flags struct {
 	clipsLimit  int
 	videosLimit int
 	criteria    string
 }
 
-var infoArgs args
+var infoArgs flags
 
 func runInfoCommand(args []string) error {
 	c := gql.New(http.DefaultClient)
@@ -33,14 +32,18 @@ func runInfoCommand(args []string) error {
 		args := gql.FilterableVideoTowerArgs{
 			Limit:           infoArgs.videosLimit,
 			Channel:         channel,
-			BroadcasterType: helix.VideoTypeAll,
-			VideoSort:       helix.SortTime,
+			BroadcasterType: gql.VideoTypeArchive,
+			VideoSort:       gql.SortTime,
 		}
 		videos, err := c.FilterableVideoTower_Videos(ctx, args)
 		if err != nil {
 			return err
 		}
-		clips, err := c.ClipsCardsUser(ctx, channel, infoArgs.clipsLimit, gql.LastMonth)
+		clips, err := c.ClipsCardsUser(ctx, gql.ClipsCardsUserArgs{
+			Channel: channel,
+			Limit:   infoArgs.clipsLimit,
+			Filter:  gql.LastMonth,
+		})
 		if err != nil {
 			return err
 		}

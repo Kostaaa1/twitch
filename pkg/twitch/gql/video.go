@@ -5,8 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+)
 
-	"github.com/Kostaaa1/twitch/pkg/twitch/helix"
+type VideoSort string
+type VideoBroadcastType string
+
+const (
+	SortTime           VideoSort          = "TIME"
+	SortViews          VideoSort          = "VIEWS"
+	SortTrending       VideoSort          = "TRENDING"
+	VideoTypeAll       VideoBroadcastType = "ALL"       // Past broadcasts
+	VideoTypeArchive   VideoBroadcastType = "ARCHIVE"   // Past broadcasts
+	VideoTypeHighlight VideoBroadcastType = "HIGHLIGHT" // Highlights
+	VideoTypeUpload    VideoBroadcastType = "UPLOAD"    // Uploads
 )
 
 func (tw *Client) VideoPlaybackAccessToken(ctx context.Context, id string) (*PlaybackAccessToken, error) {
@@ -101,8 +112,8 @@ func (tw *Client) VideoMetadata(ctx context.Context, vodID string) (*VideoMetada
 type FilterableVideoTowerArgs struct {
 	Limit           int
 	Channel         string
-	BroadcasterType helix.VideoBroadcastType
-	VideoSort       helix.VideoSort
+	BroadcasterType VideoBroadcastType
+	VideoSort       VideoSort
 }
 
 func (args *FilterableVideoTowerArgs) Validate() error {
@@ -117,16 +128,16 @@ func (args *FilterableVideoTowerArgs) Validate() error {
 
 	switch args.BroadcasterType {
 	case "":
-		args.BroadcasterType = helix.VideoTypeArchive
-	case helix.VideoTypeArchive, helix.VideoTypeHighlight, helix.VideoTypeUpload:
+		args.BroadcasterType = VideoTypeArchive
+	case VideoTypeArchive, VideoTypeHighlight, VideoTypeUpload:
 	default:
 		return fmt.Errorf("invalid broadcast type %q: must be one of archive, highlight, upload", args.BroadcasterType)
 	}
 
 	switch args.VideoSort {
 	case "":
-		args.VideoSort = helix.SortTime
-	case helix.SortTime, helix.SortViews:
+		args.VideoSort = SortTime
+	case SortTime, SortViews:
 	default:
 		return fmt.Errorf("invalid video sort %q: must be one of time, views", args.VideoSort)
 	}
@@ -138,13 +149,17 @@ func (args *FilterableVideoTowerArgs) Validate() error {
 // type videoSort int // TIME | VIEWS
 // cursor example: 2732435300|877053|2026-03-26T20:03:29Z|24387
 func (tw *Client) FilterableVideoTower_Videos(ctx context.Context, args FilterableVideoTowerArgs) (*FilterableVideoTower_Videos, error) {
+	// if err := args.Validate(); err != nil {
+	// 	return nil, err
+	// }
+
 	gqlPl := `{
         "operationName": "FilterableVideoTower_Videos",
         "variables": {
             "includePreviewBlur": false,
             "limit": %d,
             "channelOwnerLogin": "%s",
-            "broadcastType": "%s",
+            "broadcastType": null,
             "videoSort": "%s"
         },
         "extensions": {
@@ -163,8 +178,8 @@ func (tw *Client) FilterableVideoTower_Videos(ctx context.Context, args Filterab
 		gqlPl,
 		args.Limit,
 		args.Channel,
-		strings.ToUpper(string(args.BroadcasterType)),
-		strings.ToUpper(string(args.VideoSort)),
+		// args.BroadcasterType,
+		args.VideoSort,
 	); err != nil {
 		return nil, err
 	}

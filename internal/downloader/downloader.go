@@ -211,6 +211,7 @@ func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadClos
 					panic(fmt.Errorf("got 403 error for -muted segment: %s", url))
 				}
 				url = u
+				resp.Body.Close()
 				continue
 			}
 

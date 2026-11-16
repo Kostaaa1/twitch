@@ -60,7 +60,7 @@ func handleUnitInput(
 	in string,
 	quality string,
 	start, end time.Duration,
-	output string,
+	outputPath string,
 ) {
 	var unit interface{}
 	if isKickUnit(in) {
@@ -68,14 +68,14 @@ func handleUnitInput(
 			in,
 			quality,
 			kick.WithTimestamps(start, end),
-			kick.WithPathname(output),
+			kick.WithPathname(outputPath),
 		)
 	} else {
 		unit = downloader.NewUnit(
 			in,
 			downloader.WithQuality(quality),
 			downloader.WithTimestamps(start, end),
-			downloader.WithPathname(output),
+			downloader.WithPathname(outputPath),
 		)
 	}
 	*units = append(*units, unit)
@@ -108,7 +108,6 @@ func sort(units []interface{}) ([]*downloader.Unit, []*kick.Unit) {
 			kickUnits = append(kickUnits, unit)
 			continue
 		}
-		panic("found unit that is not twitch nor kick unit")
 	}
 
 	return twitchUnits, kickUnits
@@ -130,7 +129,6 @@ func ParseUnits(pu ParseUnit) ([]*downloader.Unit, []*kick.Unit, error) {
 			if err != nil {
 				return nil, nil, err
 			}
-
 			for _, unit := range inputUnits {
 				if unit.Output == "" {
 					unit.Output = pu.OutputPath

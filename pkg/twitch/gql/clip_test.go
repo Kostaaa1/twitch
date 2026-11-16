@@ -16,18 +16,21 @@ func TestClipTitle(t *testing.T) {
 	require.NotEmpty(t, title)
 }
 
-func TestVideoTitle(t *testing.T) {
+func TestClipsCardsUser(t *testing.T) {
 	gql := New(http.DefaultClient)
 	ctx := context.Background()
-	title, err := gql.VideoTitle(ctx, "")
-	require.NoError(t, err)
-	require.NotEmpty(t, title)
-}
 
-func TestStreamTitle(t *testing.T) {
-	gql := New(http.DefaultClient)
-	ctx := context.Background()
-	title, err := gql.StreamTitle(ctx, "")
-	require.NoError(t, err)
-	require.NotEmpty(t, title)
+	filters := []CriteriaFilter{AllTime, LastDay, LastWeek, LastMonth}
+
+	for _, filter := range filters {
+		t.Run(string(filter), func(t *testing.T) {
+			data, err := gql.ClipsCardsUser(ctx, ClipsCardsUserArgs{
+				Channel: testChannel,
+				Filter:  filter,
+				Limit:   10,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, data)
+		})
+	}
 }

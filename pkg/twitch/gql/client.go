@@ -2,6 +2,7 @@ package gql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,6 +20,20 @@ type Client struct {
 	http *http.Client
 }
 
+type GQLError struct {
+	Message string `json:"message,omitempty"`
+}
+
+type GQLResponse[T any] struct {
+	Data       T          `json:"data"`
+	Errors     []GQLError `json:"errors,omitempty"`
+	Extensions struct {
+		DurationMilliseconds int    `json:"durationMilliseconds"`
+		OperationName        string `json:"operationName"`
+		RequestID            string `json:"requestID"`
+	} `json:"extensions"`
+}
+
 func New(httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -26,29 +41,57 @@ func New(httpClient *http.Client) *Client {
 	return &Client{http: httpClient}
 }
 
+// func (c *Client) collectUnitsForChannels(ctx context.Context, units []*downloader.Unit) error {
+// 	for _, channel := range channels {
+// 		if limitVideos > 0 {
+// 			data, err := gqlClient.FilterableVideoTower_Videos(ctx, gql.FilterableVideoTowerArgs{
+// 				Limit:           limitVideos,
+// 				Channel:         channel,
+// 				BroadcasterType: gql.VideoBroadcastType(filterVideosBy),
+// 				VideoSort:       gql.VideoSort(sortVideosBy),
+// 			})
+// 			if err != nil {
+// 				return err
+// 			}
+
+// 			fmt.Println("VIDEOS:", data)
+// 			for _, vod := range data.User.Videos.Edges {
+// 				downloader.NewUnit(
+// 					vod.Node.ID,
+// 				)
+// 			}
+// 		}
+
+// 		if limitClips > 0 {
+// 			data, err := gqlClient.ClipsCardsUser(ctx, gql.ClipsCardsUserArgs{
+// 				Channel: channel,
+// 				Limit:   limitClips,
+// 				Filter:  gql.LastDay,
+// 			})
+// 			if err != nil {
+// 				return err
+// 			}
+// 			fmt.Println("CLIPS:", data)
+// 		}
+// 	}
+
+// 	return nil
+// }
+
 func sendGqlLoadAndDecode[T any](
 	ctx context.Context,
-	c *http.Client,
+	httpClient *http.Client,
 	dst *T,
 	gqlLoad string,
 	a ...any,
 ) error {
-	type response struct {
-		Data       T `json:"data"`
-		Extensions struct {
-			DurationMilliseconds int    `json:"durationMilliseconds"`
-			OperationName        string `json:"operationName"`
-			RequestID            string `json:"requestID"`
-		} `json:"extensions"`
-	}
+	var resp GQLResponse[T]
 
-	var resp response
-
-	var r io.Reader
+	var reader io.Reader
 	if len(a) > 0 {
-		r = strings.NewReader(fmt.Sprintf(gqlLoad, a...))
+		reader = strings.NewReader(fmt.Sprintf(gqlLoad, a...))
 	} else {
-		r = strings.NewReader(gqlLoad)
+		reader = strings.NewReader(gqlLoad)
 	}
 
 	h := http.Header{}
@@ -57,13 +100,21 @@ func sendGqlLoadAndDecode[T any](
 
 	if err := httputil.DoJSON(
 		ctx,
-		c,
+		httpClient,
 		gqlURL,
 		http.MethodPost,
-		r,
+		reader,
 		&resp,
 		h,
 	); err != nil {
+		return err
+	}
+
+	if len(resp.Errors) > 0 {
+		var err error
+		for _, gqlerr := range resp.Errors {
+			err = errors.Join(err, errors.New(gqlerr.Message))
+		}
 		return err
 	}
 

@@ -13,17 +13,24 @@ const (
 	LastDay   CriteriaFilter = "LAST_DAY"
 	LastWeek  CriteriaFilter = "LAST_WEEK"
 	LastMonth CriteriaFilter = "LAST_MONTH"
-	LastYear  CriteriaFilter = "LAST_YEAR"
 )
 
-func (c *Client) ClipsCardsUser(
-	ctx context.Context,
-	channel string,
-	limit int,
-	filter CriteriaFilter,
-) (*ClipsCardsUser, error) {
-	if limit > 100 {
-		return nil, errors.New("limit value must be between 1 and 100")
+type ClipsCardsUserArgs struct {
+	Channel string
+	Limit   int
+	Filter  CriteriaFilter
+}
+
+func (a *ClipsCardsUserArgs) Validate() error {
+	if a.Limit > 100 {
+		return errors.New("limit value must be between 1 and 100")
+	}
+	return nil
+}
+
+func (c *Client) ClipsCardsUser(ctx context.Context, args ClipsCardsUserArgs) (*ClipsCardsUser, error) {
+	if err := args.Validate(); err != nil {
+		return nil, err
 	}
 
 	gqlPl := `{
@@ -51,9 +58,9 @@ func (c *Client) ClipsCardsUser(
 		c.http,
 		&card,
 		gqlPl,
-		channel,
-		limit,
-		filter,
+		args.Channel,
+		args.Limit,
+		args.Filter,
 	); err != nil {
 		return nil, err
 	}
@@ -78,11 +85,9 @@ func (c *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) {
 	var data struct {
 		Clip Clip `json:"clip"`
 	}
-
 	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPayload, slug); err != nil {
 		return nil, err
 	}
-
 	if data.Clip.ID == "" {
 		return nil, fmt.Errorf("failed to get the clip data for %s", slug)
 	}

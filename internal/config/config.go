@@ -24,13 +24,26 @@ type CommandLineChat struct {
 	Colors         Colors   `json:"colors"`
 }
 
+type NamingTemplates struct {
+	Video  string `json:"video"`
+	Clip   string `json:"clip"`
+	Stream string `json:"stream"`
+}
+
+type Spinner struct {
+	Enabled            bool `json:"enabled"`
+	IncludePathInLabel bool `json:"include_path_in_label"`
+}
+
 // TODO:
 // 1. Add templating possibilities: channel name - title - quality
 // 2. Use ffmpeg to enforce formats: for example, if .ts segments are being downloaded, convert to mp4 - rely on ffmpeg for this
 // 3. Determine what to show in spinner label view - display full path or just title
 type Downloader struct {
-	IsFFmpegEnabled bool   `json:"is_ffmpeg_enabled"`
-	Output          string `json:"output"`
+	IsFFmpegEnabled bool            `json:"is_ffmpeg_enabled"`
+	Output          string          `json:"output"`
+	Spinner         Spinner         `json:"spinner"`
+	NamingTemplates NamingTemplates `json:"naming_templates"`
 }
 
 type Messages struct {
@@ -82,6 +95,11 @@ func Default() *Config {
 		Downloader: Downloader{
 			IsFFmpegEnabled: false,
 			Output:          "",
+			Spinner: Spinner{
+				Enabled:            true,
+				IncludePathInLabel: false,
+			},
+			NamingTemplates: NamingTemplates{},
 		},
 		CommandLineChat: CommandLineChat{
 			OpenedChats:    []string{},

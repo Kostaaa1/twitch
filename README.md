@@ -3,11 +3,12 @@
 - record livestreams
 - partial downloading VODs by timestamps
 - download by specific qualities (default is highest/best)
-- download chat
+- download chat messages for VOD
 - audio only (ffmpeg used for clips?)
 - avoid ffmpeg (used only for converting clip video to audio?)
 - twitch auth
 - cli chatroom (no emotes, only text displayed)
+- resumable downloads
 - kick support
 
 ## TODOS:
@@ -16,7 +17,7 @@
 - learn fyne: chatterino clone - display 7TV emotes?
 - chat overlay over vod (realtime rendering for ivestreams??) - do this without ffmpeg?
 - auto clipper: automatic clipping based on chat interaction
-	* hard to do (how to detect that something funnt happened)
+	* hard to do (how to detect that something funny happened)
 	* listening to extreme change in rate of the messages that are being sent
 	* analyze messages, if emotes, high possibility of something funny happened
 	* problem: channel specific emote

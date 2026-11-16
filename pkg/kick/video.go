@@ -1,7 +1,6 @@
 package kick
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -32,15 +31,6 @@ func (c *Downloader) MasterPlaylistURL(channelName string, uuid string) (string,
 	if err != nil {
 		return "", err
 	}
-
-	b, err := json.MarshalIndent(videos, "", " ")
-	if err != nil {
-		return "", err
-	}
-
-	fmt.Println("VIDEOS:", string(b))
-
-	panic("YOO")
 
 	id := slices.IndexFunc(videos, func(v *V2Video) bool {
 		return v.Video.UUID == uuid
