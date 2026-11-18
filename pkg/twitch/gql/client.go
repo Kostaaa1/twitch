@@ -1,12 +1,11 @@
 package gql
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/Kostaaa1/twitch/internal/httputil"
 )
@@ -41,62 +40,48 @@ func New(httpClient *http.Client) *Client {
 	return &Client{http: httpClient}
 }
 
-// func (c *Client) collectUnitsForChannels(ctx context.Context, units []*downloader.Unit) error {
-// 	for _, channel := range channels {
-// 		if limitVideos > 0 {
-// 			data, err := gqlClient.FilterableVideoTower_Videos(ctx, gql.FilterableVideoTowerArgs{
-// 				Limit:           limitVideos,
-// 				Channel:         channel,
-// 				BroadcasterType: gql.VideoBroadcastType(filterVideosBy),
-// 				VideoSort:       gql.VideoSort(sortVideosBy),
-// 			})
-// 			if err != nil {
-// 				return err
-// 			}
+type PersistedQuery struct {
+	Version    int    `json:"version"`
+	Sha256Hash string `json:"sha256Hash"`
+}
 
-// 			fmt.Println("VIDEOS:", data)
-// 			for _, vod := range data.User.Videos.Edges {
-// 				downloader.NewUnit(
-// 					vod.Node.ID,
-// 				)
-// 			}
-// 		}
+type Extensions struct {
+	PersistedQuery PersistedQuery `json:"persistedQuery"`
+}
 
-// 		if limitClips > 0 {
-// 			data, err := gqlClient.ClipsCardsUser(ctx, gql.ClipsCardsUserArgs{
-// 				Channel: channel,
-// 				Limit:   limitClips,
-// 				Filter:  gql.LastDay,
-// 			})
-// 			if err != nil {
-// 				return err
-// 			}
-// 			fmt.Println("CLIPS:", data)
-// 		}
-// 	}
+type Payload struct {
+	OperationName string         `json:"operationName,omitempty"`
+	Query         string         `json:"query,omitempty"`
+	Variables     map[string]any `json:"variables,omitempty"`
+	Extensions    *Extensions    `json:"extensions,omitempty"`
+}
 
-// 	return nil
-// }
+func commonExtensions(sha256hash string) *Extensions {
+	return &Extensions{
+		PersistedQuery: PersistedQuery{
+			Version:    1,
+			Sha256Hash: sha256hash,
+		},
+	}
+}
 
 func sendGqlLoadAndDecode[T any](
 	ctx context.Context,
 	httpClient *http.Client,
 	dst *T,
-	gqlLoad string,
-	a ...any,
+	payload Payload,
 ) error {
-	var resp GQLResponse[T]
-
-	var reader io.Reader
-	if len(a) > 0 {
-		reader = strings.NewReader(fmt.Sprintf(gqlLoad, a...))
-	} else {
-		reader = strings.NewReader(gqlLoad)
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
 	}
+	reader := bytes.NewReader(b)
 
 	h := http.Header{}
 	h.Set("Client-Id", clientID)
 	h.Set("Content-Type", "application/json")
+
+	var resp GQLResponse[T]
 
 	if err := httputil.DoJSON(
 		ctx,

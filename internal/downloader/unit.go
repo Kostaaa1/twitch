@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/twitch/internal/fileutil"
 	"github.com/google/uuid"
 )
 
@@ -38,16 +36,27 @@ func (v MediaType) String() string {
 	}
 }
 
+type metadata struct {
+	title       string
+	date        time.Time
+	id          string
+	channelName string
+	clipCreator *string
+}
+
 type Unit struct {
-	UUID               uuid.UUID
-	ID                 string
-	Type               MediaType
-	Quality            QualityType
-	Start, End         time.Duration
-	Error              error
+	UUID       uuid.UUID
+	ID         string
+	Type       MediaType
+	Quality    QualityType
+	Start, End time.Duration
+	Error      error
+
 	w                  io.Writer
 	dir, filename, ext string
 	total              float64
+	template           string
+	metadata           *metadata
 }
 
 func (u *Unit) setFileExt(url string) error {
@@ -117,6 +126,13 @@ func WithPathname(pathname string) unitOption {
 		u.dir = dir
 		u.filename = file
 
+		return nil
+	}
+}
+
+func WIthTemplate(template string) unitOption {
+	return func(u *Unit) error {
+		u.template = template
 		return nil
 	}
 }
@@ -221,39 +237,83 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	return unit
 }
 
-func (u *Unit) Open(ctx context.Context, dl *Downloader) error {
-	if u.w != nil {
-		return nil
-	}
+func (u *Unit) parseTemplate() string {
+	bid := -1
+	var s strings.Builder
 
-	if u.dir == "" {
-		return errors.New("missing dir")
-	}
-	if u.ext == "" {
-		return errors.New("missing file extension")
-	}
+	for id, r := range u.template {
+		switch r {
+		case '{':
+			if bid == -1 {
+				bid = id
+			}
+		case '}':
+			if bid == -1 {
+				continue
+			}
 
-	if u.filename == "" {
-		title, err := dl.fetchTitle(ctx, u)
-		if err != nil {
-			return err
+			key := u.template[bid:id]
+
+			switch key {
+			case "channel":
+				s.WriteString(u.metadata.channelName)
+			case "date":
+				s.WriteString(u.metadata.date.String())
+			case "quality":
+				s.WriteString(u.Quality.String())
+			case "name":
+				title := u.metadata.title
+				if len(title) > 60 {
+					s.WriteString(u.metadata.title[:60])
+				} else {
+					s.WriteString(u.metadata.title)
+				}
+			case "id":
+				s.WriteString(u.metadata.id)
+			}
+
+			bid = -1
+		default:
+			s.WriteRune(r)
 		}
-		u.filename = title
 	}
 
-	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	u.w = f
-
-	return nil
+	return s.String()
 }
+
+// func (u *Unit) OpenFile(ctx context.Context, dl *Downloader) error {
+// 	if u.w != nil {
+// 		return nil
+// 	}
+
+// 	if u.dir == "" {
+// 		return errors.New("missing dir")
+// 	}
+// 	if u.ext == "" {
+// 		return errors.New("missing file extension")
+// 	}
+
+// 	if u.filename == "" {
+// 		// title, err := dl.fetchTitle(ctx, u)
+// 		// if err != nil {
+// 		// 	return err
+// 		// }
+// 		// u.filename = title
+// 	}
+
+// 	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	u.w = f
+
+// 	return nil
+// }
 
 func (u *Unit) CloseWriter() error {
 	if f, ok := u.w.(io.WriteCloser); ok && f != nil {

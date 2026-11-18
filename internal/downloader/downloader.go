@@ -85,16 +85,56 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	return u.Error
 }
 
-func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (string, error) {
+// func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (string, error) {
+// 	switch u.Type {
+// 	case TypeClip:
+// 		return dl.gql.ClipTitle(ctx, u.ID)
+// 	case TypeVOD:
+// 		return dl.gql.VideoTitle(ctx, u.ID)
+// 	case TypeLivestream:
+// 		return dl.gql.StreamTitle(ctx, u.ID)
+// 	}
+// 	return "", fmt.Errorf("failed to fetch title for unit: %s", u.UUID.String())
+// }
+
+func (dl *Downloader) fetchMetadata(ctx context.Context, u *Unit) error {
 	switch u.Type {
 	case TypeClip:
-		return dl.gql.ClipTitle(ctx, u.ID)
+		data, err := dl.gql.ClipMetadata(ctx, u.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Println("CLIP DATA", data)
+		u.metadata = &metadata{
+			id:          data.ID,
+			title:       data.Title,
+			date:        data.CreatedAt,
+			clipCreator: &data.Curator.DisplayName,
+		}
 	case TypeVOD:
-		return dl.gql.VideoTitle(ctx, u.ID)
+		data, err := dl.gql.VideoMetadata(ctx, u.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Println("VOD DATA", data)
+		u.metadata = &metadata{
+			id:    data.Video.ID,
+			title: data.Video.Title,
+			date:  data.Video.CreatedAt,
+		}
 	case TypeLivestream:
-		return dl.gql.StreamTitle(ctx, u.ID)
+		data, err := dl.gql.StreamMetadata(ctx, u.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Println("STREAM DATA")
+		u.metadata = &metadata{
+			id:    data.User.Stream.ID,
+			title: data.User.BroadcastSettings.Title,
+			date:  data.User.Stream.CreatedAt,
+		}
 	}
-	return "", fmt.Errorf("failed to fetch title for unit: %s", u.UUID.String())
+	return nil
 }
 
 func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {

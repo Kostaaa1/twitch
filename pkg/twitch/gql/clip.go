@@ -33,35 +33,22 @@ func (c *Client) ClipsCardsUser(ctx context.Context, args ClipsCardsUserArgs) (*
 		return nil, err
 	}
 
-	gqlPl := `{
-		"operationName": "ClipsCards__User",
-		"variables": {
-			"login": "%s",
-			"limit": %d,
-			"criteria": {
-				"filter": "%s",
-				"shouldFilterByDiscoverySetting": true
+	payload := Payload{
+		OperationName: "ClipsCards__User",
+		Variables: map[string]any{
+			"login": args.Channel,
+			"limit": args.Limit,
+			"criteria": map[string]any{
+				"filter":                         args.Filter,
+				"shouldFilterByDiscoverySetting": true,
 			},
-			"cursor": null
+			"cursor": nil,
 		},
-		"extensions": {
-			"persistedQuery": {
-				"version": 1,
-				"sha256Hash": "1cd671bfa12cec480499c087319f26d21925e9695d1f80225aae6a4354f23088"
-			}
-		}
-	}`
+		Extensions: commonExtensions("1cd671bfa12cec480499c087319f26d21925e9695d1f80225aae6a4354f23088"),
+	}
 
 	var card ClipsCardsUser
-	if err := sendGqlLoadAndDecode(
-		ctx,
-		c.http,
-		&card,
-		gqlPl,
-		args.Channel,
-		args.Limit,
-		args.Filter,
-	); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, c.http, &card, payload); err != nil {
 		return nil, err
 	}
 
@@ -69,23 +56,18 @@ func (c *Client) ClipsCardsUser(ctx context.Context, args ClipsCardsUserArgs) (*
 }
 
 func (c *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) {
-	gqlPayload := `{
-        "operationName": "ShareClipRenderStatus",
-        "variables": {
-            "slug": "%s"
-        },
-        "extensions": {
-            "persistedQuery": {
-                "version": 1,
-                "sha256Hash": "324783ea014524fa10a88739aa507de7a52f9624574dba9739a52b8c97d885cf"
-            }
-        }
-    }`
+	payload := Payload{
+		OperationName: "ShareClipRenderStatus",
+		Variables: map[string]any{
+			"slug": slug,
+		},
+		Extensions: commonExtensions("324783ea014524fa10a88739aa507de7a52f9624574dba9739a52b8c97d885cf"),
+	}
 
 	var data struct {
 		Clip Clip `json:"clip"`
 	}
-	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPayload, slug); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, payload); err != nil {
 		return nil, err
 	}
 	if data.Clip.ID == "" {
@@ -96,16 +78,17 @@ func (c *Client) ClipMetadata(ctx context.Context, slug string) (*Clip, error) {
 }
 
 func (c *Client) ClipTitle(ctx context.Context, slug string) (string, error) {
-	gqlPl := `{
-		"query": "query { clip(slug: \"%s\") { title } }"
-	}`
+	payload := Payload{
+		Query:     `query($slug: ID!) { clip(slug: $slug) { title } }`,
+		Variables: map[string]any{"slug": slug},
+	}
 
 	var data struct {
 		Clip struct {
 			Title string `json:"title"`
 		} `json:"clip"`
 	}
-	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPl, slug); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, payload); err != nil {
 		return "", err
 	}
 
@@ -113,9 +96,10 @@ func (c *Client) ClipTitle(ctx context.Context, slug string) (string, error) {
 }
 
 func (c *Client) VideoTitle(ctx context.Context, vodID string) (string, error) {
-	gqlPl := `{
-		"query": "query { video(id: \"%s\") { title } }"
-	}`
+	payload := Payload{
+		Query:     `query($id: ID) { video(id: $id) { title } }`,
+		Variables: map[string]any{"id": vodID},
+	}
 
 	var data struct {
 		Video struct {
@@ -123,7 +107,7 @@ func (c *Client) VideoTitle(ctx context.Context, vodID string) (string, error) {
 		} `json:"video"`
 	}
 
-	if err := sendGqlLoadAndDecode(ctx, c.http, &data, gqlPl, vodID); err != nil {
+	if err := sendGqlLoadAndDecode(ctx, c.http, &data, payload); err != nil {
 		return "", err
 	}
 
