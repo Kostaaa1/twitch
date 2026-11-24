@@ -82,7 +82,6 @@ func sendGqlLoadAndDecode[T any](
 	h.Set("Content-Type", "application/json")
 
 	var resp GQLResponse[T]
-
 	if err := httputil.DoJSON(
 		ctx,
 		httpClient,
@@ -102,7 +101,6 @@ func sendGqlLoadAndDecode[T any](
 		}
 		return err
 	}
-
 	*dst = resp.Data
 
 	return nil

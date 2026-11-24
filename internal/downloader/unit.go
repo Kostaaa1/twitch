@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,8 +56,10 @@ type Unit struct {
 	w                  io.Writer
 	dir, filename, ext string
 	total              float64
-	template           string
 	metadata           *metadata
+
+	unmuteFailStreak    atomic.Int32
+	maxUnmuteFailStreak int32
 }
 
 func (u *Unit) setFileExt(url string) error {
@@ -130,14 +133,6 @@ func WithPathname(pathname string) unitOption {
 	}
 }
 
-func WIthTemplate(template string) unitOption {
-	return func(u *Unit) error {
-		u.template = template
-		return nil
-	}
-}
-
-// sets start/end for VOD units
 func WithTimestamps(start, end time.Duration) unitOption {
 	return func(u *Unit) error {
 		if u.Type != TypeVOD {
@@ -149,7 +144,6 @@ func WithTimestamps(start, end time.Duration) unitOption {
 	}
 }
 
-// sets the quality, throws an error if provided quality is not valid
 func WithQuality(q string) unitOption {
 	return func(u *Unit) error {
 		switch {
@@ -207,7 +201,10 @@ func discoverUnitType(input string) MediaType {
 }
 
 func NewUnit(input string, opts ...unitOption) *Unit {
-	unit := &Unit{UUID: uuid.New()}
+	unit := &Unit{
+		UUID:                uuid.New(),
+		maxUnmuteFailStreak: 40,
+	}
 
 	if input == "" {
 		unit.Error = errors.New("missing input: please provide input (clip slug | vod id | channel name to record livestream)")
@@ -237,82 +234,15 @@ func NewUnit(input string, opts ...unitOption) *Unit {
 	return unit
 }
 
-func (u *Unit) parseTemplate() string {
-	bid := -1
-	var s strings.Builder
-
-	for id, r := range u.template {
-		switch r {
-		case '{':
-			if bid == -1 {
-				bid = id
-			}
-		case '}':
-			if bid == -1 {
-				continue
-			}
-
-			key := u.template[bid:id]
-
-			switch key {
-			case "channel":
-				s.WriteString(u.metadata.channelName)
-			case "date":
-				s.WriteString(u.metadata.date.String())
-			case "quality":
-				s.WriteString(u.Quality.String())
-			case "name":
-				title := u.metadata.title
-				if len(title) > 60 {
-					s.WriteString(u.metadata.title[:60])
-				} else {
-					s.WriteString(u.metadata.title)
-				}
-			case "id":
-				s.WriteString(u.metadata.id)
-			}
-
-			bid = -1
-		default:
-			s.WriteRune(r)
-		}
-	}
-
-	return s.String()
-}
-
-// func (u *Unit) OpenFile(ctx context.Context, dl *Downloader) error {
-// 	if u.w != nil {
-// 		return nil
+// func (u *Unit) TransformSegmentURL(url string) (string, bool) {
+// 	_, path := filepath.Split(url)
+// 	if strings.LastIndex(path, "-muted") != -1 {
+// 		return strings.Replace(url, "-muted", "-unmuted", 1), true
 // 	}
-
-// 	if u.dir == "" {
-// 		return errors.New("missing dir")
+// 	if strings.LastIndex(path, "-unmuted") != -1 {
+// 		return strings.Replace(url, "-unmuted", "", 1), true
 // 	}
-// 	if u.ext == "" {
-// 		return errors.New("missing file extension")
-// 	}
-
-// 	if u.filename == "" {
-// 		// title, err := dl.fetchTitle(ctx, u)
-// 		// if err != nil {
-// 		// 	return err
-// 		// }
-// 		// u.filename = title
-// 	}
-
-// 	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	u.w = f
-
-// 	return nil
+// 	return url, false
 // }
 
 func (u *Unit) CloseWriter() error {

@@ -331,10 +331,10 @@ func runDownloadCmd(args []string) error {
 	log := logger.New(f, verbose)
 
 	httpClient := &http.Client{
-		Timeout: 0,
 		Transport: httputil.NewBrowserTransport(
 			http.DefaultTransport,
 			httputil.WithLog(log),
+			// httputil.WithBrowserMimic(),
 		),
 	}
 
@@ -345,6 +345,7 @@ func runDownloadCmd(args []string) error {
 		End:        end,
 		OutputPath: output,
 	})
+
 	if err != nil {
 		return err
 	}
@@ -367,12 +368,13 @@ func init() {
 	flagset := cmd.PersistentFlags()
 	flagset.CountVarP(&verbose, "v", "v", "")
 	flagset.IntVarP(&threads, "threads", "t", 0, "")
-
 	flagset.StringVarP(&output, "output", "o", "", "download destination")
 	flagset.StringVarP(&quality, "quality", "q", "best", "quality for units")
 	flagset.DurationVarP(&start, "start", "s", 0, "start timestamp for VOD units")
 	flagset.DurationVarP(&end, "end", "e", 0, "end timestamp for VOD units")
 	flagset.BoolVarP(&watch, "watch", "w", false, "watch Twitch channels and automatically start recording when livestreams go online; can be used as a background process")
+	// flagset.StringVar(&resumeDownload, "", "w", false, "")
+	// flagset.StringVar(&resume_download, "resume", false, "first check selected output dir,")
 	// new flags: per channel download
 	// ./twitch download --channels=channelname_1.channelnme_2 --limit-clips=20 --filter-clips-by=all --limit-videos
 	flagset.StringSliceVar(&channels, "channels", []string{}, "channels")

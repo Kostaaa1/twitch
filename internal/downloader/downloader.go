@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -31,9 +32,9 @@ type Transfer struct {
 
 func defaultTransfer() *Transfer {
 	return &Transfer{
-		MaxReadAheadGlobal:  0,
 		MaxReadAheadPerUnit: 32,
 		MaxWorkersPerUnit:   4,
+		MaxReadAheadGlobal:  0,
 	}
 }
 
@@ -85,57 +86,57 @@ func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	return u.Error
 }
 
-// func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (string, error) {
-// 	switch u.Type {
-// 	case TypeClip:
-// 		return dl.gql.ClipTitle(ctx, u.ID)
-// 	case TypeVOD:
-// 		return dl.gql.VideoTitle(ctx, u.ID)
-// 	case TypeLivestream:
-// 		return dl.gql.StreamTitle(ctx, u.ID)
-// 	}
-// 	return "", fmt.Errorf("failed to fetch title for unit: %s", u.UUID.String())
-// }
-
-func (dl *Downloader) fetchMetadata(ctx context.Context, u *Unit) error {
+func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (string, error) {
 	switch u.Type {
 	case TypeClip:
-		data, err := dl.gql.ClipMetadata(ctx, u.ID)
-		if err != nil {
-			return err
-		}
-		fmt.Println("CLIP DATA", data)
-		u.metadata = &metadata{
-			id:          data.ID,
-			title:       data.Title,
-			date:        data.CreatedAt,
-			clipCreator: &data.Curator.DisplayName,
-		}
+		return dl.gql.ClipTitle(ctx, u.ID)
 	case TypeVOD:
-		data, err := dl.gql.VideoMetadata(ctx, u.ID)
-		if err != nil {
-			return err
-		}
-		fmt.Println("VOD DATA", data)
-		u.metadata = &metadata{
-			id:    data.Video.ID,
-			title: data.Video.Title,
-			date:  data.Video.CreatedAt,
-		}
+		return dl.gql.VideoTitle(ctx, u.ID)
 	case TypeLivestream:
-		data, err := dl.gql.StreamMetadata(ctx, u.ID)
-		if err != nil {
-			return err
-		}
-		fmt.Println("STREAM DATA")
-		u.metadata = &metadata{
-			id:    data.User.Stream.ID,
-			title: data.User.BroadcastSettings.Title,
-			date:  data.User.Stream.CreatedAt,
-		}
+		return dl.gql.StreamTitle(ctx, u.ID)
 	}
-	return nil
+	return "", fmt.Errorf("failed to fetch title for unit: %s", u.UUID.String())
 }
+
+// func (dl *Downloader) fetchMetadata(ctx context.Context, u *Unit) error {
+// 	switch u.Type {
+// 	case TypeClip:
+// 		data, err := dl.gql.ClipMetadata(ctx, u.ID)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fmt.Println("CLIP DATA", data)
+// 		u.metadata = &metadata{
+// 			id:          data.ID,
+// 			title:       data.Title,
+// 			date:        data.CreatedAt,
+// 			clipCreator: &data.Curator.DisplayName,
+// 		}
+// 	case TypeVOD:
+// 		data, err := dl.gql.VideoMetadata(ctx, u.ID)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fmt.Println("VOD DATA", data)
+// 		u.metadata = &metadata{
+// 			id:    data.Video.ID,
+// 			title: data.Video.Title,
+// 			date:  data.Video.CreatedAt,
+// 		}
+// 	case TypeLivestream:
+// 		data, err := dl.gql.StreamMetadata(ctx, u.ID)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fmt.Println("STREAM DATA")
+// 		u.metadata = &metadata{
+// 			id:    data.User.Stream.ID,
+// 			title: data.User.BroadcastSettings.Title,
+// 			date:  data.User.Stream.CreatedAt,
+// 		}
+// 	}
+// 	return nil
+// }
 
 func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 	if u.dir == "" {
@@ -200,74 +201,83 @@ func (dl *Downloader) download(ctx context.Context, u *Unit, r io.ReadCloser) er
 }
 
 func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
-	body, err := dl.fetchSegment(ctx, segURL)
+	body, err := dl.fetchSegment(ctx, u, segURL)
 	if err != nil {
 		return err
 	}
 	return dl.download(ctx, u, body)
 }
 
-// this is called when 403 occurs (meaning the url failed to download). used when retrying to recover the unmuted segments (if unit VOD audio is recoverable). n-muted.ts should be the output for the last try
-// init-0.ts -> init-0.ts
-// n.ts -> n-unmuted.ts
-// n-unmuted.ts -> n-muted.ts
-// n-muted.ts -> n-muted.ts
-func transformSegmentURL(url string) (string, bool) {
-	if strings.LastIndex(filepath.Base(url), "-") == -1 {
-		ext := filepath.Ext(url)
-		return strings.TrimSuffix(url, ext) + "-unmuted" + ext, false
+func withSegmentSuffix(segURL, replacer string) string {
+	parts := strings.Split(segURL, "/")
+	filename := parts[len(parts)-1]
+
+	ext := filepath.Ext(filename)
+	name := strings.TrimSuffix(filename, ext)
+
+	if i := strings.IndexByte(name, '-'); i >= 0 {
+		name = name[:i]
 	}
-	replaced := strings.Replace(url, "-unmuted", "-muted", 1)
-	if replaced != url {
-		return replaced, false
-	}
-	return url, true
+
+	parts[len(parts)-1] = name + replacer + ext
+	return strings.Join(parts, "/")
 }
 
-func stripSegmentURLType(url string) string {
-	url = strings.Replace(url, "-unmuted", "", 1)
-	url = strings.Replace(url, "-muted", "", 1)
-	return url
+func segmentSuffix(segURL string) string {
+	_, filename := filepath.Split(segURL)
+	name, found := strings.CutSuffix(filename, path.Ext(filename))
+	if !found {
+		panic("assert: must find the extension")
+	}
+	parts := strings.Split(name, "-")
+	if len(parts) == 1 {
+		return ""
+	}
+	return "-" + parts[1]
 }
 
-// segment URLs can be structured like this: 0.ts, 0-muted.ts, 0-unmuted.ts. Twitch will mute certain segments because of DMCA (0-muted.ts). Audio from these segments can be recovered if they are fetched within a short period from the original livestream. So we automatically try to fetch unmuted segments.
-// Also, we do not want to do this for all (older) videos
-func (dl *Downloader) fetchSegment(ctx context.Context, url string) (io.ReadCloser, error) {
-	url = stripSegmentURLType(url)
+func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, segURL string) (io.ReadCloser, error) {
+	candidates := make([]string, 0)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			resp, err := httputil.Do(ctx, dl.http, url, http.MethodGet, nil, nil)
-			if err != nil {
-				return nil, err
-			}
+	recovering := u.unmuteFailStreak.Load() <= u.maxUnmuteFailStreak && segmentSuffix(segURL) == "-muted"
+	if recovering {
+		candidates = append(candidates, withSegmentSuffix(segURL, "-unmuted"))
+		candidates = append(candidates, withSegmentSuffix(segURL, ""))
+	}
+	candidates = append(candidates, segURL)
 
+	for i, candidate := range candidates {
+		resp, err := httputil.Do(ctx, dl.http, candidate, http.MethodGet, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			if resp.StatusCode == http.StatusForbidden {
-				u, done := transformSegmentURL(url)
-				if done {
-					panic(fmt.Errorf("got 403 error for -muted segment: %s", url))
-				}
-				url = u
 				resp.Body.Close()
 				continue
 			}
 
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				b, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
-				if err != nil {
-					return nil, fmt.Errorf("failed to read the error response: %v", err)
-				}
-
-				return nil, fmt.Errorf(
-					"failed to fetch segment - invalid status code %d: response: %s", resp.StatusCode, string(b),
-				)
+			b, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read the error response: %v", err)
 			}
-
-			return resp.Body, nil
+			return nil, fmt.Errorf(
+				"failed to fetch segment - invalid status code %d: response: %s", resp.StatusCode, string(b),
+			)
 		}
+
+		if recovering {
+			if i == len(candidates)-1 {
+				u.unmuteFailStreak.Add(1)
+			} else {
+				u.unmuteFailStreak.Store(0)
+			}
+		}
+
+		return resp.Body, nil
 	}
+
+	return nil, fmt.Errorf("failed to fetch the segment: url=%s", segURL)
 }

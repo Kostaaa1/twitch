@@ -84,12 +84,15 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 
 				seg := list.Segments[chunkIdx]
 				seg.Alloc()
-
 				segURL := buildSegURL(list.Source, seg.URI)
 
-				body, err := dl.fetchSegment(ctx, segURL)
+				body, err := dl.fetchSegment(ctx, u, segURL)
 				if err != nil {
 					return err
+				}
+
+				if body == nil {
+					return nil
 				}
 
 				b, err := io.ReadAll(body)
