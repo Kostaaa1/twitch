@@ -41,7 +41,7 @@ type Spinner struct {
 // 3. Determine what to show in spinner label view - display full path or just title
 type Downloader struct {
 	IsFFmpegEnabled bool            `json:"is_ffmpeg_enabled"`
-	Output          string          `json:"output"`
+	Path            string          `json:"path"`
 	Spinner         Spinner         `json:"spinner"`
 	NamingTemplates NamingTemplates `json:"naming_templates"`
 }
@@ -94,7 +94,7 @@ func Default() *Config {
 		},
 		Downloader: Downloader{
 			IsFFmpegEnabled: false,
-			Output:          "",
+			Path:            "",
 			Spinner: Spinner{
 				Enabled:            true,
 				IncludePathInLabel: false,

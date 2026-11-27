@@ -75,8 +75,13 @@ func (c *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(8)
 
+	results := make([]chan []byte, len(playlist.Segments))
+	for i := range playlist.Segments {
+		results[i] = make(chan []byte, 1)
+	}
+
 	g.Go(func() error {
-		for _, seg := range playlist.Segments {
+		for i, seg := range playlist.Segments {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -102,9 +107,10 @@ func (c *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 							return err
 						}
 
-						seg.Data <- res.BodyBytes
-						close(seg.Data)
+						results[i] <- res.BodyBytes
+						close(results[i])
 					}
+
 					return nil
 				})
 			}
@@ -124,7 +130,7 @@ func (c *Downloader) downloadVOD(ctx context.Context, unit *Unit) error {
 			case <-ctx.Done():
 				return ctx.Err()
 
-			case chunk := <-playlist.Segments[i].Data:
+			case chunk := <-results[i]:
 				n, err := unit.W.Write(chunk)
 				if err != nil {
 					return err

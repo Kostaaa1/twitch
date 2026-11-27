@@ -13,7 +13,6 @@ import (
 	"github.com/Kostaaa1/twitch/internal/config"
 	"github.com/Kostaaa1/twitch/internal/downloader"
 	"github.com/Kostaaa1/twitch/internal/httputil"
-	"github.com/Kostaaa1/twitch/internal/logger"
 	"github.com/Kostaaa1/twitch/pkg/kick"
 	"github.com/Kostaaa1/twitch/pkg/spinner"
 	"github.com/Kostaaa1/twitch/pkg/twitch/gql"
@@ -26,7 +25,7 @@ import (
 
 var (
 	threads    int
-	output     string
+	dirPath    string
 	quality    string
 	watch      bool
 	start, end time.Duration
@@ -137,7 +136,6 @@ func runTwitchEventSub(
 func initSpinner(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	twitchDl *downloader.Downloader,
 	kickDl *kick.Downloader,
 	twitchUnits []*downloader.Unit,
 	kickUnits []*kick.Unit,
@@ -149,7 +147,8 @@ func initSpinner(
 		spinner.WithUnits(kickUnits),
 	)
 
-	kickNotifyFn := func(pm kick.Progress) {
+	// TODO: switch to twitchunits
+	kickDl.SetProgressNotifier(func(pm kick.Progress) {
 		ctxErr := ctx.Err()
 		if ctxErr != nil {
 			if errors.Is(ctxErr, context.Canceled) {
@@ -165,27 +164,27 @@ func initSpinner(
 			Done:  pm.Done,
 			Total: pm.Total,
 		})
-	}
-	kickDl.SetProgressNotifier(kickNotifyFn)
+	})
 
-	twitchNotifyFn := func(pm downloader.Progress) {
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
-			if errors.Is(ctxErr, context.Canceled) {
-				return
+	for _, u := range twitchUnits {
+		u.SetProgressNotifier(func(pm downloader.Progress) {
+			ctxErr := ctx.Err()
+			if ctxErr != nil {
+				if errors.Is(ctxErr, context.Canceled) {
+					return
+				}
+				pm.Error = errors.Join(pm.Error, ctxErr)
 			}
-			pm.Error = errors.Join(pm.Error, ctxErr)
-		}
-		spin.Send(spinner.Message{
-			ID:    pm.ID,
-			Label: pm.Label,
-			Bytes: pm.Bytes,
-			Error: pm.Error,
-			Done:  pm.Done,
-			Total: pm.Total,
+			spin.Send(spinner.Message{
+				ID:    pm.ID,
+				Label: pm.Label,
+				Bytes: pm.Bytes,
+				Error: pm.Error,
+				Done:  pm.Done,
+				Total: pm.Total,
+			})
 		})
 	}
-	twitchDl.SetProgressNotifier(twitchNotifyFn)
 
 	return spin
 }
@@ -209,7 +208,7 @@ func collectUnitsForChannels(ctx context.Context, gqlClient *gql.Client) ([]*dow
 					vod.Node.ID,
 					downloader.WithQuality(quality),
 					downloader.WithTimestamps(start, end),
-					downloader.WithPathname(output),
+					downloader.WithPath(dirPath, true),
 				))
 			}
 		}
@@ -227,7 +226,7 @@ func collectUnitsForChannels(ctx context.Context, gqlClient *gql.Client) ([]*dow
 				units = append(units, downloader.NewUnit(
 					clip.Node.Slug,
 					downloader.WithQuality(quality),
-					downloader.WithPathname(output),
+					downloader.WithPath(dirPath, true),
 				))
 			}
 		}
@@ -260,14 +259,11 @@ func runProcess(
 	mainGroup, ctx := errgroup.WithContext(ctx)
 
 	if cfg.Downloader.Spinner.Enabled && (len(twitchUnits) > 0 || len(kickUnits) > 0) {
-		spin := initSpinner(ctx, cancel, twitchDl, kickDl, twitchUnits, kickUnits)
-		if spin != nil {
-			mainGroup.Go(func() error {
-				spin.Run()
-				cancel()
-				return nil
-			})
-		}
+		spin := initSpinner(ctx, cancel, kickDl, twitchUnits, kickUnits)
+		mainGroup.Go(func() error {
+			defer cancel()
+			return spin.Run()
+		})
 	}
 
 	if len(kickUnits) > 0 {
@@ -301,9 +297,7 @@ func runProcess(
 		})
 	}
 
-	mainGroup.Wait()
-
-	return nil
+	return mainGroup.Wait()
 }
 
 func runDownloadCmd(args []string) error {
@@ -318,34 +312,32 @@ func runDownloadCmd(args []string) error {
 		}
 	}()
 
-	if output == "" {
-		output = cfg.Downloader.Output
+	if dirPath == "" {
+		dirPath = cfg.Downloader.Path
 	}
 
-	f, err := config.OpenFileLogger()
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	log := logger.New(f, verbose)
+	// f, err := config.OpenFileLogger()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer f.Close()
+	// log := logger.New(f, verbose)
 
 	httpClient := &http.Client{
 		Transport: httputil.NewBrowserTransport(
 			http.DefaultTransport,
-			httputil.WithLog(log),
-			// httputil.WithBrowserMimic(),
+			httputil.WithBrowserMimic(),
+			// httputil.WithLog(log),
 		),
 	}
 
 	twitchUnits, kickUnits, err := cli.ParseUnits(cli.ParseUnit{
-		Inputs:     args,
-		Quality:    quality,
-		Start:      start,
-		End:        end,
-		OutputPath: output,
+		Inputs:  args,
+		Quality: quality,
+		Start:   start,
+		End:     end,
+		DirPath: dirPath,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -368,7 +360,7 @@ func init() {
 	flagset := cmd.PersistentFlags()
 	flagset.CountVarP(&verbose, "v", "v", "")
 	flagset.IntVarP(&threads, "threads", "t", 0, "")
-	flagset.StringVarP(&output, "output", "o", "", "download destination")
+	flagset.StringVarP(&dirPath, "path", "p", "", "download destination")
 	flagset.StringVarP(&quality, "quality", "q", "best", "quality for units")
 	flagset.DurationVarP(&start, "start", "s", 0, "start timestamp for VOD units")
 	flagset.DurationVarP(&end, "end", "e", 0, "end timestamp for VOD units")

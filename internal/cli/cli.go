@@ -60,7 +60,7 @@ func handleUnitInput(
 	in string,
 	quality string,
 	start, end time.Duration,
-	outputPath string,
+	dirPath string,
 ) {
 	var unit interface{}
 	if isKickUnit(in) {
@@ -68,14 +68,14 @@ func handleUnitInput(
 			in,
 			quality,
 			kick.WithTimestamps(start, end),
-			kick.WithPathname(outputPath),
+			kick.WithPathname(dirPath),
 		)
 	} else {
 		unit = downloader.NewUnit(
 			in,
 			downloader.WithQuality(quality),
 			downloader.WithTimestamps(start, end),
-			downloader.WithPathname(outputPath),
+			downloader.WithPath(dirPath, true),
 		)
 	}
 	*units = append(*units, unit)
@@ -117,7 +117,7 @@ type ParseUnit struct {
 	Inputs     []string
 	Quality    string
 	Start, End time.Duration
-	OutputPath string
+	DirPath    string
 }
 
 func ParseUnits(pu ParseUnit) ([]*downloader.Unit, []*kick.Unit, error) {
@@ -131,12 +131,12 @@ func ParseUnits(pu ParseUnit) ([]*downloader.Unit, []*kick.Unit, error) {
 			}
 			for _, unit := range inputUnits {
 				if unit.Output == "" {
-					unit.Output = pu.OutputPath
+					unit.Output = pu.DirPath
 				}
 				handleUnitInput(&units, unit.Input, unit.Quality, unit.Start, unit.End, unit.Output)
 			}
 		} else {
-			handleUnitInput(&units, input, pu.Quality, pu.Start, pu.End, pu.OutputPath)
+			handleUnitInput(&units, input, pu.Quality, pu.Start, pu.End, pu.DirPath)
 		}
 	}
 

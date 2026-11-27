@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -42,7 +41,6 @@ type Downloader struct {
 	gql          *gql.Client
 	http         *http.Client
 	usher        *usher.Client
-	notifyFn     func(Progress)
 	transfer     *Transfer
 	retryMuteSeg bool
 }
@@ -57,31 +55,24 @@ func New(gql *gql.Client, http *http.Client) *Downloader {
 	}
 }
 
-func (dl *Downloader) SetProgressNotifier(fn func(Progress)) {
-	dl.notifyFn = fn
-}
-
 func (dl *Downloader) Download(ctx context.Context, u *Unit) error {
 	defer u.CloseWriter()
 
 	if u.Error != nil {
-		dl.notifyDone(u)
+		u.notifyDone()
 		return u.Error
 	}
 
-	var err error
-
 	switch u.Type {
 	case TypeVOD:
-		err = dl.downloadVideo(ctx, u)
+		u.Error = dl.downloadVideo(ctx, u)
 	case TypeClip:
-		err = dl.downloadClip(ctx, u)
+		u.Error = dl.downloadClip(ctx, u)
 	case TypeLivestream:
-		err = dl.recordLivestream(ctx, u)
+		u.Error = dl.recordLivestream(ctx, u)
 	}
 
-	u.Error = err
-	dl.notifyDone(u)
+	u.notifyDone()
 
 	return u.Error
 }
@@ -98,47 +89,10 @@ func (dl *Downloader) fetchTitle(ctx context.Context, u *Unit) (string, error) {
 	return "", fmt.Errorf("failed to fetch title for unit: %s", u.UUID.String())
 }
 
-// func (dl *Downloader) fetchMetadata(ctx context.Context, u *Unit) error {
-// 	switch u.Type {
-// 	case TypeClip:
-// 		data, err := dl.gql.ClipMetadata(ctx, u.ID)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fmt.Println("CLIP DATA", data)
-// 		u.metadata = &metadata{
-// 			id:          data.ID,
-// 			title:       data.Title,
-// 			date:        data.CreatedAt,
-// 			clipCreator: &data.Curator.DisplayName,
-// 		}
-// 	case TypeVOD:
-// 		data, err := dl.gql.VideoMetadata(ctx, u.ID)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fmt.Println("VOD DATA", data)
-// 		u.metadata = &metadata{
-// 			id:    data.Video.ID,
-// 			title: data.Video.Title,
-// 			date:  data.Video.CreatedAt,
-// 		}
-// 	case TypeLivestream:
-// 		data, err := dl.gql.StreamMetadata(ctx, u.ID)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fmt.Println("STREAM DATA")
-// 		u.metadata = &metadata{
-// 			id:    data.User.Stream.ID,
-// 			title: data.User.BroadcastSettings.Title,
-// 			date:  data.User.Stream.CreatedAt,
-// 		}
-// 	}
-// 	return nil
-// }
-
 func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
+	if u.w != nil {
+		return nil
+	}
 	if u.dir == "" {
 		return errors.New("missing dir")
 	}
@@ -154,12 +108,7 @@ func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 		u.filename = title
 	}
 
-	pathname, err := fileutil.ConstructPathname(u.dir, u.filename, u.ext)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := fileutil.Open(u.dir, u.filename, u.ext)
 	if err != nil {
 		return err
 	}
@@ -169,43 +118,17 @@ func (dl *Downloader) openFile(ctx context.Context, u *Unit) error {
 }
 
 func (dl *Downloader) downloadBytes(ctx context.Context, u *Unit, b []byte) error {
-	if u.w == nil {
-		if err := dl.openFile(ctx, u); err != nil {
-			return err
-		}
+	if err := dl.openFile(ctx, u); err != nil {
+		return err
 	}
-	n, err := u.w.Write(b)
+
+	written, err := u.w.Write(b)
 	if err != nil {
 		return err
 	}
-	dl.notifyProgress(u, int64(n))
-	return nil
-}
-
-func (dl *Downloader) download(ctx context.Context, u *Unit, r io.ReadCloser) error {
-	defer r.Close()
-
-	if u.w == nil {
-		if err := dl.openFile(ctx, u); err != nil {
-			return err
-		}
-	}
-
-	n, err := io.Copy(u.w, r)
-	if err != nil {
-		return err
-	}
-	dl.notifyProgress(u, n)
+	u.notifyProgress(int64(written))
 
 	return nil
-}
-
-func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
-	body, err := dl.fetchSegment(ctx, u, segURL)
-	if err != nil {
-		return err
-	}
-	return dl.download(ctx, u, body)
 }
 
 func withSegmentSuffix(segURL, replacer string) string {
@@ -239,7 +162,7 @@ func segmentSuffix(segURL string) string {
 func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, segURL string) (io.ReadCloser, error) {
 	candidates := make([]string, 0)
 
-	recovering := u.unmuteFailStreak.Load() <= u.maxUnmuteFailStreak && segmentSuffix(segURL) == "-muted"
+	recovering := u.unmuteFailStreak.Load() <= maxUnmuteFailStreak && segmentSuffix(segURL) == "-muted"
 	if recovering {
 		candidates = append(candidates, withSegmentSuffix(segURL, "-unmuted"))
 		candidates = append(candidates, withSegmentSuffix(segURL, ""))
@@ -252,20 +175,19 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, segURL string) 
 			return nil, err
 		}
 
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			if resp.StatusCode == http.StatusForbidden {
+		code := resp.StatusCode
+
+		if code < 200 || code >= 300 {
+			if code == http.StatusForbidden {
 				resp.Body.Close()
 				continue
 			}
-
 			b, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if err != nil {
 				return nil, fmt.Errorf("failed to read the error response: %v", err)
 			}
-			return nil, fmt.Errorf(
-				"failed to fetch segment - invalid status code %d: response: %s", resp.StatusCode, string(b),
-			)
+			return nil, fmt.Errorf("failed to fetch segment - invalid status code %d: response: %s", code, string(b))
 		}
 
 		if recovering {
@@ -280,4 +202,25 @@ func (dl *Downloader) fetchSegment(ctx context.Context, u *Unit, segURL string) 
 	}
 
 	return nil, fmt.Errorf("failed to fetch the segment: url=%s", segURL)
+}
+
+func (dl *Downloader) fetchDownload(ctx context.Context, u *Unit, segURL string) error {
+	r, err := dl.fetchSegment(ctx, u, segURL)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	if err := dl.openFile(ctx, u); err != nil {
+		return err
+	}
+
+	written, err := io.Copy(u.w, r)
+	if err != nil {
+		return err
+	}
+
+	u.notifyProgress(written)
+
+	return nil
 }

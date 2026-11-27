@@ -15,10 +15,12 @@ import (
 type Segment struct {
 	URI      string
 	Duration time.Duration
-	Data     chan []byte
+	// Data     chan []byte
 }
 
-func (s *Segment) Alloc() { s.Data = make(chan []byte, 1) }
+// func (s *Segment) Alloc() {
+// 	s.Data = make(chan []byte, 1)
+// }
 
 type Map struct {
 	URI       string
@@ -38,8 +40,8 @@ type MediaPlaylist struct {
 }
 
 func (mp *MediaPlaylist) Truncate(start, end time.Duration) error {
-	if start > mp.TotalSecs {
-		return fmt.Errorf("provided start pointer %s exceeds playlist total %s", start, mp.TotalSecs)
+	if len(mp.Segments) == 0 {
+		return errors.New("playlist has no segments")
 	}
 	if end < 0 {
 		return errors.New("end pointer must not be less then zero")
@@ -48,30 +50,37 @@ func (mp *MediaPlaylist) Truncate(start, end time.Duration) error {
 		return errors.New("start pointer must not be equal or larger then end")
 	}
 
-	total := time.Duration(0)
+	t := time.Duration(0)
 
 	startIdx := 0
 	if start > 0 {
 		for _, seg := range mp.Segments {
-			if total >= start {
+			if t+seg.Duration > start {
 				break
 			}
-			total += seg.Duration
+			t += seg.Duration
 			startIdx++
 		}
 	}
 
-	endIdx := len(mp.Segments)
+	if startIdx == len(mp.Segments) {
+		return fmt.Errorf("provided start %s exceeds playlist total: %s", start, t)
+	}
 
+	endIdx := len(mp.Segments)
 	if end > 0 {
 		endIdx = startIdx
-		for _, seg := range mp.Segments {
-			if total >= end {
+		for _, seg := range mp.Segments[startIdx:] {
+			if t >= end {
 				break
 			}
-			total += seg.Duration
+			t += seg.Duration
 			endIdx++
 		}
+	}
+
+	if end > t {
+		return fmt.Errorf("provided end %s exceeds playist total: %s", end, t)
 	}
 
 	mp.Segments = slices.Clone(mp.Segments[startIdx:endIdx])

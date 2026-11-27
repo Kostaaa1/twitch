@@ -52,13 +52,21 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 	if err != nil {
 		return err
 	}
-
-	if err := u.setFileExt(list.Segments[0].URI); err != nil {
-		return err
+	if list.Map != nil && list.Map.URI != "" {
+		mp4segURL := buildSegURL(list.Source, list.Map.URI)
+		if err := dl.fetchDownload(ctx, u, mp4segURL); err != nil {
+			return err
+		}
 	}
 
-	if list.Map != nil && list.Map.URI != "" {
-		if err := dl.fetchDownload(ctx, u, buildSegURL(list.Source, list.Map.URI)); err != nil {
+	// allocate data channels
+	results := make([]chan []byte, len(list.Segments))
+	for i := 0; i < len(list.Segments); i++ {
+		results[i] = make(chan []byte, 1)
+	}
+
+	if u.ext == "" {
+		if err := u.setFileExt(list.Segments[0].URI); err != nil {
 			return err
 		}
 	}
@@ -83,16 +91,11 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 				}
 
 				seg := list.Segments[chunkIdx]
-				seg.Alloc()
-				segURL := buildSegURL(list.Source, seg.URI)
 
+				segURL := buildSegURL(list.Source, seg.URI)
 				body, err := dl.fetchSegment(ctx, u, segURL)
 				if err != nil {
 					return err
-				}
-
-				if body == nil {
-					return nil
 				}
 
 				b, err := io.ReadAll(body)
@@ -101,8 +104,8 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 					return err
 				}
 
-				seg.Data <- b
-				close(seg.Data)
+				results[chunkIdx] <- b
+				close(results[chunkIdx])
 			}
 		})
 	}
@@ -118,7 +121,7 @@ func (dl *Downloader) downloadVideo(ctx context.Context, u *Unit) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case b := <-list.Segments[i].Data:
+			case b := <-results[i]:
 				if err := dl.downloadBytes(ctx, u, b); err != nil {
 					return err
 				}

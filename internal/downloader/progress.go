@@ -9,11 +9,11 @@ type Progress struct {
 	Total float64
 }
 
-func (dl *Downloader) notifyProgress(u *Unit, n int64) {
-	if dl.notifyFn == nil {
+func (u *Unit) notifyProgress(n int64) {
+	if u.notifyFn == nil {
 		return
 	}
-	dl.notifyFn(Progress{
+	u.notifyFn(Progress{
 		ID:    u.GetID(),
 		Label: u.GetLabel(),
 		Error: u.GetError(),
@@ -23,11 +23,11 @@ func (dl *Downloader) notifyProgress(u *Unit, n int64) {
 	})
 }
 
-func (dl *Downloader) notifyDone(u *Unit) {
-	if dl.notifyFn == nil {
+func (u *Unit) notifyDone() {
+	if u.notifyFn == nil {
 		return
 	}
-	dl.notifyFn(Progress{
+	u.notifyFn(Progress{
 		ID:    u.GetID(),
 		Label: u.GetLabel(),
 		Error: u.GetError(),

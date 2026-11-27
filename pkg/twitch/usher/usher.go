@@ -19,6 +19,7 @@ var qualityFormats = map[string]struct {
 	FPS    string
 }{
 	"chunked":    {Format: "1080p60", Res: "1920x1080", FPS: "60"},
+	"1080p60":    {Format: "1080p60", Res: "1920x1080", FPS: "60"},
 	"720p60":     {Format: "720p60", Res: "1280x720", FPS: "60"},
 	"720p30":     {Format: "720p30", Res: "1280x720", FPS: "30"},
 	"480p30":     {Format: "480p30", Res: "854x480", FPS: "30"},
@@ -49,14 +50,7 @@ func (c *Client) MasterPlaylistStream(ctx context.Context, channel string) (*m3u
 		tok.Signature,
 	)
 
-	b, code, err := httputil.DoBytes(
-		ctx,
-		c.http,
-		url,
-		http.MethodGet,
-		nil,
-		nil,
-	)
+	b, code, err := httputil.DoBytes(ctx, c.http, url, http.MethodGet, nil, nil)
 
 	if code == http.StatusNotFound {
 		return nil, fmt.Errorf("channel %s is not currently live", channel)
@@ -147,12 +141,7 @@ func (c *Client) mockMasterPlaylist(ctx context.Context, vodID string) (*m3u8.Ma
 		case "UPLOAD":
 		case "HIGHLIGHT":
 		case "ARCHIVE":
-			listURL = fmt.Sprintf(
-				"https://%s.cloudfront.net/%s/%s/index-dvr.m3u8",
-				subdomain,
-				id,
-				key,
-			)
+			listURL = fmt.Sprintf("https://%s.cloudfront.net/%s/%s/index-dvr.m3u8", subdomain, id, key)
 		default:
 			return nil, errors.New("unsupported broadcast type")
 		}

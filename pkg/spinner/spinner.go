@@ -59,6 +59,15 @@ func (m *Model) Send(msg Message) {
 	m.channel <- msg
 }
 
+func (m *Model) markDone(u *unit, err error) {
+	if u.done {
+		return
+	}
+	m.doneCount++
+	u.done = true
+	u.err = err
+}
+
 type spinnerOpts func(m *Model)
 
 func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
@@ -67,32 +76,25 @@ func WithCancelFunc(cancel context.CancelFunc) spinnerOpts {
 	}
 }
 
-func (m *Model) newunit(u UnitProvider) *unit {
-	newunit := &unit{
-		id:        u.GetID(),
-		label:     u.GetLabel(),
-		err:       u.GetError(),
-		byteCount: 0,
-		total:     0,
-		done:      false,
-		elapsed:   0,
-		startTime: time.Time{},
-		estimated: time.Time{},
-	}
-	if newunit.err != nil {
-		m.doneCount++
-		newunit.done = true
-	}
-	return newunit
-}
-
 func WithUnits[T UnitProvider](units []T) spinnerOpts {
 	return func(m *Model) {
 		for _, u := range units {
-			m.units = append(m.units, m.newunit(u))
+			newunit := &unit{
+				id:    u.GetID(),
+				label: u.GetLabel(),
+				err:   u.GetError(),
+			}
+
+			if newunit.err != nil {
+				m.markDone(newunit, newunit.err)
+			}
+
+			m.units = append(m.units, newunit)
 		}
 	}
 }
+
+func (m *Model) isDone() bool { return len(m.units) == m.doneCount }
 
 func New(ctx context.Context, opts ...spinnerOpts) *Model {
 	s := spinner.New()
@@ -148,11 +150,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case Message:
 				m.updateModelUnit(msg)
+
 				var cmd tea.Cmd
 				m.spinner, cmd = m.spinner.Update(msg)
-				if len(m.units) == m.doneCount {
+
+				if m.isDone() {
 					return m.exit()
 				}
+
 				return m, tea.Batch(cmd, m.waitForMsg())
 
 			default:
@@ -166,8 +171,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) updateModelUnit(msg Message) {
-	found := false
-
 	for i := 0; i < len(m.units); i++ {
 		unit := m.units[i]
 		if unit.id == msg.ID {
@@ -179,42 +182,11 @@ func (m *Model) updateModelUnit(msg Message) {
 				unit.startTime = time.Now()
 			}
 
-			if msg.Error != nil {
-				unit.err = msg.Error
-				unit.done = true
+			if msg.Error != nil || msg.Done {
+				m.markDone(unit, msg.Error)
 			}
-
-			if msg.Done {
-				unit.done = msg.Done
-				m.doneCount++
-			}
-
-			found = true
 		}
 	}
-
-	if !found {
-		panic("assert: should have all units initialized")
-	}
-
-	// if !found {
-	// 	newunit := &unit{
-	// 		id:        msg.ID,
-	// 		label:     msg.Label,
-	// 		err:       msg.Error,
-	// 		byteCount: float64(msg.Bytes),
-	// 		total:     msg.Total,
-	// 		done:      msg.Done,
-	// 		elapsed:   0,
-	// 		startTime: time.Time{},
-	// 		estimated: time.Time{},
-	// 	}
-	// 	if msg.Error != nil {
-	// 		m.doneCount++
-	// 		newunit.done = true
-	// 	}
-	// 	m.units = append(m.units, newunit)
-	// }
 }
 
 func (m Model) View() string {
@@ -231,11 +203,15 @@ func (m Model) View() string {
 	return style.Render(str.String())
 }
 
-func (m *Model) Run() {
+func (m *Model) Run() error {
+	defer close(m.channel)
+
 	m.program = tea.NewProgram(m)
 	if _, err := m.program.Run(); err != nil {
-		panic(err)
+		return err
 	}
+
+	return nil
 }
 
 func (m *Model) exit() (tea.Model, tea.Cmd) {
@@ -243,14 +219,7 @@ func (m *Model) exit() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.exiting = true
-
-	for _, unit := range m.units {
-		unit.done = true
-	}
-
-	close(m.channel)
 	m.cancel()
-
 	return m, tea.Quit
 }
 

@@ -49,13 +49,7 @@ func WithPathname(pathname string) unitOptions {
 		}
 
 		ext = "mp4"
-		newp, err := fileutil.ConstructPathname(dir, filename, ext)
-		if err != nil {
-			u.Error = err
-			return
-		}
-
-		u.W, u.Error = os.OpenFile(newp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		u.W, u.Error = fileutil.Open(dir, filename, ext)
 	}
 }
 

@@ -4,12 +4,32 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/twitch/internal/httputil"
 )
+
+func newSegments(s []string, last string) ([]string, string) {
+	if len(s) == 0 {
+		return nil, last
+	}
+
+	idx := slices.Index(s, last)
+	if idx == -1 {
+		return s, s[len(s)-1]
+	}
+
+	if idx+1 >= len(s) {
+		return nil, last
+	}
+
+	send := s[idx+1:]
+	return send, send[len(send)-1]
+}
 
 func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 	master, err := dl.usher.MasterPlaylistStream(ctx, u.ID)
@@ -35,11 +55,11 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 			select {
 			case <-ctx.Done():
 				return
-			case tsURL, ok := <-segURLChan:
+			case segURL, ok := <-segURLChan:
 				if !ok {
 					return
 				}
-				if err := dl.fetchDownload(ctx, u, tsURL); err != nil {
+				if err := dl.fetchDownload(ctx, u, segURL); err != nil {
 					errCh <- err
 					close(errCh)
 					return
@@ -48,7 +68,7 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 		}
 	}()
 
-	lastSegmentURL := ""
+	lastSegURL := ""
 
 	for {
 		select {
@@ -61,50 +81,47 @@ func (dl *Downloader) recordLivestream(ctx context.Context, u *Unit) error {
 			if err != nil {
 				return err
 			}
-
-			if resp.StatusCode == http.StatusNotFound {
+			code := resp.StatusCode
+			if code == http.StatusNotFound {
 				resp.Body.Close()
-				return errors.New("playlist not found - channel is not live anymore")
+				return errors.New("playlist not found - channel is not currently live")
+			}
+			if code < 200 || code >= 300 {
+				resp.Body.Close()
+				return fmt.Errorf("non success code for livestream playlist: playlist=%s code=%d", list.Source, code)
 			}
 
 			s := bufio.NewScanner(resp.Body)
-
-			lastPollURL := ""
-			seenLastSegURL := false
+			segments := make([]string, 0)
 
 			for s.Scan() {
 				if s.Err() != nil {
 					resp.Body.Close()
 					return s.Err()
 				}
-
 				line := s.Text()
-
 				if strings.HasPrefix(line, "#EXTINF") {
-					// skipping ads..
 					if strings.Contains(line, "Amazon") {
 						continue
 					}
-
 					s.Scan()
-					lastPollURL = s.Text()
-
-					if lastPollURL == lastSegmentURL {
-						seenLastSegURL = true
-					}
-
-					if lastSegmentURL == "" || seenLastSegURL && lastPollURL != lastSegmentURL {
-						if u.ext == "" {
-							if err := u.setFileExt(lastPollURL); err != nil {
-								return err
-							}
-						}
-						segURLChan <- lastPollURL
-					}
+					segments = append(segments, line)
 				}
 			}
 
-			lastSegmentURL = lastPollURL
+			seen, last := newSegments(segments, lastSegURL)
+			if last != "" {
+				for _, segURL := range seen {
+					if u.ext == "" {
+						if err := u.setFileExt(segURL); err != nil {
+							return err
+						}
+					}
+					segURLChan <- segURL
+				}
+				lastSegURL = last
+			}
+
 			resp.Body.Close()
 		}
 	}

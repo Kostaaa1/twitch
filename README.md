@@ -20,7 +20,7 @@ Pass a URL, a VOD ID, a clip slug or a channel name:
 ./twitch download xqc                 # records the live stream
 ```
 
-Full links work too, e.g. `twitch.tv/videos/2926188923` or `twitch.tv/xqc`. If a VOD link has a `?t=1h2m3s` timestamp, the download starts from there.
+Full links work too, e.g. `https://www.twitch.tv/videos/2926188923` or `https://www.twitch.tv/xqc`. If a VOD link has a `?t=1h2m3s` timestamp, the download starts from there.
 
 You can pass several at once, and they download in parallel. Use `-t` to limit how many run at the same time.
 
